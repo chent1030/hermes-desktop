@@ -35,6 +35,7 @@ import skillsZhCn from "./locales/zh-CN/skills";
 import platformZhCn from "./locales/zh-CN/platform";
 import sessionsZhCn from "./locales/zh-CN/sessions";
 import agentsZhCn from "./locales/zh-CN/agents";
+import errorsZhCn from "./locales/zh-CN/errors";
 
 export const resources = {
   en: {
@@ -72,7 +73,7 @@ export const resources = {
       sessions: sessionsZhCn,
       models: modelsZhCn,
       office: officeEn,
-      errors: errorsEn,
+      errors: errorsZhCn,
       schedules: schedulesEn,
       skills: skillsZhCn,
       gateway: gatewayEn,

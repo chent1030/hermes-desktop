@@ -25,6 +25,7 @@ export default {
   stop: "停止",
   refresh: "刷新",
   copy: "复制",
+  copied: "已复制",
   settings: "设置",
   provider: "提供方",
   model: "模型",
