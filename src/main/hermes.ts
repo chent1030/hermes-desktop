@@ -127,6 +127,53 @@ export interface ChatCallbacks {
   }) => void;
 }
 
+interface ChatAuditContext {
+  messageLength: number;
+  profile?: string;
+  resumeSessionId?: string;
+}
+
+function flushChatAuditEvent(
+  type: string,
+  payload: Record<string, unknown>,
+): void {
+  enqueueAuditEvent({ type, payload });
+  void flushWorkspaceAuditEvents();
+}
+
+function recordChatStarted(context: ChatAuditContext): void {
+  flushChatAuditEvent("chat.started", {
+    messageLength: context.messageLength,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+  });
+}
+
+function recordChatCompleted(
+  context: ChatAuditContext & { sessionId?: string },
+): void {
+  flushChatAuditEvent("chat.completed", {
+    sessionId: context.sessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+  });
+}
+
+function recordChatFailed(
+  context: ChatAuditContext & {
+    error: string;
+    sessionId?: string;
+  },
+): void {
+  flushChatAuditEvent("chat.failed", {
+    error: context.error,
+    sessionId: context.sessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+  });
+  markAuditFailure(context.error);
+}
+
 function sendMessageViaApi(
   message: string,
   cb: ChatCallbacks,
@@ -136,16 +183,13 @@ function sendMessageViaApi(
 ): ChatHandle {
   const mc = resolveRuntimeModel(profile);
   const controller = new AbortController();
+  const auditContext: ChatAuditContext = {
+    messageLength: message.length,
+    profile,
+    resumeSessionId: _resumeSessionId,
+  };
 
-  enqueueAuditEvent({
-    type: "chat.started",
-    payload: {
-      messageLength: message.length,
-      profile: profile || null,
-      resumeSessionId: _resumeSessionId || null,
-    },
-  });
-  void flushWorkspaceAuditEvents();
+  recordChatStarted(auditContext);
 
   // Build full conversation from history + current message (standard OpenAI format)
   const messages: Array<{ role: string; content: string }> = [];
@@ -180,14 +224,17 @@ function sendMessageViaApi(
     if (finished) return;
     finished = true;
     if (error) {
-      markAuditFailure(error);
+      recordChatFailed({
+        ...auditContext,
+        error,
+        sessionId,
+      });
       cb.onError(error);
     } else {
-      enqueueAuditEvent({
-        type: "chat.completed",
-        payload: { sessionId: sessionId || null },
+      recordChatCompleted({
+        ...auditContext,
+        sessionId,
       });
-      void flushWorkspaceAuditEvents();
       cb.onDone(sessionId || undefined);
     }
   }
@@ -409,6 +456,13 @@ function sendMessageViaCli(
 ): ChatHandle {
   const mc = resolveRuntimeModel(profile);
   const profileEnv = readEnv(profile);
+  const auditContext: ChatAuditContext = {
+    messageLength: message.length,
+    profile,
+    resumeSessionId,
+  };
+
+  recordChatStarted(auditContext);
 
   const args = [HERMES_SCRIPT];
   if (profile && profile !== "default") {
@@ -550,18 +604,31 @@ function sendMessageViaCli(
 
   proc.on("close", (code) => {
     if (code === 0 || hasOutput) {
+      recordChatCompleted({
+        ...auditContext,
+        sessionId: capturedSessionId,
+      });
       cb.onDone(capturedSessionId || undefined);
     } else {
       const detail = stderrBuffer.trim();
-      cb.onError(
-        detail
-          ? `Hermes exited with code ${code}: ${detail}`
-          : `Hermes exited with code ${code}. Check your model configuration and API key.`,
-      );
+      const message = detail
+        ? `Hermes exited with code ${code}: ${detail}`
+        : `Hermes exited with code ${code}. Check your model configuration and API key.`;
+      recordChatFailed({
+        ...auditContext,
+        error: message,
+        sessionId: capturedSessionId,
+      });
+      cb.onError(message);
     }
   });
 
   proc.on("error", (err) => {
+    recordChatFailed({
+      ...auditContext,
+      error: err.message,
+      sessionId: capturedSessionId,
+    });
     cb.onError(err.message);
   });
 
