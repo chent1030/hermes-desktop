@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { I18nProvider } from "../../components/I18nProvider";
 import WorkspaceBanner from "./WorkspaceBanner";
 
 describe("WorkspaceBanner", () => {
@@ -12,14 +13,16 @@ describe("WorkspaceBanner", () => {
     });
 
     render(
-      <WorkspaceBanner
-        audit={{
-          health: "degraded",
-          queuedEvents: 42,
-          droppedEvents: 3,
-          lastError: "503 service unavailable",
-        }}
-      />,
+      <I18nProvider>
+        <WorkspaceBanner
+          audit={{
+            health: "degraded",
+            queuedEvents: 42,
+            droppedEvents: 3,
+            lastError: "503 service unavailable",
+          }}
+        />
+      </I18nProvider>,
     );
 
     expect(screen.getByText("Audit warning")).toBeInTheDocument();
@@ -33,14 +36,16 @@ describe("WorkspaceBanner", () => {
 
   it("shows a blocking error banner when re-auth is required", () => {
     render(
-      <WorkspaceBanner
-        audit={{
-          health: "reauth-required",
-          queuedEvents: 4,
-          droppedEvents: 0,
-          lastError: "refresh token expired",
-        }}
-      />,
+      <I18nProvider>
+        <WorkspaceBanner
+          audit={{
+            health: "reauth-required",
+            queuedEvents: 4,
+            droppedEvents: 0,
+            lastError: "refresh token expired",
+          }}
+        />
+      </I18nProvider>,
     );
 
     expect(screen.getByText("Audit blocked")).toBeInTheDocument();

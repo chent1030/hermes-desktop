@@ -36,6 +36,7 @@ import {
   platformInitializeWorkspace,
   platformLogin,
   platformRefreshSession,
+  platformSelectModel,
 } from "../src/main/platform/index";
 import {
   enqueueAuditEvent,
@@ -113,5 +114,28 @@ describe("platform lifecycle audit", () => {
       }),
     );
     expect(markAuditReauthRequired).toHaveBeenCalledWith("refresh token expired");
+  });
+
+  it("records a model selection failure audit event", async () => {
+    const error = new Error("unauthorized model");
+    const { selectWorkspaceModel } = await import("../src/main/platform/runtime");
+    vi.mocked(selectWorkspaceModel).mockImplementationOnce(() => {
+      throw error;
+    });
+
+    await expect(platformSelectModel("m-unauthorized")).rejects.toThrow(
+      "unauthorized model",
+    );
+
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "model.select.failed",
+        payload: expect.objectContaining({
+          modelId: "m-unauthorized",
+          error: "unauthorized model",
+        }),
+      }),
+    );
+    expect(markAuditFailure).toHaveBeenCalledWith("unauthorized model");
   });
 });

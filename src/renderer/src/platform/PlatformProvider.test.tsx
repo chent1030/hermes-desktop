@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { I18nProvider } from "../components/I18nProvider";
 
 vi.mock("../screens/Layout/Layout", () => ({
   default: () => <div>Workspace ready</div>,
@@ -38,9 +39,11 @@ describe("PlatformProvider", () => {
     });
 
     render(
-      <PlatformProvider>
-        <DesktopRoot />
-      </PlatformProvider>,
+      <I18nProvider>
+        <PlatformProvider>
+          <DesktopRoot />
+        </PlatformProvider>
+      </I18nProvider>,
     );
 
     fireEvent.change(screen.getByLabelText("Tenant"), {

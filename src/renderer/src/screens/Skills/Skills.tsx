@@ -3,6 +3,7 @@ import type {
   LocalSkillState,
   SkillCatalogItem,
 } from "../../../../shared/platform/contracts";
+import { useI18n } from "../../components/useI18n";
 
 interface SkillsProps {
   profile?: string;
@@ -11,16 +12,23 @@ interface SkillsProps {
   onDownloadSkill?: (skillId: string) => Promise<void>;
 }
 
-function getLocalVersionSummary(skill: SkillCatalogItem, local: LocalSkillState): string | null {
+function getLocalVersionSummary(
+  skill: SkillCatalogItem,
+  local: LocalSkillState,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string | null {
   if (local.status === "outdated" && local.version) {
-    return `Local ${local.version} / Platform ${skill.version}`;
+    return t("skills.localVersionDiff", {
+      local: local.version,
+      platform: skill.version,
+    });
   }
 
   if (
     (local.status === "installed" || local.status === "downloaded") &&
     local.version
   ) {
-    return `Local ${local.version}`;
+    return t("skills.localVersion", { version: local.version });
   }
 
   return null;
@@ -41,6 +49,7 @@ export default function Skills({
   localStates,
   onDownloadSkill,
 }: SkillsProps): React.JSX.Element {
+  const { t } = useI18n();
   const [detectedStates, setDetectedStates] = useState<LocalSkillState[]>(
     localStates || [],
   );
@@ -87,9 +96,9 @@ export default function Skills({
     <div className="skills-container">
       <div className="skills-header">
         <div>
-          <h2 className="skills-title">Skills</h2>
+          <h2 className="skills-title">{t("skills.title")}</h2>
           <p className="skills-subtitle">
-            Browse the platform catalog and your local installation state.
+            {t("skills.subtitle")}
           </p>
         </div>
       </div>
@@ -99,14 +108,26 @@ export default function Skills({
           <div key={skill.id} className="skills-card">
             <div className="skills-card-title">{skill.name}</div>
             <div className="skills-card-meta">
-              <span>{skill.scope}</span>
+              <span>
+                {skill.scope === "global"
+                  ? t("skills.scopeGlobal")
+                  : t("skills.scopeTenant")}
+              </span>
               <span>{skill.version}</span>
             </div>
             <div className="skills-card-description">{skill.description}</div>
-            <div className="skills-card-status">{skill.local.status}</div>
-            {getLocalVersionSummary(skill, skill.local) && (
+            <div className="skills-card-status">
+              {t(
+                `skills.status.${
+                  skill.local.status === "not-downloaded"
+                    ? "notDownloaded"
+                    : skill.local.status
+                }`,
+              )}
+            </div>
+            {getLocalVersionSummary(skill, skill.local, t) && (
               <div className="skills-card-local-version">
-                {getLocalVersionSummary(skill, skill.local)}
+                {getLocalVersionSummary(skill, skill.local, t)}
               </div>
             )}
             {skill.local.path && (
@@ -116,7 +137,7 @@ export default function Skills({
               className="btn btn-secondary btn-sm"
               onClick={() => void handleDownload(skill.id)}
             >
-              Download
+              {t("skills.download")}
             </button>
           </div>
         ))}

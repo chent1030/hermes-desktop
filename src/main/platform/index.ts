@@ -105,13 +105,23 @@ export async function platformInitializeWorkspace(): Promise<WorkspaceBootstrap>
 export async function platformSelectModel(
   modelId: string,
 ): Promise<WorkspaceBootstrap> {
-  const workspace = selectWorkspaceModel(modelId);
-  enqueueAuditEvent({
-    type: "model.selected",
-    payload: { modelId },
-  });
-  void flushWorkspaceAuditEvents();
-  return workspace;
+  try {
+    const workspace = selectWorkspaceModel(modelId);
+    enqueueAuditEvent({
+      type: "model.selected",
+      payload: { modelId },
+    });
+    void flushWorkspaceAuditEvents();
+    return workspace;
+  } catch (error) {
+    const message = (error as Error).message;
+    enqueueAuditEvent({
+      type: "model.select.failed",
+      payload: { modelId, error: message },
+    });
+    markAuditFailure(message);
+    throw error;
+  }
 }
 
 export async function platformGetAuditStatus(): Promise<AuditStatus> {

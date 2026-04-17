@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { I18nProvider } from "../../components/I18nProvider";
 import WorkspaceShell from "./WorkspaceShell";
 
 vi.mock("../Layout/Layout", () => ({
@@ -11,26 +12,28 @@ vi.mock("../Layout/Layout", () => ({
 describe("WorkspaceShell", () => {
   it("shows tenant, user, selected model, and hides Gateway nav entry", () => {
     render(
-      <WorkspaceShell
-        workspace={{
-          tenant: { id: "t1", code: "acme", name: "Acme" },
-          user: { id: "u1", username: "alice", displayName: "Alice" },
-          locale: "zh-CN",
-          features: { gatewayVisible: false },
-          models: [
-            {
-              id: "m1",
-              provider: "openai",
-              model: "gpt-5.4",
-              label: "GPT-5.4",
-              baseUrl: "",
-              isDefault: true,
-            },
-          ],
-          selectedModelId: "m1",
-          skills: [],
-        }}
-      />,
+      <I18nProvider>
+        <WorkspaceShell
+          workspace={{
+            tenant: { id: "t1", code: "acme", name: "Acme" },
+            user: { id: "u1", username: "alice", displayName: "Alice" },
+            locale: "zh-CN",
+            features: { gatewayVisible: false },
+            models: [
+              {
+                id: "m1",
+                provider: "openai",
+                model: "gpt-5.4",
+                label: "GPT-5.4",
+                baseUrl: "",
+                isDefault: true,
+              },
+            ],
+            selectedModelId: "m1",
+            skills: [],
+          }}
+        />
+      </I18nProvider>,
     );
 
     expect(screen.getByText("Acme")).toBeInTheDocument();

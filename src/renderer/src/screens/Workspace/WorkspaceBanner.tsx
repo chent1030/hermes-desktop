@@ -1,23 +1,30 @@
 import type { AuditStatus } from "../../../../shared/platform/audit";
+import { useI18n } from "../../components/useI18n";
 
-function getBannerTitle(audit: AuditStatus): string {
+function getBannerTitle(
+  audit: AuditStatus,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
   if (audit.health === "reauth-required") {
-    return "Audit blocked";
+    return t("platform.auditBlockedTitle");
   }
 
-  return "Audit warning";
+  return t("platform.auditWarningTitle");
 }
 
-function getBannerMessage(audit: AuditStatus): string {
+function getBannerMessage(
+  audit: AuditStatus,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
   if (audit.health === "buffering") {
-    return "Audit upload interrupted. Events are buffering in memory.";
+    return t("platform.auditBufferingHint");
   }
 
   if (audit.health === "degraded") {
-    return "Audit upload is degraded. Retry is recommended.";
+    return t("platform.auditDegradedHint");
   }
 
-  return "Session expired. Please sign in again.";
+  return t("platform.auditReauthHint");
 }
 
 export default function WorkspaceBanner({
@@ -25,20 +32,22 @@ export default function WorkspaceBanner({
 }: {
   audit: AuditStatus | null;
 }): React.JSX.Element | null {
+  const { t } = useI18n();
+
   if (!audit || audit.health === "healthy") {
     return null;
   }
 
   return (
     <div className={`workspace-banner workspace-banner-${audit.health}`}>
-      <strong>{getBannerTitle(audit)}</strong>
-      <div>{getBannerMessage(audit)}</div>
-      <div>{`Queued: ${audit.queuedEvents}`}</div>
-      <div>{`Dropped: ${audit.droppedEvents}`}</div>
+      <strong>{getBannerTitle(audit, t)}</strong>
+      <div>{getBannerMessage(audit, t)}</div>
+      <div>{t("platform.auditQueued", { count: audit.queuedEvents })}</div>
+      <div>{t("platform.auditDropped", { count: audit.droppedEvents })}</div>
       {audit.lastError && <div>{audit.lastError}</div>}
       {(audit.health === "buffering" || audit.health === "degraded") && (
         <button onClick={() => void window.hermesAPI.retryAuditFlush()}>
-          Retry audit upload
+          {t("platform.retryAuditUpload")}
         </button>
       )}
     </div>
