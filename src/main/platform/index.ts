@@ -4,29 +4,36 @@ import type {
   TenantLoginInput,
   WorkspaceBootstrap,
 } from "../../shared/platform/contracts";
+import {
+  clearWorkspaceSession,
+  initializeWorkspaceState,
+  loginWithPassword,
+  refreshWorkspaceSession,
+  selectWorkspaceModel,
+} from "./runtime";
 
 export async function platformLogin(
-  _payload: TenantLoginInput,
+  payload: TenantLoginInput,
 ): Promise<void> {
-  throw new Error("platform login not implemented");
+  await loginWithPassword(payload);
 }
 
 export async function platformRefreshSession(): Promise<void> {
-  throw new Error("platform refresh not implemented");
+  await refreshWorkspaceSession();
 }
 
 export async function platformLogout(): Promise<void> {
-  return;
+  clearWorkspaceSession();
 }
 
 export async function platformInitializeWorkspace(): Promise<WorkspaceBootstrap> {
-  throw new Error("platform init not implemented");
+  return initializeWorkspaceState();
 }
 
 export async function platformSelectModel(
-  _modelId: string,
+  modelId: string,
 ): Promise<WorkspaceBootstrap> {
-  throw new Error("platform select model not implemented");
+  return selectWorkspaceModel(modelId);
 }
 
 export async function platformGetAuditStatus(): Promise<AuditStatus> {
