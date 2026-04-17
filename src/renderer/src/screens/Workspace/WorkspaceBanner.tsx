@@ -17,6 +17,11 @@ export default function WorkspaceBanner({
         "Audit upload is degraded. Retry is recommended."}
       {audit.health === "reauth-required" &&
         "Session expired. Please sign in again."}
+      {audit.health === "buffering" && (
+        <button onClick={() => void window.hermesAPI.retryAuditFlush()}>
+          Retry audit upload
+        </button>
+      )}
     </div>
   );
 }

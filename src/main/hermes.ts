@@ -11,6 +11,11 @@ import {
   getEnhancedPath,
 } from "./installer";
 import { getModelConfig, readEnv } from "./config";
+import {
+  enqueueAuditEvent,
+  markAuditFailure,
+  markAuditSuccess,
+} from "./platform/audit";
 import { getWorkspaceRuntime } from "./platform/runtime";
 import { stripAnsi } from "./utils";
 
@@ -130,6 +135,15 @@ function sendMessageViaApi(
   const mc = resolveRuntimeModel(profile);
   const controller = new AbortController();
 
+  enqueueAuditEvent({
+    type: "chat.started",
+    payload: {
+      messageLength: message.length,
+      profile: profile || null,
+      resumeSessionId: _resumeSessionId || null,
+    },
+  });
+
   // Build full conversation from history + current message (standard OpenAI format)
   const messages: Array<{ role: string; content: string }> = [];
   if (history && history.length > 0) {
@@ -163,8 +177,14 @@ function sendMessageViaApi(
     if (finished) return;
     finished = true;
     if (error) {
+      markAuditFailure(error);
       cb.onError(error);
     } else {
+      enqueueAuditEvent({
+        type: "chat.completed",
+        payload: { sessionId: sessionId || null },
+      });
+      markAuditSuccess();
       cb.onDone(sessionId || undefined);
     }
   }

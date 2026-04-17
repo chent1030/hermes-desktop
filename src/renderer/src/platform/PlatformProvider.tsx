@@ -1,4 +1,5 @@
-import { createContext, useCallback, useMemo, useState } from "react";
+import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import type { AuditStatus } from "../../../shared/platform/audit";
 import type { WorkspaceBootstrap } from "../../../shared/platform/contracts";
 
 type PlatformStage = "login" | "initializing" | "workspace";
@@ -12,6 +13,7 @@ interface LoginPayload {
 interface PlatformContextValue {
   stage: PlatformStage;
   workspace: WorkspaceBootstrap | null;
+  audit: AuditStatus | null;
   initError: string | null;
   login: (payload: LoginPayload) => Promise<void>;
   retryInitialization: () => Promise<void>;
@@ -28,6 +30,7 @@ export function PlatformProvider({
 }): React.JSX.Element {
   const [stage, setStage] = useState<PlatformStage>("login");
   const [workspace, setWorkspace] = useState<WorkspaceBootstrap | null>(null);
+  const [audit, setAudit] = useState<AuditStatus | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
 
   const runInitialization = useCallback(async (): Promise<void> => {
@@ -54,6 +57,7 @@ export function PlatformProvider({
 
   const logout = useCallback(async (): Promise<void> => {
     await window.hermesAPI.logoutTenant();
+    setAudit(null);
     setWorkspace(null);
     setInitError(null);
     setStage("login");
@@ -64,17 +68,63 @@ export function PlatformProvider({
     setWorkspace(nextWorkspace);
   }, []);
 
+  useEffect(() => {
+    if (stage !== "workspace" || typeof window.hermesAPI.getAuditStatus !== "function") {
+      return;
+    }
+
+    let active = true;
+    const syncAudit = async (): Promise<void> => {
+      const nextAudit = await window.hermesAPI.getAuditStatus();
+      if (!active) return;
+      setAudit(nextAudit);
+      if (nextAudit.health === "reauth-required") {
+        await logout();
+      }
+    };
+
+    void syncAudit();
+    const timer = window.setInterval(() => {
+      void syncAudit();
+    }, 3000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [logout, stage]);
+
+  useEffect(() => {
+    if (
+      stage !== "workspace" ||
+      typeof window.hermesAPI.refreshTenantSession !== "function"
+    ) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      window.hermesAPI.refreshTenantSession().catch(() => {
+        void logout();
+      });
+    }, 5 * 60 * 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [logout, stage]);
+
   const value = useMemo<PlatformContextValue>(
     () => ({
       stage,
       workspace,
+      audit,
       initError,
       login,
       retryInitialization: runInitialization,
       logout,
       setSelectedModel,
     }),
-    [stage, workspace, initError, login, runInitialization, logout, setSelectedModel],
+    [stage, workspace, audit, initError, login, runInitialization, logout, setSelectedModel],
   );
 
   return (

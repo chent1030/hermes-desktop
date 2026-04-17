@@ -13,6 +13,11 @@ import {
   selectWorkspaceModel,
 } from "./runtime";
 import { listInstalledSkills } from "../skills";
+import {
+  enqueueAuditEvent,
+  getAuditStatus,
+  markAuditReauthRequired,
+} from "./audit";
 import { getSessionState } from "./session";
 
 export async function platformLogin(
@@ -22,7 +27,12 @@ export async function platformLogin(
 }
 
 export async function platformRefreshSession(): Promise<void> {
-  await refreshWorkspaceSession();
+  try {
+    await refreshWorkspaceSession();
+  } catch (error) {
+    markAuditReauthRequired();
+    throw error;
+  }
 }
 
 export async function platformLogout(): Promise<void> {
@@ -40,16 +50,21 @@ export async function platformSelectModel(
 }
 
 export async function platformGetAuditStatus(): Promise<AuditStatus> {
-  throw new Error("platform audit not implemented");
+  return getAuditStatus();
 }
 
 export async function platformRetryAuditFlush(): Promise<AuditStatus> {
-  throw new Error("platform audit not implemented");
+  return getAuditStatus();
 }
 
 export async function platformDownloadSkillPackage(
   skillId: string,
 ): Promise<boolean> {
+  enqueueAuditEvent({
+    type: "skill.download.clicked",
+    payload: { skillId },
+  });
+
   const session = getSessionState();
   const skill = session?.workspace?.skills.find((item) => item.id === skillId);
   if (!skill) {
