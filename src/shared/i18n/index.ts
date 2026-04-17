@@ -32,6 +32,7 @@ import settingsZhCn from "./locales/zh-CN/settings";
 import modelsZhCn from "./locales/zh-CN/models";
 import skillsZhCn from "./locales/zh-CN/skills";
 import platformZhCn from "./locales/zh-CN/platform";
+import sessionsZhCn from "./locales/zh-CN/sessions";
 
 export const resources = {
   en: {
@@ -66,7 +67,7 @@ export const resources = {
       chat: chatEn,
       settings: settingsZhCn,
       tools: toolsEn,
-      sessions: sessionsEn,
+      sessions: sessionsZhCn,
       models: modelsZhCn,
       office: officeEn,
       errors: errorsEn,
