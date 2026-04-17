@@ -102,6 +102,18 @@ import {
   triggerCronJob,
 } from "./cronjobs";
 import { getAppLocale, setAppLocale } from "./locale";
+import {
+  platformDownloadSkillPackage,
+  platformGetAuditStatus,
+  platformInitializeWorkspace,
+  platformLogin,
+  platformLogout,
+  platformRefreshSession,
+  platformRetryAuditFlush,
+  platformSelectModel,
+  platformSyncSkillInstallations,
+} from "./platform";
+import type { TenantLoginInput } from "../shared/platform/contracts";
 
 process.on("uncaughtException", (err) => {
   console.error("[MAIN UNCAUGHT]", err);
@@ -225,6 +237,28 @@ function setupIPC(): void {
   // Configuration (profile-aware)
   ipcMain.handle("get-locale", () => getAppLocale());
   ipcMain.handle("set-locale", (_event, locale: "en") => setAppLocale(locale));
+
+  ipcMain.handle("platform-login", (_event, payload: TenantLoginInput) =>
+    platformLogin(payload),
+  );
+  ipcMain.handle("platform-refresh-session", () => platformRefreshSession());
+  ipcMain.handle("platform-logout", () => platformLogout());
+  ipcMain.handle("platform-initialize-workspace", () =>
+    platformInitializeWorkspace(),
+  );
+  ipcMain.handle("platform-select-model", (_event, modelId: string) =>
+    platformSelectModel(modelId),
+  );
+  ipcMain.handle("platform-get-audit-status", () => platformGetAuditStatus());
+  ipcMain.handle("platform-retry-audit-flush", () =>
+    platformRetryAuditFlush(),
+  );
+  ipcMain.handle("platform-download-skill-package", (_event, skillId: string) =>
+    platformDownloadSkillPackage(skillId),
+  );
+  ipcMain.handle("platform-sync-skill-installations", () =>
+    platformSyncSkillInstallations(),
+  );
 
   ipcMain.handle("get-env", (_event, profile?: string) => readEnv(profile));
 

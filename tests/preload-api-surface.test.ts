@@ -93,6 +93,30 @@ describe("New APIs from v0.8/v0.9 features", () => {
   });
 });
 
+describe("Platform desktop APIs", () => {
+  const platformMethods = [
+    "loginTenant",
+    "refreshTenantSession",
+    "logoutTenant",
+    "initializeWorkspace",
+    "selectWorkspaceModel",
+    "getAuditStatus",
+    "retryAuditFlush",
+    "downloadSkillPackage",
+    "syncSkillInstallations",
+  ];
+
+  for (const method of platformMethods) {
+    it(`preload has ${method}`, () => {
+      expect(preloadMethods).toContain(method);
+    });
+
+    it(`type declaration has ${method}`, () => {
+      expect(typeMethods).toContain(method);
+    });
+  }
+});
+
 // ─── Legacy APIs still present ──────────────────────────
 
 describe("Legacy APIs preserved (backward compat)", () => {

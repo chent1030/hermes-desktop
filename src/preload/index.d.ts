@@ -1,4 +1,10 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
+import type { AuditStatus } from "@shared/platform/audit";
+import type {
+  LocalSkillState,
+  TenantLoginInput,
+  WorkspaceBootstrap,
+} from "@shared/platform/contracts";
 
 interface InstallStatus {
   installed: boolean;
@@ -35,6 +41,16 @@ interface HermesAPI {
 
   getLocale: () => Promise<"en">;
   setLocale: (locale: "en") => Promise<"en">;
+
+  loginTenant: (payload: TenantLoginInput) => Promise<void>;
+  refreshTenantSession: () => Promise<void>;
+  logoutTenant: () => Promise<void>;
+  initializeWorkspace: () => Promise<WorkspaceBootstrap>;
+  selectWorkspaceModel: (modelId: string) => Promise<WorkspaceBootstrap>;
+  getAuditStatus: () => Promise<AuditStatus>;
+  retryAuditFlush: () => Promise<AuditStatus>;
+  downloadSkillPackage: (skillId: string) => Promise<boolean>;
+  syncSkillInstallations: () => Promise<LocalSkillState[]>;
 
   // Configuration (profile-aware)
   getEnv: (profile?: string) => Promise<Record<string, string>>;
