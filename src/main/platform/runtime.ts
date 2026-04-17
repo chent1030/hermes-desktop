@@ -1,3 +1,4 @@
+import type { AuditStatus } from "../../shared/platform/audit";
 import type {
   TenantLoginInput,
   WorkspaceBootstrap,
@@ -7,8 +8,14 @@ import {
   fetchModels,
   fetchSkillCatalog,
   loginRequest,
+  postAuditEvents,
   refreshRequest,
 } from "./client";
+import {
+  flushAuditQueue,
+  getAuditStatus,
+  markAuditReauthRequired,
+} from "./audit";
 import {
   clearSessionState,
   getSessionState,
@@ -59,7 +66,9 @@ export async function refreshWorkspaceSession(): Promise<void> {
 
   try {
     const tokens = await refreshRequest(session.refreshToken);
-    setSessionTokens(tokens.accessToken, tokens.refreshToken);
+    setSessionTokens(tokens.accessToken, tokens.refreshToken, {
+      preserveWorkspace: true,
+    });
   } catch (error) {
     clearSessionState();
     throw error;
@@ -91,4 +100,37 @@ export function getWorkspaceRuntime() {
 
 export function clearWorkspaceSession(): void {
   clearSessionState();
+}
+
+export async function flushWorkspaceAuditEvents(): Promise<AuditStatus> {
+  const session = getSessionState();
+  if (!session) {
+    markAuditReauthRequired("platform login required");
+    return getAuditStatus();
+  }
+
+  let retriedWithRefresh = false;
+
+  while (true) {
+    const nextSession = getSessionState();
+    if (!nextSession) {
+      markAuditReauthRequired("platform login required");
+      return getAuditStatus();
+    }
+
+    const status = await flushAuditQueue((events) =>
+      postAuditEvents(nextSession.accessToken, events),
+    );
+    if (status.health !== "reauth-required" || retriedWithRefresh) {
+      return status;
+    }
+
+    try {
+      await refreshWorkspaceSession();
+      retriedWithRefresh = true;
+    } catch (error) {
+      markAuditReauthRequired((error as Error).message);
+      return getAuditStatus();
+    }
+  }
 }

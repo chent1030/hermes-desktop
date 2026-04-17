@@ -2,9 +2,20 @@ import type {
   SkillCatalogItem,
   WorkspaceModel,
 } from "../../shared/platform/contracts";
+import type { QueuedAuditEvent } from "./audit";
 
 const PLATFORM_BASE_URL =
   process.env.HERMES_PLATFORM_URL || "http://127.0.0.1:8080";
+
+export class PlatformRequestError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "PlatformRequestError";
+    this.status = status;
+  }
+}
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${PLATFORM_BASE_URL}${path}`, {
@@ -16,10 +27,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    const message = `${response.status} ${response.statusText}`.trim();
+    throw new PlatformRequestError(response.status, message);
   }
 
-  return (await response.json()) as T;
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 export function loginRequest(body: {
@@ -72,5 +93,18 @@ export function fetchSkillCatalog(
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+  });
+}
+
+export function postAuditEvents(
+  accessToken: string,
+  events: QueuedAuditEvent[],
+): Promise<void> {
+  return request("/api/audit/events:batch", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ events }),
   });
 }

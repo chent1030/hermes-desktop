@@ -7,6 +7,7 @@ import type {
 } from "../../shared/platform/contracts";
 import {
   clearWorkspaceSession,
+  flushWorkspaceAuditEvents,
   initializeWorkspaceState,
   loginWithPassword,
   refreshWorkspaceSession,
@@ -24,6 +25,14 @@ export async function platformLogin(
   payload: TenantLoginInput,
 ): Promise<void> {
   await loginWithPassword(payload);
+  enqueueAuditEvent({
+    type: "auth.login.succeeded",
+    payload: {
+      tenantCode: payload.tenantCode,
+      username: payload.username,
+    },
+  });
+  void flushWorkspaceAuditEvents();
 }
 
 export async function platformRefreshSession(): Promise<void> {
@@ -36,17 +45,39 @@ export async function platformRefreshSession(): Promise<void> {
 }
 
 export async function platformLogout(): Promise<void> {
+  enqueueAuditEvent({
+    type: "auth.logout",
+    payload: {},
+  });
+  await flushWorkspaceAuditEvents().catch(() => undefined);
   clearWorkspaceSession();
 }
 
 export async function platformInitializeWorkspace(): Promise<WorkspaceBootstrap> {
-  return initializeWorkspaceState();
+  const workspace = await initializeWorkspaceState();
+  enqueueAuditEvent({
+    type: "workspace.initialized",
+    payload: {
+      tenantId: workspace.tenant.id,
+      userId: workspace.user.id,
+      modelCount: workspace.models.length,
+      skillCount: workspace.skills.length,
+    },
+  });
+  void flushWorkspaceAuditEvents();
+  return workspace;
 }
 
 export async function platformSelectModel(
   modelId: string,
 ): Promise<WorkspaceBootstrap> {
-  return selectWorkspaceModel(modelId);
+  const workspace = selectWorkspaceModel(modelId);
+  enqueueAuditEvent({
+    type: "model.selected",
+    payload: { modelId },
+  });
+  void flushWorkspaceAuditEvents();
+  return workspace;
 }
 
 export async function platformGetAuditStatus(): Promise<AuditStatus> {
@@ -54,7 +85,7 @@ export async function platformGetAuditStatus(): Promise<AuditStatus> {
 }
 
 export async function platformRetryAuditFlush(): Promise<AuditStatus> {
-  return getAuditStatus();
+  return flushWorkspaceAuditEvents();
 }
 
 export async function platformDownloadSkillPackage(
@@ -64,6 +95,7 @@ export async function platformDownloadSkillPackage(
     type: "skill.download.clicked",
     payload: { skillId },
   });
+  void flushWorkspaceAuditEvents();
 
   const session = getSessionState();
   const skill = session?.workspace?.skills.find((item) => item.id === skillId);
@@ -85,7 +117,7 @@ export async function platformSyncSkillInstallations(): Promise<
 
   const installedSkills = listInstalledSkills();
 
-  return session.workspace.skills.map((skill) => {
+  const states: LocalSkillState[] = session.workspace.skills.map((skill) => {
     const localSkill = installedSkills.find((item) => item.name === skill.name);
 
     return {
@@ -96,4 +128,15 @@ export async function platformSyncSkillInstallations(): Promise<
       path: localSkill?.path || null,
     };
   });
+
+  enqueueAuditEvent({
+    type: "skill.sync.completed",
+    payload: {
+      installedCount: states.filter((item) => item.installed).length,
+      totalCount: states.length,
+    },
+  });
+  void flushWorkspaceAuditEvents();
+
+  return states;
 }

@@ -14,9 +14,11 @@ import { getModelConfig, readEnv } from "./config";
 import {
   enqueueAuditEvent,
   markAuditFailure,
-  markAuditSuccess,
 } from "./platform/audit";
-import { getWorkspaceRuntime } from "./platform/runtime";
+import {
+  flushWorkspaceAuditEvents,
+  getWorkspaceRuntime,
+} from "./platform/runtime";
 import { stripAnsi } from "./utils";
 
 const API_URL = "http://127.0.0.1:8642";
@@ -143,6 +145,7 @@ function sendMessageViaApi(
       resumeSessionId: _resumeSessionId || null,
     },
   });
+  void flushWorkspaceAuditEvents();
 
   // Build full conversation from history + current message (standard OpenAI format)
   const messages: Array<{ role: string; content: string }> = [];
@@ -184,7 +187,7 @@ function sendMessageViaApi(
         type: "chat.completed",
         payload: { sessionId: sessionId || null },
       });
-      markAuditSuccess();
+      void flushWorkspaceAuditEvents();
       cb.onDone(sessionId || undefined);
     }
   }

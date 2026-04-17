@@ -11,11 +11,12 @@ let state: PlatformSessionState | null = null;
 export function setSessionTokens(
   accessToken: string,
   refreshToken: string,
+  options: { preserveWorkspace?: boolean } = {},
 ): void {
   state = {
     accessToken,
     refreshToken,
-    workspace: null,
+    workspace: options.preserveWorkspace ? state?.workspace || null : null,
   };
 }
 
