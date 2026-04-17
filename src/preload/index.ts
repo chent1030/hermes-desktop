@@ -1,11 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
-import type { AuditStatus } from "@shared/platform/audit";
+import type { AuditStatus } from "../shared/platform/audit";
 import type {
   LocalSkillState,
   TenantLoginInput,
   WorkspaceBootstrap,
-} from "@shared/platform/contracts";
+} from "../shared/platform/contracts";
 
 const hermesAPI = {
   // Installation
