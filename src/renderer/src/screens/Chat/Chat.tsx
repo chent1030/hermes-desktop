@@ -16,6 +16,7 @@ import {
   Slash,
   Zap,
 } from "lucide-react";
+import type { WorkspaceModel } from "../../../../shared/platform/contracts";
 
 // ── Slash Commands ──────────────────────────────────────
 
@@ -192,7 +193,13 @@ export interface ChatMessage {
 interface ModelGroup {
   provider: string;
   providerLabel: string;
-  models: { provider: string; model: string; label: string; baseUrl: string }[];
+  models: Array<{
+    id?: string;
+    provider: string;
+    model: string;
+    label: string;
+    baseUrl: string;
+  }>;
 }
 
 import { PROVIDERS } from "../../constants";
@@ -204,6 +211,9 @@ interface ChatProps {
   profile?: string;
   onSessionStarted?: () => void;
   onNewChat?: () => void;
+  platformModels?: WorkspaceModel[];
+  selectedModelId?: string;
+  onSelectPlatformModel?: (modelId: string) => Promise<void>;
 }
 
 function Chat({
@@ -213,6 +223,9 @@ function Chat({
   profile,
   onSessionStarted,
   onNewChat,
+  platformModels,
+  selectedModelId,
+  onSelectPlatformModel,
 }: ChatProps): React.JSX.Element {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -239,6 +252,10 @@ function Chat({
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [customModelInput, setCustomModelInput] = useState("");
   const pickerRef = useRef<HTMLDivElement>(null);
+  const hasPlatformModels =
+    Boolean(platformModels?.length) &&
+    Boolean(selectedModelId) &&
+    Boolean(onSelectPlatformModel);
 
   // Slash command menu state
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
@@ -286,6 +303,36 @@ function Chat({
   }, [messages]);
 
   const loadModelConfig = useCallback(async (): Promise<void> => {
+    if (hasPlatformModels) {
+      const selectedPlatformModel = platformModels!.find(
+        (item) => item.id === selectedModelId,
+      );
+
+      setCurrentModel(selectedPlatformModel?.model || "");
+      setCurrentProvider(selectedPlatformModel?.provider || "auto");
+      setCurrentBaseUrl(selectedPlatformModel?.baseUrl || "");
+
+      const groupMap = new Map<string, ModelGroup>();
+      for (const model of platformModels || []) {
+        if (!groupMap.has(model.provider)) {
+          groupMap.set(model.provider, {
+            provider: model.provider,
+            providerLabel: PROVIDERS.labels[model.provider] || model.provider,
+            models: [],
+          });
+        }
+        groupMap.get(model.provider)!.models.push({
+          id: model.id,
+          provider: model.provider,
+          model: model.model,
+          label: model.label,
+          baseUrl: model.baseUrl || "",
+        });
+      }
+      setModelGroups(Array.from(groupMap.values()));
+      return;
+    }
+
     const [mc, savedModels] = await Promise.all([
       window.hermesAPI.getModelConfig(profile),
       window.hermesAPI.listModels(),
@@ -312,7 +359,7 @@ function Chat({
       });
     }
     setModelGroups(Array.from(groupMap.values()));
-  }, [profile]);
+  }, [hasPlatformModels, platformModels, profile, selectedModelId]);
 
   // Load model config and build available models list
   useEffect(() => {
@@ -366,7 +413,17 @@ function Chat({
     provider: string,
     model: string,
     baseUrl: string,
+    modelId?: string,
   ): Promise<void> {
+    if (hasPlatformModels && modelId && onSelectPlatformModel) {
+      await onSelectPlatformModel(modelId);
+      setCurrentModel(model);
+      setCurrentProvider(provider);
+      setCurrentBaseUrl(baseUrl);
+      setShowModelPicker(false);
+      return;
+    }
+
     await window.hermesAPI.setModelConfig(provider, model, baseUrl, profile);
     setCurrentModel(model);
     setCurrentProvider(provider);
@@ -376,6 +433,7 @@ function Chat({
   }
 
   async function handleCustomModelSubmit(): Promise<void> {
+    if (hasPlatformModels) return;
     const model = customModelInput.trim();
     if (!model) return;
     await selectModel(
@@ -638,11 +696,10 @@ function Chat({
         return true;
 
       case "/model": {
-        const mc = await window.hermesAPI.getModelConfig(profile);
-        const display = mc.model || "Not set";
-        const prov = mc.provider || "auto";
+        const display = currentModel || "Not set";
+        const prov = currentProvider || "auto";
         pushLocalResponse(
-          `**Current model:** \`${display}\`\n**Provider:** ${prov}${mc.baseUrl ? `\n**Base URL:** ${mc.baseUrl}` : ""}`,
+          `**Current model:** \`${display}\`\n**Provider:** ${prov}${currentBaseUrl ? `\n**Base URL:** ${currentBaseUrl}` : ""}`,
         );
         return true;
       }
@@ -1133,10 +1190,10 @@ function Chat({
                   </div>
                   {group.models.map((m) => (
                     <button
-                      key={`${m.provider}:${m.model}`}
+                      key={m.id || `${m.provider}:${m.model}`}
                       className={`chat-model-option ${currentModel === m.model && currentProvider === m.provider ? "active" : ""}`}
                       onClick={() =>
-                        selectModel(m.provider, m.model, m.baseUrl)
+                        selectModel(m.provider, m.model, m.baseUrl, m.id)
                       }
                     >
                       <span className="chat-model-option-label">{m.label}</span>
@@ -1146,21 +1203,23 @@ function Chat({
                 </div>
               ))}
 
-              <div className="chat-model-group">
-                <div className="chat-model-group-label">Custom</div>
-                <div className="chat-model-custom">
-                  <input
-                    className="chat-model-custom-input"
-                    type="text"
-                    value={customModelInput}
-                    onChange={(e) => setCustomModelInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCustomModelSubmit();
-                    }}
-                    placeholder="Type model name..."
-                  />
+              {!hasPlatformModels && (
+                <div className="chat-model-group">
+                  <div className="chat-model-group-label">Custom</div>
+                  <div className="chat-model-custom">
+                    <input
+                      className="chat-model-custom-input"
+                      type="text"
+                      value={customModelInput}
+                      onChange={(e) => setCustomModelInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCustomModelSubmit();
+                      }}
+                      placeholder="Type model name..."
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

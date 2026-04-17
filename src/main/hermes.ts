@@ -11,6 +11,7 @@ import {
   getEnhancedPath,
 } from "./installer";
 import { getModelConfig, readEnv } from "./config";
+import { getWorkspaceRuntime } from "./platform/runtime";
 import { stripAnsi } from "./utils";
 
 const API_URL = "http://127.0.0.1:8642";
@@ -33,6 +34,27 @@ const URL_KEY_MAP: Array<{ pattern: RegExp; envKey: string }> = [
 
 interface ChatHandle {
   abort: () => void;
+}
+
+function resolveRuntimeModel(profile?: string): {
+  provider: string;
+  model: string;
+  baseUrl: string;
+} {
+  const runtime = getWorkspaceRuntime();
+  const selectedModel = runtime?.workspace?.models.find(
+    (item) => item.id === runtime.workspace?.selectedModelId,
+  );
+
+  if (selectedModel) {
+    return {
+      provider: selectedModel.provider,
+      model: selectedModel.model,
+      baseUrl: selectedModel.baseUrl,
+    };
+  }
+
+  return getModelConfig(profile);
 }
 
 // ────────────────────────────────────────────────────
@@ -105,7 +127,7 @@ function sendMessageViaApi(
   _resumeSessionId?: string,
   history?: Array<{ role: string; content: string }>,
 ): ChatHandle {
-  const mc = getModelConfig(profile);
+  const mc = resolveRuntimeModel(profile);
   const controller = new AbortController();
 
   // Build full conversation from history + current message (standard OpenAI format)
@@ -362,7 +384,7 @@ function sendMessageViaCli(
   profile?: string,
   resumeSessionId?: string,
 ): ChatHandle {
-  const mc = getModelConfig(profile);
+  const mc = resolveRuntimeModel(profile);
   const profileEnv = readEnv(profile);
 
   const args = [HERMES_SCRIPT];

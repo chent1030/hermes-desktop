@@ -12,6 +12,7 @@ import Office from "../Office/Office";
 import Models from "../Models/Models";
 import Schedules from "../Schedules/Schedules";
 import hermeslogo from "../../assets/hermes.png";
+import { usePlatform } from "../../platform/usePlatform";
 import {
   ChatBubble,
   Clock,
@@ -63,6 +64,7 @@ function Layout({
 }: {
   gatewayVisible?: boolean;
 }): React.JSX.Element {
+  const { workspace, setSelectedModel } = usePlatform();
   const [view, setView] = useState<View>("chat");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -149,6 +151,8 @@ function Layout({
   const navItems = gatewayVisible
     ? NAV_ITEMS
     : NAV_ITEMS.filter((item) => item.view !== "gateway");
+  const platformModels = workspace?.models || [];
+  const platformSelectedModelId = workspace?.selectedModelId || "";
 
   return (
     <div className="layout">
@@ -207,6 +211,9 @@ function Layout({
             sessionId={currentSessionId}
             profile={activeProfile}
             onNewChat={handleNewChat}
+            platformModels={platformModels}
+            selectedModelId={platformSelectedModelId}
+            onSelectPlatformModel={setSelectedModel}
           />
         </div>
         {view === "sessions" && (
