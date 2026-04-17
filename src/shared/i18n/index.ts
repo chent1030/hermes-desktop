@@ -28,6 +28,7 @@ import platformEn from "./locales/en/platform";
 import commonZhCn from "./locales/zh-CN/common";
 import navigationZhCn from "./locales/zh-CN/navigation";
 import welcomeZhCn from "./locales/zh-CN/welcome";
+import chatZhCn from "./locales/zh-CN/chat";
 import settingsZhCn from "./locales/zh-CN/settings";
 import modelsZhCn from "./locales/zh-CN/models";
 import skillsZhCn from "./locales/zh-CN/skills";
@@ -65,7 +66,7 @@ export const resources = {
       navigation: navigationZhCn,
       welcome: welcomeZhCn,
       setup: setupEn,
-      chat: chatEn,
+      chat: chatZhCn,
       settings: settingsZhCn,
       tools: toolsEn,
       sessions: sessionsZhCn,

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { I18nProvider } from "../../components/I18nProvider";
 import Chat from "./Chat";
 
 describe("Chat platform model picker", () => {
@@ -20,23 +21,25 @@ describe("Chat platform model picker", () => {
     });
 
     render(
-      <Chat
-        messages={[]}
-        setMessages={vi.fn()}
-        sessionId={null}
-        platformModels={[
-          {
-            id: "m1",
-            provider: "openai",
-            model: "gpt-5.4",
-            label: "GPT-5.4",
-            baseUrl: "",
-            isDefault: true,
-          },
-        ]}
-        selectedModelId="m1"
-        onSelectPlatformModel={vi.fn()}
-      />,
+      <I18nProvider>
+        <Chat
+          messages={[]}
+          setMessages={vi.fn()}
+          sessionId={null}
+          platformModels={[
+            {
+              id: "m1",
+              provider: "openai",
+              model: "gpt-5.4",
+              label: "GPT-5.4",
+              baseUrl: "",
+              isDefault: true,
+            },
+          ]}
+          selectedModelId="m1"
+          onSelectPlatformModel={vi.fn()}
+        />
+      </I18nProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /GPT-5.4/i }));

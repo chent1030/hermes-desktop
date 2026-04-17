@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import icon from "../../assets/icon.png";
 import { AgentMarkdown } from "../../components/AgentMarkdown";
+import { useI18n } from "../../components/useI18n";
 import {
   Trash2 as Trash,
   Send,
@@ -141,6 +142,8 @@ interface MessageRowProps {
   isLoading: boolean;
   onApprove: () => void;
   onDeny: () => void;
+  approveLabel: string;
+  denyLabel: string;
 }
 
 const MessageRow = memo(function MessageRow({
@@ -149,6 +152,8 @@ const MessageRow = memo(function MessageRow({
   isLoading,
   onApprove,
   onDeny,
+  approveLabel,
+  denyLabel,
 }: MessageRowProps): React.JSX.Element {
   return (
     <div className={`chat-message chat-message-${msg.role}`}>
@@ -173,10 +178,10 @@ const MessageRow = memo(function MessageRow({
               className="chat-approval-btn chat-approve"
               onClick={onApprove}
             >
-              Approve
+              {approveLabel}
             </button>
             <button className="chat-approval-btn chat-deny" onClick={onDeny}>
-              Deny
+              {denyLabel}
             </button>
           </div>
         )}
@@ -227,6 +232,7 @@ function Chat({
   selectedModelId,
   onSelectPlatformModel,
 }: ChatProps): React.JSX.Element {
+  const { t } = useI18n();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hermesSessionId, setHermesSessionId] = useState<string | null>(null);
@@ -913,9 +919,9 @@ function Chat({
       currentModel
         ? currentModel.split("/").pop() || currentModel
         : currentProvider === "auto"
-          ? "Auto"
-          : "No model set",
-    [currentModel, currentProvider],
+          ? t("chat.auto")
+          : t("chat.noModel"),
+    [currentModel, currentProvider, t],
   );
 
   const lastMessageIsAgent = useMemo(
@@ -928,7 +934,9 @@ function Chat({
       <div className="chat-header">
         <div className="chat-header-left">
           <div className="chat-header-title">
-            {sessionId ? `Session ${sessionId.slice(-6)}` : "New Chat"}
+            {sessionId
+              ? t("chat.sessionTitle", { id: sessionId.slice(-6) })
+              : t("chat.title")}
           </div>
           {usage && (
             <span
@@ -959,11 +967,13 @@ function Chat({
               <Zap size={14} />
             </button>
             <div className="chat-fast-popover">
-              <strong>{fastMode ? "Fast Mode ON" : "Fast Mode"}</strong>
+              <strong>
+                {fastMode ? t("chat.fastModeOnLabel") : t("chat.fastModeLabel")}
+              </strong>
               <span>
                 {fastMode
-                  ? "Priority processing active — lower latency on supported models. Click to disable."
-                  : "Enable priority processing for lower latency on OpenAI and Anthropic models."}
+                  ? t("chat.fastModeOnHint")
+                  : t("chat.fastModeOffHint")}
               </span>
             </div>
           </div>
@@ -971,7 +981,7 @@ function Chat({
             <button
               className="btn-ghost chat-clear-btn"
               onClick={onNewChat}
-              title="New chat (Cmd+N)"
+              title={t("chat.newChatTitle")}
             >
               <Plus size={16} />
             </button>
@@ -980,7 +990,7 @@ function Chat({
             <button
               className="btn-ghost chat-clear-btn"
               onClick={handleClear}
-              title="Clear chat"
+              title={t("chat.clearChatTitle")}
             >
               <Trash size={16} />
             </button>
@@ -994,9 +1004,9 @@ function Chat({
             <div className="chat-empty-icon">
               <img src={icon} width={64} height={64} alt="" />
             </div>
-            <div className="chat-empty-text">How can I help you today?</div>
+            <div className="chat-empty-text">{t("chat.emptyTitle")}</div>
             <div className="chat-empty-hint">
-              Ask me to write code, answer questions, search the web, and more
+              {t("chat.emptyHint")}
             </div>
             <div className="chat-empty-suggestions">
               <button
@@ -1005,30 +1015,30 @@ function Chat({
                   setInput("Search the web for today's top tech news");
                   inputRef.current?.focus();
                 }}
-              >
-                <Search size={16} />
-                Search the web
-              </button>
+                >
+                  <Search size={16} />
+                  {t("chat.suggestionSearch")}
+                </button>
               <button
                 className="chat-suggestion"
                 onClick={() => {
                   setInput("Set a reminder to check emails every day at 9 AM");
                   inputRef.current?.focus();
                 }}
-              >
-                <Bell size={16} />
-                Set a reminder
-              </button>
+                >
+                  <Bell size={16} />
+                  {t("chat.suggestionReminder")}
+                </button>
               <button
                 className="chat-suggestion"
                 onClick={() => {
                   setInput("Read my latest emails and summarize them");
                   inputRef.current?.focus();
                 }}
-              >
-                <Mail size={16} />
-                Summarize emails
-              </button>
+                >
+                  <Mail size={16} />
+                  {t("chat.suggestionEmail")}
+                </button>
               <button
                 className="chat-suggestion"
                 onClick={() => {
@@ -1037,10 +1047,10 @@ function Chat({
                   );
                   inputRef.current?.focus();
                 }}
-              >
-                <Code size={16} />
-                Write a script
-              </button>
+                >
+                  <Code size={16} />
+                  {t("chat.suggestionScript")}
+                </button>
               <button
                 className="chat-suggestion"
                 onClick={() => {
@@ -1049,20 +1059,20 @@ function Chat({
                   );
                   inputRef.current?.focus();
                 }}
-              >
-                <Clock size={16} />
-                Schedule a cron job
-              </button>
+                >
+                  <Clock size={16} />
+                  {t("chat.suggestionSchedule")}
+                </button>
               <button
                 className="chat-suggestion"
                 onClick={() => {
                   setInput("Analyze this CSV file and show key insights");
                   inputRef.current?.focus();
                 }}
-              >
-                <ChartLine size={16} />
-                Analyze data
-              </button>
+                >
+                  <ChartLine size={16} />
+                  {t("chat.suggestionAnalyze")}
+                </button>
             </div>
           </div>
         ) : (
@@ -1074,6 +1084,8 @@ function Chat({
               isLoading={isLoading}
               onApprove={handleApprove}
               onDeny={handleDeny}
+              approveLabel={t("chat.approve")}
+              denyLabel={t("chat.deny")}
             />
           ))
         )}
@@ -1130,7 +1142,7 @@ function Chat({
           <textarea
             ref={inputRef}
             className="chat-input"
-            placeholder="Type a message... (Shift+Enter for new line)"
+            placeholder={t("chat.typeMessage")}
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
@@ -1142,7 +1154,7 @@ function Chat({
             <button
               className="chat-send-btn chat-stop-btn"
               onClick={handleAbort}
-              title="Stop"
+              title={t("chat.stop")}
             >
               <Stop size={14} />
             </button>
@@ -1152,7 +1164,7 @@ function Chat({
                 <button
                   className="chat-btw-btn"
                   onClick={handleQuickAsk}
-                  title="Quick Ask (/btw) — side question that won't affect conversation context"
+                  title={t("chat.quickAskTitle")}
                 >
                   💭
                 </button>
@@ -1161,7 +1173,7 @@ function Chat({
                 className="chat-send-btn"
                 onClick={handleSend}
                 disabled={!input.trim()}
-                title="Send"
+                title={t("chat.send")}
               >
                 <Send size={16} />
               </button>
@@ -1205,7 +1217,7 @@ function Chat({
 
               {!hasPlatformModels && (
                 <div className="chat-model-group">
-                  <div className="chat-model-group-label">Custom</div>
+                  <div className="chat-model-group-label">{t("chat.custom")}</div>
                   <div className="chat-model-custom">
                     <input
                       className="chat-model-custom-input"
@@ -1215,7 +1227,7 @@ function Chat({
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleCustomModelSubmit();
                       }}
-                      placeholder="Type model name..."
+                      placeholder={t("chat.typeModelName")}
                     />
                   </div>
                 </div>

@@ -3,6 +3,15 @@ export default {
   sessionTitle: "Session {{id}}",
   noModel: "No model set",
   auto: "Auto",
+  stop: "Stop",
+  newChatTitle: "New chat (Cmd+N)",
+  clearChatTitle: "Clear chat",
+  fastModeLabel: "Fast Mode",
+  fastModeOnLabel: "Fast Mode ON",
+  fastModeOnHint:
+    "Priority processing active — lower latency on supported models. Click to disable.",
+  fastModeOffHint:
+    "Enable priority processing for lower latency on OpenAI and Anthropic models.",
   commandsTitle: "Commands",
   typeMessage: "Type a message... (Shift+Enter for new line)",
   quickAskTitle:
