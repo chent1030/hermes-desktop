@@ -1,13 +1,15 @@
+import { useI18n } from "../../components/useI18n";
 import { usePlatform } from "../../platform/usePlatform";
 
 export default function Models(): React.JSX.Element {
   const { workspace, setSelectedModel } = usePlatform();
+  const { t } = useI18n();
 
   return (
     <div className="settings-container">
-      <h1 className="settings-header">Models</h1>
+      <h1 className="settings-header">{t("models.title")}</h1>
       <p className="models-subtitle">
-        View and switch the models authorized by the platform.
+        {t("models.subtitle")}
       </p>
 
       <div className="models-grid">
@@ -20,7 +22,7 @@ export default function Models(): React.JSX.Element {
             <div className="models-card-header">
               <div className="models-card-name">{model.label}</div>
               {model.isDefault && (
-                <span className="models-card-provider">Default</span>
+                <span className="models-card-provider">{t("models.default")}</span>
               )}
             </div>
             <div className="models-card-model">{model.model}</div>

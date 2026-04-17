@@ -12,6 +12,7 @@ import Office from "../Office/Office";
 import Models from "../Models/Models";
 import Schedules from "../Schedules/Schedules";
 import hermeslogo from "../../assets/hermes.png";
+import { useI18n } from "../../components/useI18n";
 import { usePlatform } from "../../platform/usePlatform";
 import {
   ChatBubble,
@@ -44,19 +45,19 @@ type View =
   | "gateway"
   | "settings";
 
-const NAV_ITEMS: { view: View; icon: LucideIcon; label: string }[] = [
-  { view: "chat", icon: ChatBubble, label: "Chat" },
-  { view: "sessions", icon: Clock, label: "Sessions" },
-  { view: "agents", icon: Users, label: "Profiles" },
-  { view: "office", icon: Building, label: "Office" },
-  { view: "models", icon: Layers, label: "Models" },
-  { view: "skills", icon: Puzzle, label: "Skills" },
-  { view: "soul", icon: Sparkles, label: "Persona" },
-  { view: "memory", icon: Brain, label: "Memory" },
-  { view: "tools", icon: Wrench, label: "Tools" },
-  { view: "schedules", icon: Timer, label: "Schedules" },
-  { view: "gateway", icon: Signal, label: "Gateway" },
-  { view: "settings", icon: SettingsIcon, label: "Settings" },
+const NAV_ITEMS: { view: View; icon: LucideIcon; labelKey: string }[] = [
+  { view: "chat", icon: ChatBubble, labelKey: "navigation.chat" },
+  { view: "sessions", icon: Clock, labelKey: "navigation.sessions" },
+  { view: "agents", icon: Users, labelKey: "navigation.agents" },
+  { view: "office", icon: Building, labelKey: "navigation.office" },
+  { view: "models", icon: Layers, labelKey: "navigation.models" },
+  { view: "skills", icon: Puzzle, labelKey: "navigation.skills" },
+  { view: "soul", icon: Sparkles, labelKey: "navigation.soul" },
+  { view: "memory", icon: Brain, labelKey: "navigation.memory" },
+  { view: "tools", icon: Wrench, labelKey: "navigation.tools" },
+  { view: "schedules", icon: Timer, labelKey: "navigation.schedules" },
+  { view: "gateway", icon: Signal, labelKey: "navigation.gateway" },
+  { view: "settings", icon: SettingsIcon, labelKey: "navigation.settings" },
 ];
 
 function Layout({
@@ -64,6 +65,7 @@ function Layout({
 }: {
   gatewayVisible?: boolean;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const { workspace, setSelectedModel } = usePlatform();
   const [view, setView] = useState<View>("chat");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -162,7 +164,7 @@ function Layout({
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map(({ view: v, icon: Icon, label }) => (
+          {navItems.map(({ view: v, icon: Icon, labelKey }) => (
             <button
               key={v}
               className={`sidebar-nav-item ${view === v ? "active" : ""}`}
@@ -172,7 +174,7 @@ function Layout({
               }}
             >
               <Icon size={16} />
-              {label}
+              {t(labelKey)}
             </button>
           ))}
         </nav>
