@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import {
   DEFAULT_ACTIVE_LOCALE,
@@ -16,13 +16,16 @@ export function I18nProvider({
 }: {
   children: React.ReactNode;
 }): React.JSX.Element {
-  const locale = getLocale() || DEFAULT_ACTIVE_LOCALE;
+  const [locale, setLocaleState] = useState<AppLocale>(
+    getLocale() || DEFAULT_ACTIVE_LOCALE,
+  );
 
   const value = useMemo<I18nContextValue>(
     () => ({
       locale,
       setLocale: (nextLocale: AppLocale) => {
         setSharedLocale(nextLocale);
+        setLocaleState(nextLocale);
       },
     }),
     [locale],

@@ -113,6 +113,7 @@ import {
   platformSelectModel,
   platformSyncSkillInstallations,
 } from "./platform";
+import type { AppLocale } from "../shared/i18n";
 import type { TenantLoginInput } from "../shared/platform/contracts";
 
 process.on("uncaughtException", (err) => {
@@ -236,7 +237,9 @@ function setupIPC(): void {
 
   // Configuration (profile-aware)
   ipcMain.handle("get-locale", () => getAppLocale());
-  ipcMain.handle("set-locale", (_event, locale: "en") => setAppLocale(locale));
+  ipcMain.handle("set-locale", (_event, locale: AppLocale) =>
+    setAppLocale(locale),
+  );
 
   ipcMain.handle("platform-login", (_event, payload: TenantLoginInput) =>
     platformLogin(payload),

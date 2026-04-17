@@ -58,7 +58,11 @@ const NAV_ITEMS: { view: View; icon: LucideIcon; label: string }[] = [
   { view: "settings", icon: SettingsIcon, label: "Settings" },
 ];
 
-function Layout(): React.JSX.Element {
+function Layout({
+  gatewayVisible = true,
+}: {
+  gatewayVisible?: boolean;
+}): React.JSX.Element {
   const [view, setView] = useState<View>("chat");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -142,6 +146,10 @@ function Layout(): React.JSX.Element {
     setView("chat");
   }, []);
 
+  const navItems = gatewayVisible
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter((item) => item.view !== "gateway");
+
   return (
     <div className="layout">
       <aside className="sidebar">
@@ -150,7 +158,7 @@ function Layout(): React.JSX.Element {
         </div>
 
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map(({ view: v, icon: Icon, label }) => (
+          {navItems.map(({ view: v, icon: Icon, label }) => (
             <button
               key={v}
               className={`sidebar-nav-item ${view === v ? "active" : ""}`}

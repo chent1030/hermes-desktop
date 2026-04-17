@@ -1,5 +1,6 @@
 import { ThemeProvider } from "./components/ThemeProvider";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { I18nProvider } from "./components/I18nProvider";
 import DesktopRoot from "./platform/DesktopRoot";
 import { PlatformProvider } from "./platform/PlatformProvider";
 
@@ -9,14 +10,16 @@ function App(): React.JSX.Element {
   return (
     <ThemeProvider>
       <ErrorBoundary>
-        <PlatformProvider>
-          <div className="app">
-            {isMac && <div className="drag-region" />}
-            <div className="app-content">
-              <DesktopRoot />
+        <I18nProvider>
+          <PlatformProvider>
+            <div className="app">
+              {isMac && <div className="drag-region" />}
+              <div className="app-content">
+                <DesktopRoot />
+              </div>
             </div>
-          </div>
-        </PlatformProvider>
+          </PlatformProvider>
+        </I18nProvider>
       </ErrorBoundary>
     </ThemeProvider>
   );

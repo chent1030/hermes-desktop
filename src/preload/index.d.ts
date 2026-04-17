@@ -39,8 +39,8 @@ interface HermesAPI {
   checkOpenClaw: () => Promise<{ found: boolean; path: string | null }>; 
   runClawMigrate: () => Promise<{ success: boolean; error?: string }>;
 
-  getLocale: () => Promise<"en">;
-  setLocale: (locale: "en") => Promise<"en">;
+  getLocale: () => Promise<"en" | "zh-CN">;
+  setLocale: (locale: "en" | "zh-CN") => Promise<"en" | "zh-CN">;
 
   loginTenant: (payload: TenantLoginInput) => Promise<void>;
   refreshTenantSession: () => Promise<void>;

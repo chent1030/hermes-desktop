@@ -24,6 +24,14 @@ import agentsEn from "./locales/en/agents";
 import soulEn from "./locales/en/soul";
 import memoryEn from "./locales/en/memory";
 import installEn from "./locales/en/install";
+import platformEn from "./locales/en/platform";
+import commonZhCn from "./locales/zh-CN/common";
+import navigationZhCn from "./locales/zh-CN/navigation";
+import welcomeZhCn from "./locales/zh-CN/welcome";
+import settingsZhCn from "./locales/zh-CN/settings";
+import modelsZhCn from "./locales/zh-CN/models";
+import skillsZhCn from "./locales/zh-CN/skills";
+import platformZhCn from "./locales/zh-CN/platform";
 
 export const resources = {
   en: {
@@ -46,6 +54,30 @@ export const resources = {
       soul: soulEn,
       memory: memoryEn,
       install: installEn,
+      platform: platformEn,
+    },
+  },
+  "zh-CN": {
+    translation: {
+      common: commonZhCn,
+      navigation: navigationZhCn,
+      welcome: welcomeZhCn,
+      setup: setupEn,
+      chat: chatEn,
+      settings: settingsZhCn,
+      tools: toolsEn,
+      sessions: sessionsEn,
+      models: modelsZhCn,
+      office: officeEn,
+      errors: errorsEn,
+      schedules: schedulesEn,
+      skills: skillsZhCn,
+      gateway: gatewayEn,
+      agents: agentsEn,
+      soul: soulEn,
+      memory: memoryEn,
+      install: installEn,
+      platform: platformZhCn,
     },
   },
 } satisfies Resource;
