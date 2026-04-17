@@ -1,3 +1,4 @@
+import { shell } from "electron";
 import type { AuditStatus } from "../../shared/platform/audit";
 import type {
   LocalSkillState,
@@ -11,6 +12,8 @@ import {
   refreshWorkspaceSession,
   selectWorkspaceModel,
 } from "./runtime";
+import { listInstalledSkills } from "../skills";
+import { getSessionState } from "./session";
 
 export async function platformLogin(
   payload: TenantLoginInput,
@@ -45,13 +48,37 @@ export async function platformRetryAuditFlush(): Promise<AuditStatus> {
 }
 
 export async function platformDownloadSkillPackage(
-  _skillId: string,
+  skillId: string,
 ): Promise<boolean> {
-  throw new Error("platform skill download not implemented");
+  const session = getSessionState();
+  const skill = session?.workspace?.skills.find((item) => item.id === skillId);
+  if (!skill) {
+    throw new Error("skill not found");
+  }
+
+  await shell.openExternal(skill.downloadUrl);
+  return true;
 }
 
 export async function platformSyncSkillInstallations(): Promise<
   LocalSkillState[]
 > {
-  throw new Error("platform skill sync not implemented");
+  const session = getSessionState();
+  if (!session?.workspace) {
+    throw new Error("workspace not initialized");
+  }
+
+  const installedSkills = listInstalledSkills();
+
+  return session.workspace.skills.map((skill) => {
+    const localSkill = installedSkills.find((item) => item.name === skill.name);
+
+    return {
+      skillId: skill.id,
+      installed: Boolean(localSkill),
+      version: localSkill ? skill.version : null,
+      status: localSkill ? "installed" : "not-downloaded",
+      path: localSkill?.path || null,
+    };
+  });
 }

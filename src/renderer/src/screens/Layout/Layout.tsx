@@ -246,7 +246,9 @@ function Layout({
           </div>
         )}
         {view === "models" && <Models />}
-        {view === "skills" && <Skills profile={activeProfile} />}
+        {view === "skills" && (
+          <Skills profile={activeProfile} catalog={workspace?.skills || []} />
+        )}
         {view === "soul" && <Soul profile={activeProfile} />}
         {view === "memory" && <Memory profile={activeProfile} />}
         {view === "tools" && <Tools profile={activeProfile} />}
