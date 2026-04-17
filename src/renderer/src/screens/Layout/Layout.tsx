@@ -184,16 +184,24 @@ function Layout({
             <button className="sidebar-update-btn" onClick={handleUpdate}>
               <Download size={13} />
               {updateState === "available" && (
-                <span>Update v{updateVersion}</span>
+                <span>
+                  {t("platform.updateAvailable", { version: updateVersion || "" })}
+                </span>
               )}
               {updateState === "downloading" && (
-                <span>Downloading {downloadPercent}%</span>
+                <span>
+                  {t("platform.updateDownloading", {
+                    percent: Math.round(downloadPercent),
+                  })}
+                </span>
               )}
-              {updateState === "ready" && <span>Restart to update</span>}
+              {updateState === "ready" && (
+                <span>{t("platform.updateReady")}</span>
+              )}
             </button>
           )}
           <div className="sidebar-footer-text">
-            {activeProfile === "default" ? "Hermes Agent" : activeProfile}
+            {activeProfile === "default" ? t("common.appName") : activeProfile}
           </div>
         </div>
       </aside>

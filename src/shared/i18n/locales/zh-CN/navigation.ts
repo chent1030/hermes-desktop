@@ -9,6 +9,6 @@ export default {
   memory: "记忆",
   tools: "工具",
   schedules: "计划任务",
-  gateway: "Gateway",
+  gateway: "网关",
   settings: "设置",
 } as const;

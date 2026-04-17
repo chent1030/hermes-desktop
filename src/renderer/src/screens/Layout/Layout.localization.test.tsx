@@ -80,6 +80,71 @@ describe("Layout localization", () => {
     expect(screen.getByRole("button", { name: /模型/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /技能/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /设置/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Gateway/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /网关/i })).not.toBeInTheDocument();
+  });
+
+  it("renders localized update states in Chinese", () => {
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        onUpdateAvailable: vi.fn().mockImplementation((callback) => {
+          callback({ version: "1.2.3" });
+          return () => {};
+        }),
+        onUpdateDownloadProgress: vi.fn().mockImplementation((callback) => {
+          callback({ percent: 42 });
+          return () => {};
+        }),
+        onUpdateDownloaded: vi.fn().mockImplementation((callback) => {
+          callback();
+          return () => {};
+        }),
+        onMenuNewChat: vi.fn().mockReturnValue(() => {}),
+        onMenuSearchSessions: vi.fn().mockReturnValue(() => {}),
+        abortChat: vi.fn(),
+        getSessionMessages: vi.fn().mockResolvedValue([]),
+        downloadUpdate: vi.fn(),
+        installUpdate: vi.fn(),
+      },
+    });
+
+    render(
+      <I18nProvider>
+        <PlatformContext.Provider
+          value={{
+            stage: "workspace",
+            workspace: {
+              tenant: { id: "t1", code: "acme", name: "Acme" },
+              user: { id: "u1", username: "alice", displayName: "Alice" },
+              locale: "zh-CN",
+              features: { gatewayVisible: true },
+              models: [
+                {
+                  id: "m1",
+                  provider: "openai",
+                  model: "gpt-5.4",
+                  label: "GPT-5.4",
+                  baseUrl: "",
+                  isDefault: true,
+                },
+              ],
+              selectedModelId: "m1",
+              skills: [],
+            },
+            audit: null,
+            initError: null,
+            login: vi.fn(),
+            retryInitialization: vi.fn(),
+            logout: vi.fn(),
+            setSelectedModel: vi.fn(),
+          }}
+        >
+          <Layout gatewayVisible />
+        </PlatformContext.Provider>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: /网关/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /重启以更新/i })).toBeInTheDocument();
   });
 });
