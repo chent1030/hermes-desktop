@@ -1,5 +1,25 @@
 import type { AuditStatus } from "../../../../shared/platform/audit";
 
+function getBannerTitle(audit: AuditStatus): string {
+  if (audit.health === "reauth-required") {
+    return "Audit blocked";
+  }
+
+  return "Audit warning";
+}
+
+function getBannerMessage(audit: AuditStatus): string {
+  if (audit.health === "buffering") {
+    return "Audit upload interrupted. Events are buffering in memory.";
+  }
+
+  if (audit.health === "degraded") {
+    return "Audit upload is degraded. Retry is recommended.";
+  }
+
+  return "Session expired. Please sign in again.";
+}
+
 export default function WorkspaceBanner({
   audit,
 }: {
@@ -11,13 +31,12 @@ export default function WorkspaceBanner({
 
   return (
     <div className={`workspace-banner workspace-banner-${audit.health}`}>
-      {audit.health === "buffering" &&
-        "Audit upload interrupted. Events are buffering in memory."}
-      {audit.health === "degraded" &&
-        "Audit upload is degraded. Retry is recommended."}
-      {audit.health === "reauth-required" &&
-        "Session expired. Please sign in again."}
-      {audit.health === "buffering" && (
+      <strong>{getBannerTitle(audit)}</strong>
+      <div>{getBannerMessage(audit)}</div>
+      <div>{`Queued: ${audit.queuedEvents}`}</div>
+      <div>{`Dropped: ${audit.droppedEvents}`}</div>
+      {audit.lastError && <div>{audit.lastError}</div>}
+      {(audit.health === "buffering" || audit.health === "degraded") && (
         <button onClick={() => void window.hermesAPI.retryAuditFlush()}>
           Retry audit upload
         </button>

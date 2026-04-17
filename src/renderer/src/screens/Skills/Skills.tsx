@@ -11,6 +11,21 @@ interface SkillsProps {
   onDownloadSkill?: (skillId: string) => Promise<void>;
 }
 
+function getLocalVersionSummary(skill: SkillCatalogItem, local: LocalSkillState): string | null {
+  if (local.status === "outdated" && local.version) {
+    return `Local ${local.version} / Platform ${skill.version}`;
+  }
+
+  if (
+    (local.status === "installed" || local.status === "downloaded") &&
+    local.version
+  ) {
+    return `Local ${local.version}`;
+  }
+
+  return null;
+}
+
 function defaultLocalState(skillId: string): LocalSkillState {
   return {
     skillId,
@@ -89,6 +104,14 @@ export default function Skills({
             </div>
             <div className="skills-card-description">{skill.description}</div>
             <div className="skills-card-status">{skill.local.status}</div>
+            {getLocalVersionSummary(skill, skill.local) && (
+              <div className="skills-card-local-version">
+                {getLocalVersionSummary(skill, skill.local)}
+              </div>
+            )}
+            {skill.local.path && (
+              <div className="skills-card-local-path">{skill.local.path}</div>
+            )}
             <button
               className="btn btn-secondary btn-sm"
               onClick={() => void handleDownload(skill.id)}

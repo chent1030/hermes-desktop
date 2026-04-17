@@ -13,33 +13,57 @@ import {
   refreshWorkspaceSession,
   selectWorkspaceModel,
 } from "./runtime";
-import { listInstalledSkills } from "../skills";
+import { findDownloadedSkillPackage, listInstalledSkills } from "../skills";
 import {
   enqueueAuditEvent,
   getAuditStatus,
+  markAuditFailure,
   markAuditReauthRequired,
 } from "./audit";
 import { getSessionState } from "./session";
 
+function normalizeSkillKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
 export async function platformLogin(
   payload: TenantLoginInput,
 ): Promise<void> {
-  await loginWithPassword(payload);
-  enqueueAuditEvent({
-    type: "auth.login.succeeded",
-    payload: {
-      tenantCode: payload.tenantCode,
-      username: payload.username,
-    },
-  });
-  void flushWorkspaceAuditEvents();
+  try {
+    await loginWithPassword(payload);
+    enqueueAuditEvent({
+      type: "auth.login.succeeded",
+      payload: {
+        tenantCode: payload.tenantCode,
+        username: payload.username,
+      },
+    });
+    void flushWorkspaceAuditEvents();
+  } catch (error) {
+    const message = (error as Error).message;
+    enqueueAuditEvent({
+      type: "auth.login.failed",
+      payload: {
+        tenantCode: payload.tenantCode,
+        username: payload.username,
+        error: message,
+      },
+    });
+    markAuditFailure(message);
+    throw error;
+  }
 }
 
 export async function platformRefreshSession(): Promise<void> {
   try {
     await refreshWorkspaceSession();
   } catch (error) {
-    markAuditReauthRequired();
+    const message = (error as Error).message;
+    enqueueAuditEvent({
+      type: "auth.refresh.failed",
+      payload: { error: message },
+    });
+    markAuditReauthRequired(message);
     throw error;
   }
 }
@@ -54,18 +78,28 @@ export async function platformLogout(): Promise<void> {
 }
 
 export async function platformInitializeWorkspace(): Promise<WorkspaceBootstrap> {
-  const workspace = await initializeWorkspaceState();
-  enqueueAuditEvent({
-    type: "workspace.initialized",
-    payload: {
-      tenantId: workspace.tenant.id,
-      userId: workspace.user.id,
-      modelCount: workspace.models.length,
-      skillCount: workspace.skills.length,
-    },
-  });
-  void flushWorkspaceAuditEvents();
-  return workspace;
+  try {
+    const workspace = await initializeWorkspaceState();
+    enqueueAuditEvent({
+      type: "workspace.initialized",
+      payload: {
+        tenantId: workspace.tenant.id,
+        userId: workspace.user.id,
+        modelCount: workspace.models.length,
+        skillCount: workspace.skills.length,
+      },
+    });
+    void flushWorkspaceAuditEvents();
+    return workspace;
+  } catch (error) {
+    const message = (error as Error).message;
+    enqueueAuditEvent({
+      type: "workspace.initialize.failed",
+      payload: { error: message },
+    });
+    markAuditFailure(message);
+    throw error;
+  }
 }
 
 export async function platformSelectModel(
@@ -91,52 +125,87 @@ export async function platformRetryAuditFlush(): Promise<AuditStatus> {
 export async function platformDownloadSkillPackage(
   skillId: string,
 ): Promise<boolean> {
-  enqueueAuditEvent({
-    type: "skill.download.clicked",
-    payload: { skillId },
-  });
-  void flushWorkspaceAuditEvents();
+  try {
+    enqueueAuditEvent({
+      type: "skill.download.clicked",
+      payload: { skillId },
+    });
+    void flushWorkspaceAuditEvents();
 
-  const session = getSessionState();
-  const skill = session?.workspace?.skills.find((item) => item.id === skillId);
-  if (!skill) {
-    throw new Error("skill not found");
+    const session = getSessionState();
+    const skill = session?.workspace?.skills.find((item) => item.id === skillId);
+    if (!skill) {
+      throw new Error("skill not found");
+    }
+
+    await shell.openExternal(skill.downloadUrl);
+    return true;
+  } catch (error) {
+    const message = (error as Error).message;
+    enqueueAuditEvent({
+      type: "skill.download.failed",
+      payload: { skillId, error: message },
+    });
+    markAuditFailure(message);
+    throw error;
   }
-
-  await shell.openExternal(skill.downloadUrl);
-  return true;
 }
 
 export async function platformSyncSkillInstallations(): Promise<
   LocalSkillState[]
 > {
-  const session = getSessionState();
-  if (!session?.workspace) {
-    throw new Error("workspace not initialized");
+  try {
+    const session = getSessionState();
+    if (!session?.workspace) {
+      throw new Error("workspace not initialized");
+    }
+
+    const installedSkills = listInstalledSkills();
+
+    const states: LocalSkillState[] = session.workspace.skills.map((skill) => {
+      const platformKey = normalizeSkillKey(skill.name);
+      const localSkill = installedSkills.find(
+        (item) => normalizeSkillKey(item.name) === platformKey,
+      );
+      const downloadedPackage = findDownloadedSkillPackage(skill);
+
+      let status: LocalSkillState["status"] = "not-downloaded";
+      if (localSkill?.isBroken) {
+        status = "broken";
+      } else if (localSkill && localSkill.version && localSkill.version !== skill.version) {
+        status = "outdated";
+      } else if (localSkill) {
+        status = "installed";
+      } else if (downloadedPackage) {
+        status = "downloaded";
+      }
+
+      return {
+        skillId: skill.id,
+        installed: Boolean(localSkill),
+        version: localSkill?.version || downloadedPackage?.version || null,
+        status,
+        path: localSkill?.path || downloadedPackage?.path || null,
+      };
+    });
+
+    enqueueAuditEvent({
+      type: "skill.sync.completed",
+      payload: {
+        installedCount: states.filter((item) => item.installed).length,
+        totalCount: states.length,
+      },
+    });
+    void flushWorkspaceAuditEvents();
+
+    return states;
+  } catch (error) {
+    const message = (error as Error).message;
+    enqueueAuditEvent({
+      type: "skill.sync.failed",
+      payload: { error: message },
+    });
+    markAuditFailure(message);
+    throw error;
   }
-
-  const installedSkills = listInstalledSkills();
-
-  const states: LocalSkillState[] = session.workspace.skills.map((skill) => {
-    const localSkill = installedSkills.find((item) => item.name === skill.name);
-
-    return {
-      skillId: skill.id,
-      installed: Boolean(localSkill),
-      version: localSkill ? skill.version : null,
-      status: localSkill ? "installed" : "not-downloaded",
-      path: localSkill?.path || null,
-    };
-  });
-
-  enqueueAuditEvent({
-    type: "skill.sync.completed",
-    payload: {
-      installedCount: states.filter((item) => item.installed).length,
-      totalCount: states.length,
-    },
-  });
-  void flushWorkspaceAuditEvents();
-
-  return states;
 }
