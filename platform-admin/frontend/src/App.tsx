@@ -1786,13 +1786,13 @@ export default function App(): React.JSX.Element {
 
   return (
     <main className="platform-admin-app">
-      <section className="platform-admin-hero">
+      <section className="platform-admin-console-header">
         <div>
-          <p className="platform-admin-eyebrow">{copy.stage}</p>
+          <p className="platform-admin-console-kicker">{copy.title}</p>
           <h1>{copy.title}</h1>
-          <p className="platform-admin-description">{copy.description}</p>
+          <p className="platform-admin-console-description">{copy.workspace.overviewDesc}</p>
         </div>
-        <div className="flex flex-col items-start gap-3 lg:items-end">
+        <div className="platform-admin-console-actions">
           <div
             className="inline-flex rounded-full border border-slate-200 bg-white/85 p-1 shadow-sm"
             aria-label={copy.localeLabel}
@@ -1842,78 +1842,57 @@ export default function App(): React.JSX.Element {
         </div>
       </section>
 
-      <section className="platform-admin-layout">
+      <section className="platform-admin-layout is-console">
         <article className="platform-admin-panel">
           <div className="platform-admin-panel-header">
             <div>
-              <p className="platform-admin-section-label">{copy.login.section}</p>
-              <h2>{copy.login.title}</h2>
+              <p className="platform-admin-section-label">{copy.workspace.section}</p>
+              <h2>{formatMessage(copy.login.signedInAs, { name: session.user.displayName })}</h2>
             </div>
-            <p className="platform-admin-panel-note">{copy.login.note}</p>
+            <p className="platform-admin-panel-note">
+              {copy.login.scope}: {session.tenant
+                ? `${session.tenant.name} (${session.tenant.code})`
+                : copy.login.platformScope}
+            </p>
           </div>
 
-          <form className="platform-admin-form" onSubmit={handleSubmit}>
-            <label className="platform-admin-field">
-              <span>{copy.login.tenantCode}</span>
-              <input
-                value={tenantCode}
-                onChange={(event) => setTenantCode(event.target.value)}
-                placeholder="acme"
-              />
-            </label>
+          <section className="platform-admin-session is-console" aria-label="login-session">
+            <div className="platform-admin-session-grid">
+              <div className="platform-admin-session-item">
+                <span>{copy.login.account}</span>
+                <strong>{session.user.username}</strong>
+              </div>
+              <div className="platform-admin-session-item">
+                <span>{copy.login.role}</span>
+                <strong>{roleLabel(session.user.roleCode)}</strong>
+              </div>
+              <div className="platform-admin-session-item">
+                <span>{copy.login.scope}</span>
+                <strong>
+                  {session.tenant
+                    ? `${session.tenant.name} (${session.tenant.code})`
+                    : copy.login.platformScope}
+                </strong>
+              </div>
+            </div>
 
-            <label className="platform-admin-field">
-              <span>{copy.login.username}</span>
-              <input
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder="admin"
-              />
-            </label>
-
-            <label className="platform-admin-field">
-              <span>{copy.login.password}</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
-              />
-            </label>
-
-            <button className="platform-admin-submit" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? copy.login.signingIn : copy.login.signIn}
-            </button>
-          </form>
+            <div className="platform-admin-session-actions">
+              <button
+                className="platform-admin-secondary-button"
+                type="button"
+                onClick={handleRefreshSession}
+                disabled={isRefreshingSession}
+              >
+                {isRefreshingSession ? copy.login.refreshing : copy.login.refresh}
+              </button>
+              {sessionNotice ? (
+                <span className="platform-admin-session-notice">{sessionNotice}</span>
+              ) : null}
+            </div>
+          </section>
 
           {loginError ? <p className="platform-admin-error">{loginError}</p> : null}
           {workspaceError ? <p className="platform-admin-error">{workspaceError}</p> : null}
-
-          {session ? (
-            <section className="platform-admin-session" aria-label="login-session">
-              <h3>{formatMessage(copy.login.signedInAs, { name: session.user.displayName })}</h3>
-              <p>
-                {copy.login.scope}: {session.tenant
-                  ? `${session.tenant.name} (${session.tenant.code})`
-                  : copy.login.platformScope}
-              </p>
-              <p>{copy.login.account}: {session.user.username}</p>
-              <p>{copy.login.role}: {roleLabel(session.user.roleCode)}</p>
-              <div className="platform-admin-session-actions">
-                <button
-                  className="platform-admin-secondary-button"
-                  type="button"
-                  onClick={handleRefreshSession}
-                  disabled={isRefreshingSession}
-                >
-                  {isRefreshingSession ? copy.login.refreshing : copy.login.refresh}
-                </button>
-                {sessionNotice ? (
-                  <span className="platform-admin-session-notice">{sessionNotice}</span>
-                ) : null}
-              </div>
-            </section>
-          ) : null}
         </article>
 
         <section className="platform-admin-workspace" aria-label="admin-workspace">

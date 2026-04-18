@@ -361,6 +361,7 @@
   }
 
   .platform-admin-hero,
+  .platform-admin-console-header,
   .platform-admin-layout,
   .platform-admin-footer {
     @apply mx-auto w-full max-w-7xl;
@@ -383,6 +384,26 @@
     @apply mt-4 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg;
   }
 
+  .platform-admin-console-header {
+    @apply mb-5 flex flex-col gap-4 rounded-[2rem] border border-slate-200/80 bg-white/90 px-5 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)] ring-1 ring-white/80 backdrop-blur sm:px-6 lg:flex-row lg:items-start lg:justify-between;
+  }
+
+  .platform-admin-console-kicker {
+    @apply mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-700;
+  }
+
+  .platform-admin-console-header h1 {
+    @apply m-0 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl;
+  }
+
+  .platform-admin-console-description {
+    @apply mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base;
+  }
+
+  .platform-admin-console-actions {
+    @apply flex flex-col items-start gap-3 lg:items-end;
+  }
+
   .platform-admin-status {
     @apply inline-flex items-center rounded-full border border-slate-200 bg-white/85 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm backdrop-blur;
   }
@@ -401,6 +422,10 @@
 
   .platform-admin-layout {
     @apply grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)];
+  }
+
+  .platform-admin-layout.is-console {
+    @apply lg:grid-cols-[320px_minmax(0,1fr)];
   }
 
   .platform-admin-panel,
@@ -467,8 +492,28 @@
     @apply mt-5 rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5;
   }
 
+  .platform-admin-session.is-console {
+    @apply mt-0 grid gap-4 border-slate-200 bg-gradient-to-br from-slate-50 to-white;
+  }
+
   .platform-admin-session p {
     @apply mt-2 text-sm leading-6 text-slate-600;
+  }
+
+  .platform-admin-session-grid {
+    @apply grid gap-3;
+  }
+
+  .platform-admin-session-item {
+    @apply grid gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm;
+  }
+
+  .platform-admin-session-item span {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500;
+  }
+
+  .platform-admin-session-item strong {
+    @apply text-sm font-semibold leading-6 text-slate-900;
   }
 
   .platform-admin-session-actions {
