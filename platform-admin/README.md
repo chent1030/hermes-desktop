@@ -27,6 +27,11 @@
 - 后端支持平台级超级管理员自动播种，且播种逻辑幂等
 - 后端支持 access token 鉴权、refresh token 轮转、后台工作台接口鉴权
 - 后端支持租户管理、租户账号管理、账号停用、租户停用
+- 后端支持桌面执行端接口：
+  - 在线初始化 bootstrap
+  - 平台授权模型下发
+  - Skill 只读清单下发
+  - 审计事件批量接收与健康检查
 - 前端已提供双工作台：
   - 超级管理员：管理租户、管理租户账号
   - 租户管理员：仅管理本租户普通用户
@@ -129,6 +134,50 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - 租户管理员不能创建租户管理员
 - 删除策略当前统一为“停用/禁用”，不做物理删除
 
+## 桌面执行端接口
+
+已开放的桌面执行端最小接口如下：
+
+- `GET /api/desktop/bootstrap`：返回租户、账号、语言与功能开关
+- `GET /api/desktop/model-profiles`：返回当前租户可见模型列表
+- `GET /api/desktop/skills/catalog`：返回全局 Skill + 租户 Skill 只读清单
+- `POST /api/audit/events:batch`：接收桌面端批量审计事件
+- `GET /api/audit/health`：返回服务端审计健康状态
+
+当前返回策略：
+
+- 桌面执行端接口只接受租户作用域账号，不向平台超级管理员开放
+- `bootstrap` 当前默认返回 `locale = "zh-CN"` 且 `gatewayVisible = false`
+- 模型与 Skill 清单从 PostgreSQL 读取：
+  - `platform_desktop_model_profiles`
+  - `platform_desktop_skill_catalog`
+- 审计事件写入：
+  - `platform_audit_events`
+
+模型表最小字段包括：
+
+- `id`
+- `tenant_id`，为空表示平台全局模型
+- `provider`
+- `model`
+- `label`
+- `base_url`
+- `is_default`
+- `is_active`
+
+Skill 清单表最小字段包括：
+
+- `id`
+- `scope`，取值 `global` 或 `tenant`
+- `tenant_id`
+- `name`
+- `version`
+- `description`
+- `download_url`
+- `is_active`
+
+如果某个租户当前没有可见模型，桌面端会在在线初始化阶段阻断进入工作区；这符合第二份计划中“默认模型必须存在”的约束。
+
 ## 本地验证
 
 后端单测：
@@ -151,4 +200,12 @@ npm run test -- src/renderer/src/platform-admin/PlatformAdminApp.test.tsx
 cd platform-admin/backend
 ADMIN_DATABASE_URL=postgres://postgres:password@host:5432/manager_admin \
   cargo test live_postgres -- --ignored
+```
+
+仓库侧桌面平台链路验证：
+
+```bash
+cd /Users/chentao/project/hermes-desktop
+npm run test -- tests/platform-runtime.test.ts
+npm run test -- src/renderer/src/platform/PlatformProvider.test.tsx
 ```

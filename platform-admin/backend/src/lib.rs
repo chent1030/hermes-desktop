@@ -6,12 +6,22 @@ use std::net::{TcpListener, TcpStream};
 use serde::Serialize;
 
 pub mod admin;
+pub mod audit;
 pub mod auth;
+pub mod desktop;
 
 use admin::{
     AdminError, CreateAccountInput, CreateTenantInput, PgAdminStore, create_account_for_actor,
     create_tenant_for_actor, deactivate_account_for_actor, deactivate_tenant_for_actor,
     list_accounts_for_actor, list_tenants_for_actor,
+};
+use audit::{
+    AuditBatchInput, AuditError, PgAuditStore, audit_health_for_actor,
+    write_audit_events_for_actor,
+};
+use desktop::{
+    DesktopError, PgDesktopStore, desktop_bootstrap_for_actor, desktop_model_profiles_for_actor,
+    desktop_skill_catalog_for_actor,
 };
 use auth::{
     AuthError, BootstrapConfig, PgAuthStore, authenticate_access_token, authenticate_login,
@@ -155,11 +165,26 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         (Some("GET"), "/api/health") => json_response("HTTP/1.1 200 OK", &health_payload_json()),
         (Some("OPTIONS"), "/api/auth/login") => empty_response("HTTP/1.1 204 No Content"),
         (Some("OPTIONS"), "/api/auth/refresh") => empty_response("HTTP/1.1 204 No Content"),
+        (Some("OPTIONS"), _) if normalized_path.starts_with("/api/desktop/") => {
+            empty_response("HTTP/1.1 204 No Content")
+        }
+        (Some("OPTIONS"), _) if normalized_path.starts_with("/api/audit/") => {
+            empty_response("HTTP/1.1 204 No Content")
+        }
         (Some("OPTIONS"), _) if normalized_path.starts_with("/api/admin/") => {
             empty_response("HTTP/1.1 204 No Content")
         }
         (Some("POST"), "/api/auth/login") => handle_login_request(request, config),
         (Some("POST"), "/api/auth/refresh") => handle_refresh_request(request, config),
+        (Some("GET"), "/api/desktop/bootstrap") => handle_desktop_bootstrap(request, config),
+        (Some("GET"), "/api/desktop/model-profiles") => {
+            handle_desktop_model_profiles(request, config)
+        }
+        (Some("GET"), "/api/desktop/skills/catalog") => {
+            handle_desktop_skill_catalog(request, config)
+        }
+        (Some("POST"), "/api/audit/events:batch") => handle_audit_batch(request, config),
+        (Some("GET"), "/api/audit/health") => handle_audit_health(request, config),
         (Some("GET"), "/api/admin/me") => handle_admin_me(request, config),
         (Some("GET"), "/api/admin/tenants") => handle_list_tenants(request, config),
         (Some("POST"), "/api/admin/tenants") => handle_create_tenant(request, config),
@@ -201,6 +226,14 @@ pub fn handle_client(stream: &mut TcpStream, config: &ServerConfig) -> std::io::
 pub fn run_server(config: &ServerConfig) -> Result<(), ServerError> {
     let store = PgAuthStore::new(&config.database_url);
     store.ensure_schema()?;
+    let desktop_store = PgDesktopStore::new(&config.database_url);
+    desktop_store.ensure_schema().map_err(|error| {
+        ServerError::Store(auth::AuthStoreError(error.to_string()))
+    })?;
+    let audit_store = PgAuditStore::new(&config.database_url);
+    audit_store.ensure_schema().map_err(|error| {
+        ServerError::Store(auth::AuthStoreError(error.to_string()))
+    })?;
     let mut bootstrap_store = PgAuthStore::new(&config.database_url);
     ensure_bootstrap_super_admin(
         &mut bootstrap_store,
@@ -318,6 +351,72 @@ fn handle_refresh_request(request: &str, config: &ServerConfig) -> String {
                 message,
             }),
         ),
+    }
+}
+
+fn handle_desktop_bootstrap(request: &str, config: &ServerConfig) -> String {
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgDesktopStore::new(&config.database_url);
+        desktop_bootstrap_for_actor(&mut store, &to_principal(actor)).map_err(map_desktop_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_desktop_model_profiles(request: &str, config: &ServerConfig) -> String {
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgDesktopStore::new(&config.database_url);
+        desktop_model_profiles_for_actor(&mut store, &to_principal(actor))
+            .map_err(map_desktop_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_desktop_skill_catalog(request: &str, config: &ServerConfig) -> String {
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgDesktopStore::new(&config.database_url);
+        desktop_skill_catalog_for_actor(&mut store, &to_principal(actor))
+            .map_err(map_desktop_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_audit_batch(request: &str, config: &ServerConfig) -> String {
+    let body = request_body(request);
+    let input = match serde_json::from_str::<AuditBatchInput>(body) {
+        Ok(payload) => payload,
+        Err(_) => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "request body must be valid JSON".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAuditStore::new(&config.database_url);
+        write_audit_events_for_actor(&mut store, &to_principal(actor), input)
+            .map_err(map_audit_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_audit_health(request: &str, config: &ServerConfig) -> String {
+    match authenticate_request(request, config).and_then(|actor| {
+        audit_health_for_actor(&to_principal(actor)).map_err(map_audit_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
     }
 }
 
@@ -528,6 +627,21 @@ fn map_auth_to_admin_error(error: AuthError) -> AdminError {
     }
 }
 
+fn map_desktop_to_admin_error(error: DesktopError) -> AdminError {
+    match error {
+        DesktopError::Forbidden(message) => AdminError::Forbidden(message),
+        DesktopError::Store(message) => AdminError::Store(message),
+    }
+}
+
+fn map_audit_to_admin_error(error: AuditError) -> AdminError {
+    match error {
+        AuditError::InvalidRequest(message) => AdminError::InvalidRequest(message),
+        AuditError::Forbidden(message) => AdminError::Forbidden(message),
+        AuditError::Store(message) => AdminError::Store(message),
+    }
+}
+
 fn admin_error_response(error: AdminError) -> String {
     match error {
         AdminError::InvalidRequest(message) => json_response(
@@ -666,6 +780,26 @@ mod tests {
         assert!(response.starts_with("HTTP/1.1 204 No Content\r\n"));
         assert!(response.contains("access-control-allow-origin: *"));
         assert!(response.contains("access-control-allow-methods: GET, POST, OPTIONS"));
+    }
+
+    #[test]
+    fn supports_cors_preflight_for_desktop_requests() {
+        let response = handle_health_request(
+            "OPTIONS /api/desktop/bootstrap HTTP/1.1\r\nHost: localhost\r\nOrigin: http://127.0.0.1:4173\r\nAccess-Control-Request-Method: GET\r\nAccess-Control-Request-Headers: authorization\r\n\r\n",
+        );
+        assert!(response.starts_with("HTTP/1.1 204 No Content\r\n"));
+        assert!(response.contains("access-control-allow-origin: *"));
+        assert!(response.contains("access-control-allow-headers: content-type, authorization"));
+    }
+
+    #[test]
+    fn supports_cors_preflight_for_audit_requests() {
+        let response = handle_health_request(
+            "OPTIONS /api/audit/events:batch HTTP/1.1\r\nHost: localhost\r\nOrigin: http://127.0.0.1:4173\r\nAccess-Control-Request-Method: POST\r\nAccess-Control-Request-Headers: authorization, content-type\r\n\r\n",
+        );
+        assert!(response.starts_with("HTTP/1.1 204 No Content\r\n"));
+        assert!(response.contains("access-control-allow-origin: *"));
+        assert!(response.contains("access-control-allow-headers: content-type, authorization"));
     }
 
     #[test]
