@@ -23,6 +23,21 @@ interface PlatformContextValue {
 
 export const PlatformContext = createContext<PlatformContextValue | null>(null);
 
+function ensureWorkspaceReady(
+  workspace: WorkspaceBootstrap,
+): WorkspaceBootstrap {
+  if (workspace.models.length === 0) {
+    throw new Error("platform models unavailable");
+  }
+
+  const defaultModel = workspace.models.find((model) => model.isDefault);
+  if (!defaultModel) {
+    throw new Error("platform default model missing");
+  }
+
+  return workspace;
+}
+
 export function PlatformProvider({
   children,
 }: {
@@ -38,7 +53,9 @@ export function PlatformProvider({
     setInitError(null);
 
     try {
-      const nextWorkspace = await window.hermesAPI.initializeWorkspace();
+      const nextWorkspace = ensureWorkspaceReady(
+        await window.hermesAPI.initializeWorkspace(),
+      );
       setWorkspace(nextWorkspace);
       setStage("workspace");
     } catch (error) {

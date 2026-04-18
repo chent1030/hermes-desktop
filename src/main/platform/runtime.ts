@@ -42,6 +42,10 @@ export async function initializeWorkspaceState(): Promise<WorkspaceBootstrap> {
     fetchSkillCatalog(session.accessToken),
   ]);
 
+  if (models.items.length === 0) {
+    throw new Error("platform models unavailable");
+  }
+
   const defaultModel = models.items.find((item) => item.isDefault);
   if (!defaultModel) {
     throw new Error("platform default model missing");
