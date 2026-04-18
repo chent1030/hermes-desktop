@@ -711,4 +711,120 @@ describe("platform admin frontend", () => {
 
     expect(await screen.findByText("session-188")).toBeInTheDocument();
   });
+
+  it("applies event family filters and renders run audit summaries", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_demo",
+        refreshToken: "rtk_demo",
+        tenant: {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+        },
+        user: {
+          id: 42,
+          username: "admin",
+          displayName: "ACME Admin",
+          roleCode: "tenant_admin",
+          scopeType: "tenant",
+        },
+      }),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([
+        {
+          id: 301,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 42,
+            username: "admin",
+            displayName: "ACME Admin",
+            roleCode: "tenant_admin",
+          },
+          eventType: "run.tool.failed",
+          payload: {
+            source: "cli",
+            progressCount: 2,
+            lastLabel: "🔍 search_web",
+            error: "tool stream interrupted",
+          },
+          occurredAt: "2026-04-18T13:10:00.000Z",
+          createdAt: "2026-04-18T13:10:00.500Z",
+        },
+      ]),
+      mockJsonResponse([]),
+      mockJsonResponse([
+        {
+          id: 302,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 42,
+            username: "admin",
+            displayName: "ACME Admin",
+            roleCode: "tenant_admin",
+          },
+          eventType: "run.skill.sync.completed",
+          payload: {
+            installedCount: 1,
+            downloadedCount: 2,
+            outdatedCount: 0,
+            brokenCount: 1,
+            notDownloadedCount: 3,
+          },
+          occurredAt: "2026-04-18T13:11:00.000Z",
+          createdAt: "2026-04-18T13:11:00.500Z",
+        },
+      ]),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tenant code"), {
+      target: { value: "acme" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "admin" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("heading", { name: "Tenant audit center" })).toBeInTheDocument();
+    expect(screen.getByText("run.tool.failed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Source: cli • Last label: 🔍 search_web • Progress count: 2"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Error: tool stream interrupted")).toBeInTheDocument();
+
+    const auditCard = getCardForHeading("Tenant audit center");
+    fireEvent.change(within(auditCard).getByLabelText("Event family"), {
+      target: { value: "run." },
+    });
+    fireEvent.click(within(auditCard).getByRole("button", { name: "Apply filters" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/api/admin/tenant/audit/events?limit=100&eventPrefix=run.",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    expect(await screen.findByText("run.skill.sync.completed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Installed: 1 • Downloaded: 2 • Broken: 1 • Not downloaded: 3"),
+    ).toBeInTheDocument();
+  });
 });

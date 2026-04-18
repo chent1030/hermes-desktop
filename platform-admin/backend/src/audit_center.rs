@@ -30,6 +30,7 @@ pub struct AuditActorRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuditEventQuery {
     pub event_type: Option<String>,
+    pub event_prefix: Option<String>,
     pub occurred_from: Option<String>,
     pub occurred_to: Option<String>,
     pub before_id: Option<i64>,
@@ -148,15 +149,17 @@ impl AuditCenterStore for PgAuditCenterStore {
             INNER JOIN platform_admin_accounts a ON a.id = e.account_id
             WHERE e.tenant_id = $1
               AND ($2::varchar IS NULL OR e.event_type = $2)
-              AND ($3::text::timestamptz IS NULL OR e.occurred_at >= $3::text::timestamptz)
-              AND ($4::text::timestamptz IS NULL OR e.occurred_at <= $4::text::timestamptz)
-              AND ($5::bigint IS NULL OR e.id < $5)
+              AND ($3::varchar IS NULL OR e.event_type LIKE ($3 || '%'))
+              AND ($4::text::timestamptz IS NULL OR e.occurred_at >= $4::text::timestamptz)
+              AND ($5::text::timestamptz IS NULL OR e.occurred_at <= $5::text::timestamptz)
+              AND ($6::bigint IS NULL OR e.id < $6)
             ORDER BY e.occurred_at DESC, e.id DESC
-            LIMIT $6
+            LIMIT $7
             ",
             &[
                 &tenant_id,
                 &query.event_type,
+                &query.event_prefix,
                 &query.occurred_from,
                 &query.occurred_to,
                 &query.before_id,
@@ -215,6 +218,7 @@ pub fn list_audit_events_for_actor<S: AuditCenterStore>(
 
 pub fn build_audit_event_query(
     requested_event_type: Option<String>,
+    requested_event_prefix: Option<String>,
     requested_occurred_from: Option<String>,
     requested_occurred_to: Option<String>,
     requested_before_id: Option<i64>,
@@ -241,6 +245,7 @@ pub fn build_audit_event_query(
 
     Ok(AuditEventQuery {
         event_type: requested_event_type.filter(|value| !value.trim().is_empty()),
+        event_prefix: requested_event_prefix.filter(|value| !value.trim().is_empty()),
         occurred_from,
         occurred_to,
         before_id: requested_before_id,
@@ -352,6 +357,12 @@ mod tests {
                 })
                 .filter(|event| {
                     query
+                        .event_prefix
+                        .as_ref()
+                        .is_none_or(|value| event.event_type.starts_with(value))
+                })
+                .filter(|event| {
+                    query
                         .before_id
                         .is_none_or(|value| event.id < value)
                 })
@@ -441,7 +452,7 @@ mod tests {
             &mut store,
             &actor,
             Some(7),
-            build_audit_event_query(None, None, None, None, Some(50)).expect("query"),
+            build_audit_event_query(None, None, None, None, None, Some(50)).expect("query"),
         )
         .expect("tenant admin should read own audit events");
 
@@ -458,7 +469,7 @@ mod tests {
             &mut store,
             &actor,
             None,
-            build_audit_event_query(None, None, None, None, None).expect("query"),
+            build_audit_event_query(None, None, None, None, None, None).expect("query"),
         )
         .expect_err("super admin must provide tenant scope");
 
@@ -484,6 +495,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .expect("query"),
         )
@@ -491,6 +503,31 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].event_type, "chat.started");
+    }
+
+    #[test]
+    fn filters_audit_events_by_event_prefix() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemoryAuditCenterStore::default();
+        let mut model_event = sample_audit_event_record();
+        model_event.id = 12;
+        model_event.event_type = "run.model.selected".to_string();
+        let mut chat_event = sample_audit_event_record();
+        chat_event.id = 13;
+        chat_event.event_type = "chat.started".to_string();
+        store.events = vec![model_event, chat_event];
+
+        let items = list_audit_events_for_actor(
+            &mut store,
+            &actor,
+            Some(7),
+            build_audit_event_query(None, Some("run.".to_string()), None, None, None, None)
+                .expect("query"),
+        )
+        .expect("tenant admin should filter audit events by prefix");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].event_type, "run.model.selected");
     }
 
     #[test]
@@ -509,7 +546,7 @@ mod tests {
             &mut store,
             &actor,
             Some(7),
-            build_audit_event_query(None, None, None, Some(11), None).expect("query"),
+            build_audit_event_query(None, None, None, None, Some(11), None).expect("query"),
         )
         .expect("tenant admin should paginate audit events");
 
@@ -520,6 +557,7 @@ mod tests {
     #[test]
     fn rejects_invalid_occurred_from_format() {
         let error = build_audit_event_query(
+            None,
             None,
             Some("not-a-time".to_string()),
             None,
@@ -567,6 +605,7 @@ mod tests {
             Some(tenant_id),
             build_audit_event_query(
                 Some("workspace.initialized".to_string()),
+                None,
                 None,
                 None,
                 None,

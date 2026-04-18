@@ -96,6 +96,7 @@ interface SessionSummaryRecord {
 }
 
 interface AuditFilters {
+  eventPrefix: string;
   eventType: string;
   occurredFrom: string;
   occurredTo: string;
@@ -132,6 +133,102 @@ function authHeaders(session: LoginResponse, withJson = false): HeadersInit {
   };
 }
 
+function readPayloadString(
+  payload: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = payload[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function readPayloadNumber(
+  payload: Record<string, unknown>,
+  key: string,
+): number | null {
+  const value = payload[key];
+  return typeof value === "number" ? value : null;
+}
+
+function buildAuditSummaryLines(item: AuditEventRecord): string[] {
+  if (item.eventType.startsWith("run.tool.")) {
+    const parts: string[] = [];
+    const source = readPayloadString(item.payload, "source");
+    const lastLabel = readPayloadString(item.payload, "lastLabel");
+    const progressCount = readPayloadNumber(item.payload, "progressCount");
+    const error = readPayloadString(item.payload, "error");
+
+    if (source) {
+      parts.push(`Source: ${source}`);
+    }
+    if (lastLabel) {
+      parts.push(`Last label: ${lastLabel}`);
+    }
+    if (typeof progressCount === "number") {
+      parts.push(`Progress count: ${progressCount}`);
+    }
+
+    return [
+      parts.join(" • "),
+      ...(error ? [`Error: ${error}`] : []),
+    ].filter(Boolean);
+  }
+
+  if (item.eventType.startsWith("run.model.")) {
+    const parts: string[] = [];
+    const modelId = readPayloadString(item.payload, "modelId");
+    const error = readPayloadString(item.payload, "error");
+
+    if (modelId) {
+      parts.push(`Model: ${modelId}`);
+    }
+    if (error) {
+      parts.push(`Error: ${error}`);
+    }
+
+    return parts.length > 0 ? [parts.join(" • ")] : [];
+  }
+
+  if (item.eventType === "run.skill.sync.completed") {
+    const installedCount = readPayloadNumber(item.payload, "installedCount");
+    const downloadedCount = readPayloadNumber(item.payload, "downloadedCount");
+    const brokenCount = readPayloadNumber(item.payload, "brokenCount");
+    const notDownloadedCount = readPayloadNumber(item.payload, "notDownloadedCount");
+    const parts: string[] = [];
+
+    if (typeof installedCount === "number") {
+      parts.push(`Installed: ${installedCount}`);
+    }
+    if (typeof downloadedCount === "number") {
+      parts.push(`Downloaded: ${downloadedCount}`);
+    }
+    if (typeof brokenCount === "number") {
+      parts.push(`Broken: ${brokenCount}`);
+    }
+    if (typeof notDownloadedCount === "number") {
+      parts.push(`Not downloaded: ${notDownloadedCount}`);
+    }
+
+    return parts.length > 0 ? [parts.join(" • ")] : [];
+  }
+
+  if (item.eventType.startsWith("run.skill.")) {
+    const parts: string[] = [];
+    const skillId = readPayloadString(item.payload, "skillId");
+    const error = readPayloadString(item.payload, "error");
+
+    if (skillId) {
+      parts.push(`Skill: ${skillId}`);
+    }
+    if (error) {
+      parts.push(`Error: ${error}`);
+    }
+
+    return parts.length > 0 ? [parts.join(" • ")] : [];
+  }
+
+  return [];
+}
+
 export default function App(): React.JSX.Element {
   const [tenantCode, setTenantCode] = useState("");
   const [username, setUsername] = useState("");
@@ -153,6 +250,7 @@ export default function App(): React.JSX.Element {
   const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
   const [sessions, setSessions] = useState<SessionSummaryRecord[]>([]);
   const [auditFilters, setAuditFilters] = useState<AuditFilters>({
+    eventPrefix: "",
     eventType: "",
     occurredFrom: "",
     occurredTo: "",
@@ -293,6 +391,9 @@ export default function App(): React.JSX.Element {
       tenantId: String(tenantId),
       limit: filters.limit || "100",
     });
+    if (filters.eventPrefix.trim()) {
+      params.set("eventPrefix", filters.eventPrefix.trim());
+    }
     if (filters.eventType.trim()) {
       params.set("eventType", filters.eventType.trim());
     }
@@ -319,6 +420,9 @@ export default function App(): React.JSX.Element {
     const params = new URLSearchParams({
       limit: filters.limit || "100",
     });
+    if (filters.eventPrefix.trim()) {
+      params.set("eventPrefix", filters.eventPrefix.trim());
+    }
     if (filters.eventType.trim()) {
       params.set("eventType", filters.eventType.trim());
     }
@@ -932,14 +1036,21 @@ export default function App(): React.JSX.Element {
     }
   };
 
-  const renderAuditEvent = (item: AuditEventRecord): React.JSX.Element => (
-    <div key={item.id} className="platform-admin-list-item is-static">
-      <span>{item.eventType}</span>
-      <small>{item.account.displayName}</small>
-      <small>{item.occurredAt}</small>
-      <small>{JSON.stringify(item.payload)}</small>
-    </div>
-  );
+  const renderAuditEvent = (item: AuditEventRecord): React.JSX.Element => {
+    const summaryLines = buildAuditSummaryLines(item);
+
+    return (
+      <div key={item.id} className="platform-admin-list-item is-static">
+        <span>{item.eventType}</span>
+        <small>{item.account.displayName}</small>
+        <small>{item.occurredAt}</small>
+        {summaryLines.map((line) => (
+          <small key={`${item.id}-${line}`}>{line}</small>
+        ))}
+        <small>{JSON.stringify(item.payload)}</small>
+      </div>
+    );
+  };
 
   const renderSessionSummary = (item: SessionSummaryRecord): React.JSX.Element => (
     <div key={item.sessionId} className="platform-admin-list-item is-static">
@@ -954,6 +1065,21 @@ export default function App(): React.JSX.Element {
 
   const renderAuditFilters = (): React.JSX.Element => (
     <div className="platform-admin-form">
+      <label className="platform-admin-field">
+        <span>Event family</span>
+        <select
+          value={auditFilters.eventPrefix}
+          onChange={(event) =>
+            setAuditFilters((current) => ({ ...current, eventPrefix: event.target.value }))
+          }
+        >
+          <option value="">All events</option>
+          <option value="run.">Run events</option>
+          <option value="chat.">Chat events</option>
+          <option value="auth.">Auth events</option>
+          <option value="workspace.">Workspace events</option>
+        </select>
+      </label>
       <label className="platform-admin-field">
         <span>Event type</span>
         <input
