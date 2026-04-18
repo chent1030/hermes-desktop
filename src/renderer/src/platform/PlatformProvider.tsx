@@ -1,4 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import { setLocale as setSharedLocale } from "../../../shared/i18n";
 import type { AuditStatus } from "../../../shared/platform/audit";
 import type { WorkspaceBootstrap } from "../../../shared/platform/contracts";
 
@@ -56,6 +57,7 @@ export function PlatformProvider({
       const nextWorkspace = ensureWorkspaceReady(
         await window.hermesAPI.initializeWorkspace(),
       );
+      setSharedLocale(nextWorkspace.locale);
       setWorkspace(nextWorkspace);
       setStage("workspace");
     } catch (error) {
