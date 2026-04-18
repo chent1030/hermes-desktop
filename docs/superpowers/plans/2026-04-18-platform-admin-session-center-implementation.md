@@ -188,7 +188,7 @@ fn session_summary_marks_failure_when_chat_failed_exists() {
 
 - [ ] **Step 2: 跑后端定向测试确认红灯**
 
-Run: `cargo test tenant_admin_can_list_own_sessions super_admin_requires_tenant_scope_to_list_sessions session_summary_marks_failure_when_chat_failed_exists`
+Run: `cargo test session_center::tests`
 Expected: FAIL，提示 `session_center` 模块或相关类型/函数不存在
 
 - [ ] **Step 3: 新建 `session_center.rs`，定义最小会话汇总模型和查询抽象**

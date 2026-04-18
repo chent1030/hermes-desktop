@@ -135,6 +135,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `POST /api/admin/model-profiles`：超级管理员创建全局或指定租户模型
 - `POST /api/admin/model-profiles/:modelId/deactivate`：超级管理员停用模型
 - `GET /api/admin/audit/events?tenantId=:tenantId&limit=:limit&eventType=:eventType&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：超级管理员按基础条件读取指定租户审计事件
+- `GET /api/admin/sessions?tenantId=:tenantId&limit=:limit`：超级管理员读取指定租户最近会话
 - `GET /api/admin/tenant/model-profiles`：租户管理员读取本租户模型
 - `POST /api/admin/tenant/model-profiles`：租户管理员创建本租户模型
 - `POST /api/admin/tenant/model-profiles/:modelId/deactivate`：租户管理员停用本租户模型
@@ -145,6 +146,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `POST /api/admin/tenant/skills/catalog`：租户管理员创建本租户 Skill 清单项
 - `POST /api/admin/tenant/skills/catalog/:skillId/deactivate`：租户管理员停用本租户 Skill 清单项
 - `GET /api/admin/tenant/audit/events?limit=:limit&eventType=:eventType&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：租户管理员按基础条件读取本租户审计事件
+- `GET /api/admin/tenant/sessions?limit=:limit`：租户管理员读取本租户最近会话
 
 当前权限边界：
 
@@ -221,6 +223,28 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
 - 图表看板
 - 会话中心联动
 - 防篡改增强
+
+## 会话中心最小规则
+
+会话中心当前只做“最近会话可查视图”，用于把 `chat.*` 运行事件按 `sessionId` 聚合成最小只读列表。
+
+本期规则如下：
+
+- 继续复用 `platform_audit_events`，不单独建立会话表
+- 只聚合 `event_type LIKE 'chat.%'` 且 `payload.sessionId` 非空的事件
+- 超级管理员必须带 `tenantId` 查询某个租户的会话
+- 租户管理员只能读取自己租户的会话
+- 默认返回最近 `100` 条
+- 最大 `limit = 200`
+- 返回字段包括 `sessionId`、租户、最后触发账号、最近事件类型、最近发生时间、事件数和失败标记
+
+当前不做：
+
+- 会话详情页
+- transcript 展示
+- 会话导出
+- 会话复杂筛选
+- 审计中心联动跳转
 
 ## 桌面执行端接口
 
