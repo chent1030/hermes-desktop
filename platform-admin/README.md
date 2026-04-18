@@ -16,3 +16,67 @@
 - 提供后端健康检查接口
 - 提供前端管理台壳层
 - 为后续租户、用户、RBAC、模型配置与 Skill Hub 落地留出结构
+
+## 当前已落地切片
+
+- 后端已支持 `GET /api/health`
+- 后端已支持 `POST /api/auth/login`
+- 后端会自动初始化 `platform_admin_tenants` / `platform_admin_users` 两张认证基础表
+- 前端已提供管理端登录页，并连通健康检查与账号密码登录请求
+- 浏览器跨端口访问已补齐 CORS / `OPTIONS` 预检支持
+
+## 登录接口约定
+
+请求：
+
+```json
+{
+  "tenantCode": "acme",
+  "username": "admin",
+  "password": "secret123"
+}
+```
+
+成功响应：
+
+```json
+{
+  "accessToken": "atk_xxx",
+  "refreshToken": "rtk_xxx",
+  "tenant": {
+    "id": 7,
+    "code": "acme",
+    "name": "Acme Corp"
+  },
+  "user": {
+    "id": 42,
+    "username": "admin",
+    "displayName": "ACME Admin",
+    "roleCode": "tenant_admin"
+  }
+}
+```
+
+## 本地验证
+
+后端单测：
+
+```bash
+cd platform-admin/backend
+cargo test
+```
+
+前端登录页测试：
+
+```bash
+cd /Users/chentao/project/hermes-desktop
+npm run test -- src/renderer/src/platform-admin/PlatformAdminApp.test.tsx
+```
+
+如果要直连真实 PostgreSQL 做一次活体验证，可设置 `ADMIN_DATABASE_URL` 后执行：
+
+```bash
+cd platform-admin/backend
+ADMIN_DATABASE_URL=postgres://postgres:password@host:5432/manager_admin \
+  cargo test authenticates_against_live_postgres -- --ignored
+```

@@ -9,3 +9,10 @@ path = "src/lib.rs"
 [[bin]]
 name = "platform-admin-backend"
 path = "src/main.rs"
+
+[dependencies]
+hex = "0.4"
+postgres = "0.19"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"

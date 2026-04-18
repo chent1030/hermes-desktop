@@ -32,6 +32,7 @@ services:
       ADMIN_BACKEND_HOST: ${ADMIN_BACKEND_HOST}
       ADMIN_BACKEND_PORT: ${ADMIN_BACKEND_PORT}
       ADMIN_DATABASE_URL: ${ADMIN_DATABASE_URL}
+      ADMIN_SESSION_SALT: ${ADMIN_SESSION_SALT}
     depends_on:
       postgres:
         condition: service_healthy
