@@ -123,13 +123,32 @@ interface AuditFamilySummary {
   count: number;
 }
 
+function isObjectBody(value: unknown): value is { message?: unknown } {
+  return typeof value === "object" && value !== null;
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
-  const body = (await response.json()) as Record<string, unknown>;
+  const rawText = await response.text();
+  const trimmedText = rawText.trim();
+
+  if (!trimmedText) {
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`.trim());
+    }
+    throw new Error(`Empty JSON response from ${path}`);
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(trimmedText);
+  } catch {
+    throw new Error(`Invalid JSON response from ${path}`);
+  }
 
   if (!response.ok) {
     const message =
-      typeof body.message === "string"
+      isObjectBody(body) && typeof body.message === "string"
         ? body.message
         : `${response.status} ${response.statusText}`.trim();
     throw new Error(message);

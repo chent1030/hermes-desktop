@@ -8,7 +8,20 @@ function mockJsonResponse(body: unknown, ok = true, status = 200, statusText = "
     status,
     statusText,
     json: async () => body,
-  } as Response;
+    text: async () => JSON.stringify(body),
+  } as unknown as Response;
+}
+
+function mockTextResponse(body: string, ok = true, status = 200, statusText = "OK") {
+  return {
+    ok,
+    status,
+    statusText,
+    json: async () => {
+      throw new SyntaxError("Unexpected end of JSON input");
+    },
+    text: async () => body,
+  } as unknown as Response;
 }
 
 function setupFetch(responses: Response[]): void {
@@ -27,6 +40,31 @@ afterEach(() => {
 });
 
 describe("platform admin frontend", () => {
+  it("shows a clear login error when the login response body is empty", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockTextResponse(""),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tenant code"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "root" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "Secret123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByText("Empty JSON response from /api/auth/login"),
+    ).toBeInTheDocument();
+  });
+
   it("renders a super admin workspace with tenant creation after login and refresh", async () => {
     setupFetch([
       mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
