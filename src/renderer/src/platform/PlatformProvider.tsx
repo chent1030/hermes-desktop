@@ -4,7 +4,7 @@ import type { AuditStatus } from "../../../shared/platform/audit";
 import type { WorkspaceInitStatus } from "../../../shared/platform/init";
 import type { WorkspaceBootstrap } from "../../../shared/platform/contracts";
 
-type PlatformStage = "login" | "initializing" | "workspace";
+type PlatformStage = "login" | "initializing" | "workspace" | "session-recovery";
 
 interface LoginPayload {
   tenantCode: string;
@@ -18,6 +18,7 @@ interface PlatformContextValue {
   audit: AuditStatus | null;
   initError: string | null;
   initStatus?: WorkspaceInitStatus;
+  sessionRecoveryReason?: string | null;
   login: (payload: LoginPayload) => Promise<void>;
   retryInitialization: () => Promise<void>;
   logout: () => Promise<void>;
@@ -55,10 +56,12 @@ export function PlatformProvider({
     failedPhase: null,
     lastError: null,
   });
+  const [sessionRecoveryReason, setSessionRecoveryReason] = useState<string | null>(null);
 
   const runInitialization = useCallback(async (): Promise<void> => {
     setStage("initializing");
     setInitError(null);
+    setSessionRecoveryReason(null);
 
     try {
       const nextWorkspace = ensureWorkspaceReady(
@@ -75,17 +78,18 @@ export function PlatformProvider({
 
   const login = useCallback(
     async (payload: LoginPayload): Promise<void> => {
+      setSessionRecoveryReason(null);
       await window.hermesAPI.loginTenant(payload);
       await runInitialization();
     },
     [runInitialization],
   );
 
-  const logout = useCallback(async (): Promise<void> => {
-    await window.hermesAPI.logoutTenant();
+  const resetToLogin = useCallback((): void => {
     setAudit(null);
     setWorkspace(null);
     setInitError(null);
+    setSessionRecoveryReason(null);
     setInitStatus({
       phase: "idle",
       failedPhase: null,
@@ -93,6 +97,25 @@ export function PlatformProvider({
     });
     setStage("login");
   }, []);
+
+  const logout = useCallback(async (): Promise<void> => {
+    await window.hermesAPI.logoutTenant();
+    resetToLogin();
+  }, [resetToLogin]);
+
+  const startSessionRecovery = useCallback(
+    async (reason: string): Promise<void> => {
+      setSessionRecoveryReason(reason);
+      setStage("session-recovery");
+
+      try {
+        await window.hermesAPI.logoutTenant();
+      } finally {
+        resetToLogin();
+      }
+    },
+    [resetToLogin],
+  );
 
   const setSelectedModel = useCallback(async (modelId: string): Promise<void> => {
     const nextWorkspace = await window.hermesAPI.selectWorkspaceModel(modelId);
@@ -136,7 +159,7 @@ export function PlatformProvider({
       if (!active) return;
       setAudit(nextAudit);
       if (nextAudit.health === "reauth-required") {
-        await logout();
+        await startSessionRecovery(nextAudit.lastError || "platform session expired");
       }
     };
 
@@ -149,7 +172,7 @@ export function PlatformProvider({
       active = false;
       window.clearInterval(timer);
     };
-  }, [logout, stage]);
+  }, [stage, startSessionRecovery]);
 
   useEffect(() => {
     if (
@@ -161,14 +184,14 @@ export function PlatformProvider({
 
     const timer = window.setInterval(() => {
       window.hermesAPI.refreshTenantSession().catch(() => {
-        void logout();
+        void startSessionRecovery("refresh token expired");
       });
     }, 5 * 60 * 1000);
 
     return () => {
       window.clearInterval(timer);
     };
-  }, [logout, stage]);
+  }, [stage, startSessionRecovery]);
 
   const value = useMemo<PlatformContextValue>(
     () => ({
@@ -177,6 +200,7 @@ export function PlatformProvider({
       audit,
       initError,
       initStatus,
+      sessionRecoveryReason,
       login,
       retryInitialization: runInitialization,
       logout,
@@ -188,6 +212,7 @@ export function PlatformProvider({
       audit,
       initError,
       initStatus,
+      sessionRecoveryReason,
       login,
       runInitialization,
       logout,

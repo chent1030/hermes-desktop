@@ -1,5 +1,6 @@
 import Initializing from "../screens/Initializing/Initializing";
 import Login from "../screens/Login/Login";
+import SessionRecovery from "../screens/SessionRecovery/SessionRecovery";
 import WorkspaceShell from "../screens/Workspace/WorkspaceShell";
 import { usePlatform } from "./usePlatform";
 
@@ -12,6 +13,10 @@ export default function DesktopRoot(): React.JSX.Element {
 
   if (stage === "initializing") {
     return <Initializing />;
+  }
+
+  if (stage === "session-recovery") {
+    return <SessionRecovery />;
   }
 
   if (!workspace) {

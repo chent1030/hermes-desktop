@@ -45,6 +45,10 @@ export default {
   auditDegraded: "已降级",
   auditBuffering: "缓冲中",
   auditReauthRequired: "需要重新登录",
+  sessionRecoveryTitle: "正在恢复会话",
+  sessionRecoveryHint: "平台会话已失效，桌面端正在清理内存中的工作区状态。",
+  sessionRecoveryReturning: "即将返回登录页...",
+  sessionRecoveryReasonLabel: "原因",
   reinitialize: "重新初始化",
   signOut: "退出登录",
 } as const;

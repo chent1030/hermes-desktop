@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale as setSharedLocale } from "../../../shared/i18n";
 import { I18nProvider } from "../components/I18nProvider";
@@ -17,6 +17,8 @@ describe("PlatformProvider", () => {
 
   afterEach(() => {
     setSharedLocale("en");
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("starts on login, initializes online, then enters workspace", async () => {
@@ -390,5 +392,154 @@ describe("PlatformProvider", () => {
     });
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
     expect(screen.queryByText("Workspace ready")).not.toBeInTheDocument();
+  });
+
+  it("shows a session recovery screen while refresh logout is in progress", async () => {
+    let refreshInterval: (() => void) | null = null;
+    const intervalSpy = vi
+      .spyOn(window, "setInterval")
+      .mockImplementation(
+        (
+          handler: Parameters<typeof window.setInterval>[0],
+          timeout?: Parameters<typeof window.setInterval>[1],
+        ) => {
+        if (timeout === 5 * 60 * 1000 && typeof handler === "function") {
+          refreshInterval = handler as () => void;
+        }
+          return 1 as unknown as ReturnType<typeof window.setInterval>;
+        },
+      );
+
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        loginTenant: vi.fn().mockResolvedValue(undefined),
+        initializeWorkspace: vi.fn().mockResolvedValue({
+          tenant: { id: "t1", code: "acme", name: "Acme" },
+          user: { id: "u1", username: "alice", displayName: "Alice" },
+          locale: "zh-CN",
+          features: { gatewayVisible: false },
+          models: [
+            {
+              id: "m1",
+              provider: "openai",
+              model: "gpt-5.4",
+              label: "GPT-5.4",
+              baseUrl: "",
+              isDefault: true,
+            },
+          ],
+          selectedModelId: "m1",
+          skills: [],
+        }),
+        getAuditStatus: vi.fn().mockResolvedValue({
+          health: "healthy",
+          localHealth: "healthy",
+          remoteHealth: "healthy",
+          queuedEvents: 0,
+          droppedEvents: 0,
+          lastError: null,
+        }),
+        refreshTenantSession: vi.fn().mockRejectedValue(new Error("refresh token expired")),
+        logoutTenant: vi.fn(() => new Promise(() => undefined)),
+        selectWorkspaceModel: vi.fn(),
+      },
+    });
+
+    render(
+      <I18nProvider>
+        <PlatformProvider>
+          <DesktopRoot />
+        </PlatformProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Tenant"), {
+      target: { value: "acme" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "alice" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Workspace ready")).toBeInTheDocument();
+    });
+
+    expect(refreshInterval).not.toBeNull();
+
+    await act(async () => {
+      refreshInterval?.();
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByText("正在恢复会话")).toBeInTheDocument();
+    expect(screen.getByText("即将返回登录页...")).toBeInTheDocument();
+    expect(screen.getByText(/refresh token expired/i)).toBeInTheDocument();
+
+    intervalSpy.mockRestore();
+  });
+
+  it("shows a session recovery screen when audit status requires reauth", async () => {
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        loginTenant: vi.fn().mockResolvedValue(undefined),
+        initializeWorkspace: vi.fn().mockResolvedValue({
+          tenant: { id: "t1", code: "acme", name: "Acme" },
+          user: { id: "u1", username: "alice", displayName: "Alice" },
+          locale: "zh-CN",
+          features: { gatewayVisible: false },
+          models: [
+            {
+              id: "m1",
+              provider: "openai",
+              model: "gpt-5.4",
+              label: "GPT-5.4",
+              baseUrl: "",
+              isDefault: true,
+            },
+          ],
+          selectedModelId: "m1",
+          skills: [],
+        }),
+        getAuditStatus: vi.fn().mockResolvedValue({
+          health: "reauth-required",
+          localHealth: "reauth-required",
+          remoteHealth: "reauth-required",
+          queuedEvents: 0,
+          droppedEvents: 0,
+          lastError: "session expired",
+        }),
+        refreshTenantSession: vi.fn().mockResolvedValue(undefined),
+        logoutTenant: vi.fn(() => new Promise(() => undefined)),
+        selectWorkspaceModel: vi.fn(),
+      },
+    });
+
+    render(
+      <I18nProvider>
+        <PlatformProvider>
+          <DesktopRoot />
+        </PlatformProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Tenant"), {
+      target: { value: "acme" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "alice" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("正在恢复会话")).toBeInTheDocument();
+    expect(screen.getByText(/session expired/i)).toBeInTheDocument();
   });
 });

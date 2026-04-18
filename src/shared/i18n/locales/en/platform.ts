@@ -48,6 +48,11 @@ export default {
   auditDegraded: "Degraded",
   auditBuffering: "Buffering",
   auditReauthRequired: "Reauth required",
+  sessionRecoveryTitle: "Recovering session",
+  sessionRecoveryHint:
+    "Your platform session is no longer valid. The desktop app is clearing in-memory workspace state.",
+  sessionRecoveryReturning: "Returning to sign in...",
+  sessionRecoveryReasonLabel: "Reason",
   reinitialize: "Reinitialize",
   signOut: "Sign out",
 } as const;

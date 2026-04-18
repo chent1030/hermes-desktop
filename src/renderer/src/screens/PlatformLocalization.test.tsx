@@ -4,6 +4,7 @@ import { setLocale as setSharedLocale } from "../../../shared/i18n";
 import { I18nProvider } from "../components/I18nProvider";
 import Initializing from "./Initializing/Initializing";
 import Login from "./Login/Login";
+import SessionRecovery from "./SessionRecovery/SessionRecovery";
 import Skills from "./Skills/Skills";
 import WorkspaceBanner from "./Workspace/WorkspaceBanner";
 import { PlatformContext } from "../platform/PlatformProvider";
@@ -191,5 +192,34 @@ describe("platform screen localization", () => {
     expect(screen.getByText("待补传：2")).toBeInTheDocument();
     expect(screen.getByText("已丢弃：1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试审计上传" })).toBeInTheDocument();
+  });
+
+  it("renders localized session recovery copy in Chinese", () => {
+    render(
+      <I18nProvider>
+        <PlatformContext.Provider
+          value={{
+            stage: "session-recovery",
+            workspace: null,
+            audit: null,
+            initError: null,
+            sessionRecoveryReason: "refresh token expired",
+            login: vi.fn(),
+            retryInitialization: vi.fn(),
+            logout: vi.fn(),
+            setSelectedModel: vi.fn(),
+          }}
+        >
+          <SessionRecovery />
+        </PlatformContext.Provider>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText("正在恢复会话")).toBeInTheDocument();
+    expect(
+      screen.getByText("平台会话已失效，桌面端正在清理内存中的工作区状态。"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("即将返回登录页...")).toBeInTheDocument();
+    expect(screen.getByText("原因: refresh token expired")).toBeInTheDocument();
   });
 });
