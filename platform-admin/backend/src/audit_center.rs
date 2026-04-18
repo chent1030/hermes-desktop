@@ -148,8 +148,8 @@ impl AuditCenterStore for PgAuditCenterStore {
             INNER JOIN platform_admin_accounts a ON a.id = e.account_id
             WHERE e.tenant_id = $1
               AND ($2::varchar IS NULL OR e.event_type = $2)
-              AND ($3::timestamptz IS NULL OR e.occurred_at >= $3::timestamptz)
-              AND ($4::timestamptz IS NULL OR e.occurred_at <= $4::timestamptz)
+              AND ($3::text::timestamptz IS NULL OR e.occurred_at >= $3::text::timestamptz)
+              AND ($4::text::timestamptz IS NULL OR e.occurred_at <= $4::text::timestamptz)
               AND ($5::bigint IS NULL OR e.id < $5)
             ORDER BY e.occurred_at DESC, e.id DESC
             LIMIT $6
@@ -310,7 +310,12 @@ fn row_to_audit_event(row: postgres::Row) -> AuditEventRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audit::{AuditBatchInput, AuditEventInput, PgAuditStore, write_audit_events_for_actor};
     use crate::auth::AuthUser;
+    use crate::live_test_support::{
+        acquire_live_postgres_guard, ensure_live_platform_schema, live_database_url, live_unique,
+        seed_live_tenant_admin,
+    };
 
     #[derive(Default)]
     struct MemoryAuditCenterStore {
@@ -524,5 +529,59 @@ mod tests {
         .expect_err("invalid time should be rejected");
 
         assert!(matches!(error, AuditCenterError::InvalidRequest(_)));
+    }
+
+    #[test]
+    #[ignore = "requires ADMIN_DATABASE_URL to reach a live PostgreSQL instance"]
+    fn lists_live_audit_events_for_tenant_actor() {
+        let _guard = acquire_live_postgres_guard();
+        let database_url = live_database_url();
+        ensure_live_platform_schema(&database_url);
+
+        let unique = live_unique("audit-center");
+        let actor = seed_live_tenant_admin(
+            &database_url,
+            &format!("tenant-{unique}"),
+            &format!("tenant_admin_{unique}"),
+            "Stage2!Pass123",
+        );
+        let tenant_id = actor.tenant.as_ref().expect("tenant should exist").id;
+        let marker = format!("marker-{unique}");
+
+        write_audit_events_for_actor(
+            &mut PgAuditStore::new(&database_url),
+            &actor,
+            AuditBatchInput {
+                events: vec![AuditEventInput {
+                    event_type: "workspace.initialized".to_string(),
+                    payload: serde_json::json!({ "marker": marker.clone() }),
+                    occurred_at: Some("2026-04-18T12:00:00Z".to_string()),
+                }],
+            },
+        )
+        .expect("audit event should be written");
+
+        let items = list_audit_events_for_actor(
+            &mut PgAuditCenterStore::new(&database_url),
+            &actor,
+            Some(tenant_id),
+            build_audit_event_query(
+                Some("workspace.initialized".to_string()),
+                None,
+                None,
+                None,
+                Some(50),
+            )
+            .expect("query"),
+        )
+        .expect("audit events should be listed");
+
+        let event = items
+            .iter()
+            .find(|item| item.payload.get("marker") == Some(&serde_json::json!(marker)))
+            .expect("live audit event should be returned");
+
+        assert_eq!(event.event_type, "workspace.initialized");
+        assert_eq!(event.tenant.id, tenant_id);
     }
 }

@@ -10,6 +10,8 @@ pub mod audit;
 pub mod audit_center;
 pub mod auth;
 pub mod desktop;
+#[cfg(test)]
+pub mod live_test_support;
 pub mod model_profiles;
 pub mod session_center;
 pub mod skill_catalog;

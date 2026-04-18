@@ -475,6 +475,10 @@ fn row_to_skill_catalog(row: postgres::Row) -> SkillCatalogRecord {
 mod tests {
     use super::*;
     use crate::auth::AuthUser;
+    use crate::live_test_support::{
+        acquire_live_postgres_guard, ensure_live_platform_schema, live_database_url, live_unique,
+        seed_live_super_admin, seed_live_tenant_admin,
+    };
 
     #[derive(Default)]
     struct MemorySkillCatalogStore {
@@ -630,5 +634,77 @@ mod tests {
         .expect_err("tenant admin must not create global skill");
 
         assert!(matches!(error, SkillCatalogError::Forbidden(_)));
+    }
+
+    #[test]
+    #[ignore = "requires ADMIN_DATABASE_URL to reach a live PostgreSQL instance"]
+    fn manages_live_skill_catalog_for_global_and_tenant_scopes() {
+        let _guard = acquire_live_postgres_guard();
+        let database_url = live_database_url();
+        ensure_live_platform_schema(&database_url);
+
+        let unique = live_unique("skill");
+        let tenant_admin = seed_live_tenant_admin(
+            &database_url,
+            &format!("tenant-{unique}"),
+            &format!("tenant_admin_{unique}"),
+            "Stage2!Pass123",
+        );
+        let super_admin = seed_live_super_admin(
+            &database_url,
+            &format!("super_admin_{unique}"),
+            "Stage2!Root123",
+        );
+        let tenant_id = tenant_admin
+            .tenant
+            .as_ref()
+            .expect("tenant should exist")
+            .id;
+        let mut store = PgSkillCatalogStore::new(&database_url);
+
+        let global = create_skill_catalog_item_for_actor(
+            &mut store,
+            &super_admin,
+            CreateSkillCatalogInput {
+                tenant_id: None,
+                name: format!("Global Skill {unique}"),
+                version: "1.0.0".to_string(),
+                description: "Global live skill".to_string(),
+                download_url: format!("https://example.com/{unique}/global.zip"),
+            },
+        )
+        .expect("global skill should be created");
+        let tenant = create_skill_catalog_item_for_actor(
+            &mut store,
+            &tenant_admin,
+            CreateSkillCatalogInput {
+                tenant_id: Some(tenant_id),
+                name: format!("Tenant Skill {unique}"),
+                version: "2.0.0".to_string(),
+                description: "Tenant live skill".to_string(),
+                download_url: format!("https://example.com/{unique}/tenant.zip"),
+            },
+        )
+        .expect("tenant skill should be created");
+
+        let global_items = list_skill_catalog_for_actor(&mut store, &super_admin, None)
+            .expect("super admin should list global skills");
+        let tenant_items = list_skill_catalog_for_actor(&mut store, &tenant_admin, None)
+            .expect("tenant admin should list tenant skills");
+
+        assert!(global_items.iter().any(|item| item.id == global.id && item.is_active));
+        assert!(tenant_items.iter().any(|item| item.id == tenant.id && item.is_active));
+
+        deactivate_skill_catalog_item_for_actor(&mut store, &tenant_admin, &tenant.id)
+            .expect("tenant skill should be deactivated");
+
+        let tenant_items = list_skill_catalog_for_actor(&mut store, &tenant_admin, None)
+            .expect("tenant admin should list tenant skills after deactivation");
+
+        assert!(
+            tenant_items
+                .iter()
+                .any(|item| item.id == tenant.id && !item.is_active)
+        );
     }
 }

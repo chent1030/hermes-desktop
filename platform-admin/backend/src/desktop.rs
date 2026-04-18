@@ -308,6 +308,14 @@ fn tenant_context(actor: &AuthPrincipal) -> Result<&AuthTenant, DesktopError> {
 mod tests {
     use super::*;
     use crate::auth::{AuthPrincipal, AuthUser};
+    use crate::live_test_support::{
+        acquire_live_postgres_guard, ensure_live_platform_schema, live_database_url, live_unique,
+        seed_live_super_admin, seed_live_tenant_admin,
+    };
+    use crate::model_profiles::{CreateModelProfileInput, PgModelProfileStore, create_model_profile_for_actor};
+    use crate::skill_catalog::{
+        CreateSkillCatalogInput, PgSkillCatalogStore, create_skill_catalog_item_for_actor,
+    };
 
     #[derive(Default)]
     struct MemoryDesktopStore {
@@ -421,5 +429,101 @@ mod tests {
             .map(|item| item.id.as_str())
             .collect::<Vec<_>>();
         assert_eq!(defaults, vec!["tenant-default"]);
+    }
+
+    #[test]
+    #[ignore = "requires ADMIN_DATABASE_URL to reach a live PostgreSQL instance"]
+    fn reads_live_bootstrap_models_and_skill_catalog() {
+        let _guard = acquire_live_postgres_guard();
+        let database_url = live_database_url();
+        ensure_live_platform_schema(&database_url);
+
+        let unique = live_unique("desktop");
+        let tenant_code = format!("tenant-{unique}");
+        let tenant_admin = seed_live_tenant_admin(
+            &database_url,
+            &tenant_code,
+            &format!("tenant_admin_{unique}"),
+            "Stage2!Pass123",
+        );
+        let super_admin = seed_live_super_admin(
+            &database_url,
+            &format!("super_admin_{unique}"),
+            "Stage2!Root123",
+        );
+        let tenant_id = tenant_admin
+            .tenant
+            .as_ref()
+            .expect("tenant admin should belong to a tenant")
+            .id;
+
+        let mut model_store = PgModelProfileStore::new(&database_url);
+        let global_model = create_model_profile_for_actor(
+            &mut model_store,
+            &super_admin,
+            CreateModelProfileInput {
+                tenant_id: None,
+                provider: "openai".to_string(),
+                model: format!("gpt-global-{unique}"),
+                label: format!("Global {unique}"),
+                base_url: "https://api.openai.com/v1".to_string(),
+                is_default: true,
+            },
+        )
+        .expect("global model should be created");
+        let tenant_model = create_model_profile_for_actor(
+            &mut model_store,
+            &tenant_admin,
+            CreateModelProfileInput {
+                tenant_id: Some(tenant_id),
+                provider: "openai".to_string(),
+                model: format!("gpt-tenant-{unique}"),
+                label: format!("Tenant {unique}"),
+                base_url: "https://api.openai.com/v1".to_string(),
+                is_default: true,
+            },
+        )
+        .expect("tenant model should be created");
+
+        let mut skill_store = PgSkillCatalogStore::new(&database_url);
+        let global_skill = create_skill_catalog_item_for_actor(
+            &mut skill_store,
+            &super_admin,
+            CreateSkillCatalogInput {
+                tenant_id: None,
+                name: format!("Global Skill {unique}"),
+                version: "1.0.0".to_string(),
+                description: "Global live test skill".to_string(),
+                download_url: format!("https://example.com/{unique}/global.zip"),
+            },
+        )
+        .expect("global skill should be created");
+        let tenant_skill = create_skill_catalog_item_for_actor(
+            &mut skill_store,
+            &tenant_admin,
+            CreateSkillCatalogInput {
+                tenant_id: Some(tenant_id),
+                name: format!("Tenant Skill {unique}"),
+                version: "2.0.0".to_string(),
+                description: "Tenant live test skill".to_string(),
+                download_url: format!("https://example.com/{unique}/tenant.zip"),
+            },
+        )
+        .expect("tenant skill should be created");
+
+        let mut desktop_store = PgDesktopStore::new(&database_url);
+        let bootstrap = desktop_bootstrap_for_actor(&mut desktop_store, &tenant_admin)
+            .expect("bootstrap should succeed");
+        let models = desktop_model_profiles_for_actor(&mut desktop_store, &tenant_admin)
+            .expect("models should succeed");
+        let skills = desktop_skill_catalog_for_actor(&mut desktop_store, &tenant_admin)
+            .expect("skills should succeed");
+
+        assert_eq!(bootstrap.tenant.code, tenant_code);
+        assert_eq!(bootstrap.features.gateway_visible, false);
+        assert!(models.items.iter().any(|item| item.id == global_model.id));
+        assert!(models.items.iter().any(|item| item.id == tenant_model.id && item.is_default));
+        assert!(skills.items.iter().any(|item| item.id == global_skill.id));
+        assert!(skills.items.iter().any(|item| item.id == tenant_skill.id));
     }
 }

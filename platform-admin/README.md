@@ -330,8 +330,20 @@ npm run test -- src/renderer/src/platform-admin/PlatformAdminApp.test.tsx
 ```bash
 cd platform-admin/backend
 ADMIN_DATABASE_URL=postgres://postgres:password@host:5432/manager_admin \
-  cargo test live_postgres -- --ignored
+  cargo test -- --ignored
 ```
+
+当前 ignored live tests 覆盖：
+
+- 超级管理员播种
+- 真实登录认证
+- 刷新令牌续期
+- 桌面执行端 bootstrap / model profiles / skill catalog
+- 审计事件写入与健康检查
+- 审计中心按租户读取
+- 会话中心按 `sessionId` 聚合
+- 模型配置创建 / 读取 / 停用
+- Skill catalog 创建 / 读取 / 停用
 
 仓库侧桌面平台链路验证：
 
@@ -358,7 +370,13 @@ npm run test -- src/renderer/src/platform/PlatformProvider.test.tsx
 - 桌面端平台管理入口测试通过
 - 桌面端类型检查与生产构建通过
 - 平台管理端前端构建通过
-- 真实 PostgreSQL 上的 live auth tests 通过，覆盖：
+- 真实 PostgreSQL 上的 ignored live tests 全部通过，覆盖：
   - 超级管理员播种
   - 真实登录认证
   - 刷新令牌续期
+  - 桌面执行端 bootstrap / model profiles / skill catalog
+  - 审计事件写入与健康检查
+  - 审计中心按租户读取
+  - 会话中心按 `sessionId` 聚合
+  - 模型配置创建 / 读取 / 停用
+  - Skill catalog 创建 / 读取 / 停用

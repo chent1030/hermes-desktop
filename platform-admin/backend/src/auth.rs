@@ -837,7 +837,7 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
     use std::env;
-    use std::sync::{Mutex, OnceLock};
+    use crate::live_test_support::acquire_live_postgres_guard;
 
     #[derive(Default)]
     struct MemoryAuthStore {
@@ -857,11 +857,6 @@ mod tests {
                 .find(|principal| principal.user.id == account_id)
                 .cloned()
         }
-    }
-
-    fn live_postgres_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
     }
 
     impl AuthStore for MemoryAuthStore {
@@ -1196,9 +1191,7 @@ mod tests {
     #[test]
     #[ignore = "requires ADMIN_DATABASE_URL to reach a live PostgreSQL instance"]
     fn authenticates_against_live_postgres() {
-        let _guard = live_postgres_lock()
-            .lock()
-            .expect("live PostgreSQL tests should acquire the shared lock");
+        let _guard = acquire_live_postgres_guard();
         let database_url =
             env::var("ADMIN_DATABASE_URL").expect("ADMIN_DATABASE_URL should be configured");
         let store = PgAuthStore::new(database_url);
@@ -1243,9 +1236,7 @@ mod tests {
     #[test]
     #[ignore = "requires ADMIN_DATABASE_URL to reach a live PostgreSQL instance"]
     fn refreshes_live_postgres_session() {
-        let _guard = live_postgres_lock()
-            .lock()
-            .expect("live PostgreSQL tests should acquire the shared lock");
+        let _guard = acquire_live_postgres_guard();
         let database_url =
             env::var("ADMIN_DATABASE_URL").expect("ADMIN_DATABASE_URL should be configured");
         let store = PgAuthStore::new(database_url);
@@ -1301,9 +1292,7 @@ mod tests {
     #[test]
     #[ignore = "requires ADMIN_DATABASE_URL to reach a live PostgreSQL instance"]
     fn bootstraps_live_platform_super_admin() {
-        let _guard = live_postgres_lock()
-            .lock()
-            .expect("live PostgreSQL tests should acquire the shared lock");
+        let _guard = acquire_live_postgres_guard();
         let database_url =
             env::var("ADMIN_DATABASE_URL").expect("ADMIN_DATABASE_URL should be configured");
         let store = PgAuthStore::new(database_url);

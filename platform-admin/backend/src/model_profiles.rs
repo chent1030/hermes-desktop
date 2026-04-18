@@ -497,6 +497,10 @@ fn row_to_model_profile(row: postgres::Row) -> ModelProfileRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::live_test_support::{
+        acquire_live_postgres_guard, ensure_live_platform_schema, live_database_url, live_unique,
+        seed_live_super_admin, seed_live_tenant_admin,
+    };
 
     #[derive(Default)]
     struct MemoryModelProfileStore {
@@ -665,6 +669,80 @@ mod tests {
             ModelProfileError::Forbidden(
                 "tenant admin cannot manage global model profiles".to_string(),
             ),
+        );
+    }
+
+    #[test]
+    #[ignore = "requires ADMIN_DATABASE_URL to reach a live PostgreSQL instance"]
+    fn manages_live_model_profiles_for_global_and_tenant_scopes() {
+        let _guard = acquire_live_postgres_guard();
+        let database_url = live_database_url();
+        ensure_live_platform_schema(&database_url);
+
+        let unique = live_unique("model");
+        let tenant_admin = seed_live_tenant_admin(
+            &database_url,
+            &format!("tenant-{unique}"),
+            &format!("tenant_admin_{unique}"),
+            "Stage2!Pass123",
+        );
+        let super_admin = seed_live_super_admin(
+            &database_url,
+            &format!("super_admin_{unique}"),
+            "Stage2!Root123",
+        );
+        let tenant_id = tenant_admin
+            .tenant
+            .as_ref()
+            .expect("tenant should exist")
+            .id;
+        let mut store = PgModelProfileStore::new(&database_url);
+
+        let global = create_model_profile_for_actor(
+            &mut store,
+            &super_admin,
+            CreateModelProfileInput {
+                tenant_id: None,
+                provider: "openai".to_string(),
+                model: format!("gpt-global-{unique}"),
+                label: format!("Global {unique}"),
+                base_url: "https://api.openai.com/v1".to_string(),
+                is_default: true,
+            },
+        )
+        .expect("global model should be created");
+        let tenant = create_model_profile_for_actor(
+            &mut store,
+            &tenant_admin,
+            CreateModelProfileInput {
+                tenant_id: Some(tenant_id),
+                provider: "openai".to_string(),
+                model: format!("gpt-tenant-{unique}"),
+                label: format!("Tenant {unique}"),
+                base_url: "https://api.openai.com/v1".to_string(),
+                is_default: true,
+            },
+        )
+        .expect("tenant model should be created");
+
+        let global_items = list_model_profiles_for_actor(&mut store, &super_admin, None)
+            .expect("super admin should list global models");
+        let tenant_items = list_model_profiles_for_actor(&mut store, &tenant_admin, None)
+            .expect("tenant admin should list tenant models");
+
+        assert!(global_items.iter().any(|item| item.id == global.id && item.is_active));
+        assert!(tenant_items.iter().any(|item| item.id == tenant.id && item.is_active));
+
+        deactivate_model_profile_for_actor(&mut store, &tenant_admin, &tenant.id)
+            .expect("tenant model should be deactivated");
+
+        let tenant_items = list_model_profiles_for_actor(&mut store, &tenant_admin, None)
+            .expect("tenant admin should list tenant models after deactivation");
+
+        assert!(
+            tenant_items
+                .iter()
+                .any(|item| item.id == tenant.id && !item.is_active)
         );
     }
 }

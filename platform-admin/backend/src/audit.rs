@@ -134,8 +134,8 @@ impl AuditStore for PgAuditStore {
                     $1,
                     $2,
                     $3,
-                    $4::jsonb,
-                    COALESCE($5::timestamptz, NOW())
+                    $4::text::jsonb,
+                    COALESCE($5::text::timestamptz, NOW())
                 )
                 ",
                 &[
@@ -183,6 +183,11 @@ fn tenant_context(actor: &AuthPrincipal) -> Result<&AuthTenant, AuditError> {
 mod tests {
     use super::*;
     use crate::auth::{AuthPrincipal, AuthTenant, AuthUser};
+    use crate::live_test_support::{
+        acquire_live_postgres_guard, ensure_live_platform_schema, live_database_url, live_unique,
+        seed_live_tenant_admin,
+    };
+    use postgres::{Client, NoTls};
 
     #[derive(Default)]
     struct MemoryAuditStore {
@@ -239,5 +244,60 @@ mod tests {
         .expect("audit should be accepted");
 
         assert_eq!(accepted.accepted, 1);
+    }
+
+    #[test]
+    #[ignore = "requires ADMIN_DATABASE_URL to reach a live PostgreSQL instance"]
+    fn writes_live_audit_batches_and_reports_health() {
+        let _guard = acquire_live_postgres_guard();
+        let database_url = live_database_url();
+        ensure_live_platform_schema(&database_url);
+
+        let unique = live_unique("audit");
+        let actor = seed_live_tenant_admin(
+            &database_url,
+            &format!("tenant-{unique}"),
+            &format!("tenant_admin_{unique}"),
+            "Stage2!Pass123",
+        );
+        let session_id = format!("session-{unique}");
+        let mut store = PgAuditStore::new(&database_url);
+
+        let accepted = write_audit_events_for_actor(
+            &mut store,
+            &actor,
+            AuditBatchInput {
+                events: vec![AuditEventInput {
+                    event_type: "chat.started".to_string(),
+                    payload: serde_json::json!({ "sessionId": session_id.clone() }),
+                    occurred_at: Some("2026-04-18T12:00:00Z".to_string()),
+                }],
+            },
+        )
+        .expect("audit batch should be accepted");
+
+        let health = audit_health_for_actor(&actor).expect("health should succeed");
+        let mut client = Client::connect(&database_url, NoTls).expect("postgres should connect");
+        let row = client
+            .query_one(
+                "
+                SELECT COUNT(*)::BIGINT AS count
+                FROM platform_audit_events
+                WHERE tenant_id = $1
+                  AND account_id = $2
+                  AND event_type = 'chat.started'
+                  AND payload ->> 'sessionId' = $3
+                ",
+                &[
+                    &actor.tenant.as_ref().expect("tenant should exist").id,
+                    &actor.user.id,
+                    &session_id,
+                ],
+            )
+            .expect("audit row should be queryable");
+
+        assert_eq!(accepted.accepted, 1);
+        assert_eq!(health.status, "ok");
+        assert_eq!(row.get::<_, i64>("count"), 1);
     }
 }

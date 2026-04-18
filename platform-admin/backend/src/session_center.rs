@@ -154,8 +154,8 @@ impl SessionCenterStore for PgSessionCenterStore {
                 FROM summary
                 WHERE ($2::varchar IS NULL OR summary.last_event_type = $2)
                   AND ($3::bool IS NULL OR summary.has_failure = $3)
-                  AND ($4::timestamptz IS NULL OR summary.last_occurred_at >= $4::timestamptz)
-                  AND ($5::timestamptz IS NULL OR summary.last_occurred_at <= $5::timestamptz)
+                  AND ($4::text::timestamptz IS NULL OR summary.last_occurred_at >= $4::text::timestamptz)
+                  AND ($5::text::timestamptz IS NULL OR summary.last_occurred_at <= $5::text::timestamptz)
                   AND summary.session_id = $6
                 "#,
                 &[
@@ -237,13 +237,13 @@ impl SessionCenterStore for PgSessionCenterStore {
             FROM summary
             WHERE ($2::varchar IS NULL OR summary.last_event_type = $2)
               AND ($3::bool IS NULL OR summary.has_failure = $3)
-              AND ($4::timestamptz IS NULL OR summary.last_occurred_at >= $4::timestamptz)
-              AND ($5::timestamptz IS NULL OR summary.last_occurred_at <= $5::timestamptz)
+              AND ($4::text::timestamptz IS NULL OR summary.last_occurred_at >= $4::text::timestamptz)
+              AND ($5::text::timestamptz IS NULL OR summary.last_occurred_at <= $5::text::timestamptz)
               AND (
-                  $6::timestamptz IS NULL
-                  OR summary.last_occurred_at < $6::timestamptz
+                  $6::text::timestamptz IS NULL
+                  OR summary.last_occurred_at < $6::text::timestamptz
                   OR (
-                      summary.last_occurred_at = $6::timestamptz
+                      summary.last_occurred_at = $6::text::timestamptz
                       AND summary.session_id < $7
                   )
               )
@@ -413,7 +413,12 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
+    use crate::audit::{AuditBatchInput, AuditEventInput, PgAuditStore, write_audit_events_for_actor};
     use crate::auth::{AuthPrincipal, AuthTenant, AuthUser};
+    use crate::live_test_support::{
+        acquire_live_postgres_guard, ensure_live_platform_schema, live_database_url, live_unique,
+        seed_live_tenant_admin,
+    };
 
     #[derive(Default)]
     struct MemorySessionCenterStore {
@@ -699,5 +704,67 @@ mod tests {
         .expect_err("invalid time should be rejected");
 
         assert!(matches!(error, SessionCenterError::InvalidRequest(_)));
+    }
+
+    #[test]
+    #[ignore = "requires ADMIN_DATABASE_URL to reach a live PostgreSQL instance"]
+    fn lists_live_sessions_grouped_by_session_id() {
+        let _guard = acquire_live_postgres_guard();
+        let database_url = live_database_url();
+        ensure_live_platform_schema(&database_url);
+
+        let unique = live_unique("session-center");
+        let actor = seed_live_tenant_admin(
+            &database_url,
+            &format!("tenant-{unique}"),
+            &format!("tenant_admin_{unique}"),
+            "Stage2!Pass123",
+        );
+        let session_id = format!("session-{unique}");
+
+        write_audit_events_for_actor(
+            &mut PgAuditStore::new(&database_url),
+            &actor,
+            AuditBatchInput {
+                events: vec![
+                    AuditEventInput {
+                        event_type: "chat.completed".to_string(),
+                        payload: serde_json::json!({ "sessionId": session_id.clone() }),
+                        occurred_at: Some("2026-04-18T12:00:00Z".to_string()),
+                    },
+                    AuditEventInput {
+                        event_type: "chat.failed".to_string(),
+                        payload: serde_json::json!({ "sessionId": session_id.clone() }),
+                        occurred_at: Some("2026-04-18T12:00:01Z".to_string()),
+                    },
+                ],
+            },
+        )
+        .expect("session audit events should be written");
+
+        let items = list_sessions_for_actor(
+            &mut PgSessionCenterStore::new(&database_url),
+            &actor,
+            None,
+            build_session_query(
+                Some("chat.failed".to_string()),
+                Some(true),
+                None,
+                None,
+                None,
+                Some(50),
+            )
+            .expect("query"),
+        )
+        .expect("sessions should be listed");
+
+        let session = items
+            .iter()
+            .find(|item| item.session_id == session_id)
+            .expect("live session should be returned");
+
+        assert_eq!(session.last_event_type, "chat.failed");
+        assert_eq!(session.event_count, 2);
+        assert!(session.has_failure);
     }
 }
