@@ -327,3 +327,25 @@ cd /Users/chentao/project/hermes-desktop
 npm run test -- tests/platform-runtime.test.ts
 npm run test -- src/renderer/src/platform/PlatformProvider.test.tsx
 ```
+
+## 2026-04-18 收口验证记录
+
+本轮在 `platform-phase2-desktop-closure` 分支完成了以下验证：
+
+- `cd platform-admin/backend && cargo test`
+- `cd /Users/chentao/project/hermes-desktop && npm run test -- src/renderer/src/platform-admin/PlatformAdminApp.test.tsx`
+- `cd /Users/chentao/project/hermes-desktop && npm run typecheck`
+- `cd /Users/chentao/project/hermes-desktop && npm run build`
+- `cd platform-admin/frontend && npm run build`
+- `cd platform-admin/backend && ADMIN_DATABASE_URL=<已配置真实 PostgreSQL> cargo test -- --ignored`
+
+结果：
+
+- 平台后台本地测试全部通过
+- 桌面端平台管理入口测试通过
+- 桌面端类型检查与生产构建通过
+- 平台管理端前端构建通过
+- 真实 PostgreSQL 上的 live auth tests 通过，覆盖：
+  - 超级管理员播种
+  - 真实登录认证
+  - 刷新令牌续期
