@@ -102,6 +102,14 @@ interface AuditFilters {
   limit: string;
 }
 
+interface SessionFilters {
+  lastEventType: string;
+  hasFailure: string;
+  lastOccurredFrom: string;
+  lastOccurredTo: string;
+  limit: string;
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   const body = (await response.json()) as Record<string, unknown>;
@@ -150,8 +158,17 @@ export default function App(): React.JSX.Element {
     occurredTo: "",
     limit: "100",
   });
+  const [sessionFilters, setSessionFilters] = useState<SessionFilters>({
+    lastEventType: "",
+    hasFailure: "",
+    lastOccurredFrom: "",
+    lastOccurredTo: "",
+    limit: "100",
+  });
   const [auditHasMore, setAuditHasMore] = useState(false);
+  const [sessionHasMore, setSessionHasMore] = useState(false);
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
   const [modelScope, setModelScope] = useState<"global" | "tenant">("global");
   const [skillScope, setSkillScope] = useState<"global" | "tenant">("global");
@@ -326,12 +343,33 @@ export default function App(): React.JSX.Element {
   const fetchSuperAdminSessions = async (
     nextSession: LoginResponse,
     tenantId: number | null,
+    filters: SessionFilters,
+    beforeId?: string,
   ): Promise<SessionSummaryRecord[]> => {
     if (!tenantId) {
       return [];
     }
+    const params = new URLSearchParams({
+      tenantId: String(tenantId),
+      limit: filters.limit || "100",
+    });
+    if (filters.lastEventType.trim()) {
+      params.set("lastEventType", filters.lastEventType.trim());
+    }
+    if (filters.hasFailure) {
+      params.set("hasFailure", filters.hasFailure);
+    }
+    if (filters.lastOccurredFrom) {
+      params.set("lastOccurredFrom", new Date(filters.lastOccurredFrom).toISOString());
+    }
+    if (filters.lastOccurredTo) {
+      params.set("lastOccurredTo", new Date(filters.lastOccurredTo).toISOString());
+    }
+    if (beforeId) {
+      params.set("beforeId", beforeId);
+    }
     return requestJson<SessionSummaryRecord[]>(
-      `/api/admin/sessions?tenantId=${tenantId}&limit=100`,
+      `/api/admin/sessions?${params.toString()}`,
       {
         method: "GET",
         headers: authHeaders(nextSession),
@@ -341,11 +379,35 @@ export default function App(): React.JSX.Element {
 
   const fetchTenantSessions = async (
     nextSession: LoginResponse,
-  ): Promise<SessionSummaryRecord[]> =>
-    requestJson<SessionSummaryRecord[]>("/api/admin/tenant/sessions?limit=100", {
-      method: "GET",
-      headers: authHeaders(nextSession),
+    filters: SessionFilters,
+    beforeId?: string,
+  ): Promise<SessionSummaryRecord[]> => {
+    const params = new URLSearchParams({
+      limit: filters.limit || "100",
     });
+    if (filters.lastEventType.trim()) {
+      params.set("lastEventType", filters.lastEventType.trim());
+    }
+    if (filters.hasFailure) {
+      params.set("hasFailure", filters.hasFailure);
+    }
+    if (filters.lastOccurredFrom) {
+      params.set("lastOccurredFrom", new Date(filters.lastOccurredFrom).toISOString());
+    }
+    if (filters.lastOccurredTo) {
+      params.set("lastOccurredTo", new Date(filters.lastOccurredTo).toISOString());
+    }
+    if (beforeId) {
+      params.set("beforeId", beforeId);
+    }
+    return requestJson<SessionSummaryRecord[]>(
+      `/api/admin/tenant/sessions?${params.toString()}`,
+      {
+        method: "GET",
+        headers: authHeaders(nextSession),
+      },
+    );
+  };
 
   const loadWorkspace = async (nextSession: LoginResponse, preferredTenantId?: number | null) => {
     setIsLoadingWorkspace(true);
@@ -386,13 +448,14 @@ export default function App(): React.JSX.Element {
           fetchSuperAdminModelProfiles(nextSession, nextModelScope, nextSelectedTenantId),
           fetchSuperAdminSkillCatalog(nextSession, nextSkillScope, nextSelectedTenantId),
           fetchSuperAdminAuditEvents(nextSession, nextSelectedTenantId, auditFilters),
-          fetchSuperAdminSessions(nextSession, nextSelectedTenantId),
+          fetchSuperAdminSessions(nextSession, nextSelectedTenantId, sessionFilters),
         ]);
         setModelProfiles(nextModels);
         setSkillCatalog(nextSkills);
         setAuditEvents(nextAuditEvents);
         setSessions(nextSessions);
         setAuditHasMore(nextAuditEvents.length >= Number(auditFilters.limit || "100"));
+        setSessionHasMore(nextSessions.length >= Number(sessionFilters.limit || "100"));
         return;
       }
 
@@ -416,13 +479,14 @@ export default function App(): React.JSX.Element {
           headers: authHeaders(nextSession),
         }),
         fetchTenantAuditEvents(nextSession, auditFilters),
-        fetchTenantSessions(nextSession),
+        fetchTenantSessions(nextSession, sessionFilters),
       ]);
       setModelProfiles(tenantModels);
       setSkillCatalog(tenantSkills);
       setAuditEvents(tenantAuditEvents);
       setSessions(tenantSessions);
       setAuditHasMore(tenantAuditEvents.length >= Number(auditFilters.limit || "100"));
+      setSessionHasMore(tenantSessions.length >= Number(sessionFilters.limit || "100"));
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Workspace load failed");
     } finally {
@@ -460,6 +524,7 @@ export default function App(): React.JSX.Element {
       setAuditEvents([]);
       setSessions([]);
       setAuditHasMore(false);
+      setSessionHasMore(false);
       setLoginError(error instanceof Error ? error.message : "Unknown login error");
     } finally {
       setIsSubmitting(false);
@@ -820,6 +885,53 @@ export default function App(): React.JSX.Element {
     }
   };
 
+  const handleApplySessionFilters = async () => {
+    if (!session) {
+      return;
+    }
+
+    setWorkspaceError(null);
+    setIsLoadingSessions(true);
+    try {
+      const items =
+        session.user.roleCode === "super_admin"
+          ? await fetchSuperAdminSessions(session, selectedTenantId, sessionFilters)
+          : await fetchTenantSessions(session, sessionFilters);
+      setSessions(items);
+      setSessionHasMore(items.length >= Number(sessionFilters.limit || "100"));
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Load sessions failed");
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  };
+
+  const handleLoadOlderSessions = async () => {
+    if (!session || sessions.length === 0) {
+      return;
+    }
+
+    const beforeId = sessions[sessions.length - 1]?.sessionId;
+    if (!beforeId) {
+      return;
+    }
+
+    setWorkspaceError(null);
+    setIsLoadingSessions(true);
+    try {
+      const olderItems =
+        session.user.roleCode === "super_admin"
+          ? await fetchSuperAdminSessions(session, selectedTenantId, sessionFilters, beforeId)
+          : await fetchTenantSessions(session, sessionFilters, beforeId);
+      setSessions((current) => [...current, ...olderItems]);
+      setSessionHasMore(olderItems.length >= Number(sessionFilters.limit || "100"));
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Load older sessions failed");
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  };
+
   const renderAuditEvent = (item: AuditEventRecord): React.JSX.Element => (
     <div key={item.id} className="platform-admin-list-item is-static">
       <span>{item.eventType}</span>
@@ -884,6 +996,84 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <button className="platform-admin-submit" type="button" onClick={() => void handleApplyAuditFilters()}>
+        Apply filters
+      </button>
+    </div>
+  );
+
+  const renderSessionFilters = (): React.JSX.Element => (
+    <div className="platform-admin-form">
+      <label className="platform-admin-field">
+        <span>Last event type</span>
+        <input
+          value={sessionFilters.lastEventType}
+          onChange={(event) =>
+            setSessionFilters((current) => ({
+              ...current,
+              lastEventType: event.target.value,
+            }))
+          }
+        />
+      </label>
+      <label className="platform-admin-field">
+        <span>Has failure</span>
+        <select
+          value={sessionFilters.hasFailure}
+          onChange={(event) =>
+            setSessionFilters((current) => ({
+              ...current,
+              hasFailure: event.target.value,
+            }))
+          }
+        >
+          <option value="">All sessions</option>
+          <option value="true">Failed only</option>
+          <option value="false">Healthy only</option>
+        </select>
+      </label>
+      <label className="platform-admin-field">
+        <span>Last occurred from</span>
+        <input
+          type="datetime-local"
+          value={sessionFilters.lastOccurredFrom}
+          onChange={(event) =>
+            setSessionFilters((current) => ({
+              ...current,
+              lastOccurredFrom: event.target.value,
+            }))
+          }
+        />
+      </label>
+      <label className="platform-admin-field">
+        <span>Last occurred to</span>
+        <input
+          type="datetime-local"
+          value={sessionFilters.lastOccurredTo}
+          onChange={(event) =>
+            setSessionFilters((current) => ({
+              ...current,
+              lastOccurredTo: event.target.value,
+            }))
+          }
+        />
+      </label>
+      <label className="platform-admin-field">
+        <span>Limit</span>
+        <input
+          type="number"
+          min="1"
+          max="200"
+          value={sessionFilters.limit}
+          onChange={(event) =>
+            setSessionFilters((current) => ({ ...current, limit: event.target.value || "100" }))
+          }
+        />
+      </label>
+      <button
+        className="platform-admin-submit"
+        type="button"
+        onClick={() => void handleApplySessionFilters()}
+      >
         Apply filters
       </button>
     </div>
@@ -1361,6 +1551,7 @@ export default function App(): React.JSX.Element {
               <article className="platform-admin-card platform-admin-stack-card">
                 <p className="platform-admin-section-label">Session center</p>
                 <h3>Session center</h3>
+                {renderSessionFilters()}
                 {!selectedTenantId ? (
                   <p className="platform-admin-panel-note">
                     Select a tenant to inspect runtime sessions.
@@ -1369,6 +1560,16 @@ export default function App(): React.JSX.Element {
                 <div className="platform-admin-list">
                   {sessions.map((item) => renderSessionSummary(item))}
                 </div>
+                {sessionHasMore && selectedTenantId ? (
+                  <button
+                    className="platform-admin-secondary-button"
+                    type="button"
+                    onClick={() => void handleLoadOlderSessions()}
+                    disabled={isLoadingSessions}
+                  >
+                    {isLoadingSessions ? "Loading..." : "Load older sessions"}
+                  </button>
+                ) : null}
               </article>
             </div>
           ) : null}
@@ -1603,9 +1804,20 @@ export default function App(): React.JSX.Element {
               <article className="platform-admin-card platform-admin-stack-card">
                 <p className="platform-admin-section-label">Tenant session center</p>
                 <h3>Tenant session center</h3>
+                {renderSessionFilters()}
                 <div className="platform-admin-list">
                   {sessions.map((item) => renderSessionSummary(item))}
                 </div>
+                {sessionHasMore ? (
+                  <button
+                    className="platform-admin-secondary-button"
+                    type="button"
+                    onClick={() => void handleLoadOlderSessions()}
+                    disabled={isLoadingSessions}
+                  >
+                    {isLoadingSessions ? "Loading..." : "Load older sessions"}
+                  </button>
+                ) : null}
               </article>
             </div>
           ) : null}

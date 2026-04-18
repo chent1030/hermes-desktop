@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../../../../platform-admin/frontend/src/App";
 
@@ -13,6 +13,13 @@ function mockJsonResponse(body: unknown, ok = true, status = 200, statusText = "
 
 function setupFetch(responses: Response[]): void {
   vi.stubGlobal("fetch", vi.fn().mockImplementation(() => responses.shift()));
+}
+
+function getCardForHeading(name: string): HTMLElement {
+  const heading = screen.getByRole("heading", { name });
+  const card = heading.closest("article");
+  expect(card).not.toBeNull();
+  return card as HTMLElement;
 }
 
 afterEach(() => {
@@ -510,16 +517,198 @@ describe("platform admin frontend", () => {
       await screen.findByRole("heading", { name: "Audit center" }),
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Event type"), {
+    const auditCard = getCardForHeading("Audit center");
+
+    fireEvent.change(within(auditCard).getByLabelText("Event type"), {
       target: { value: "chat.started" },
     });
-    fireEvent.change(screen.getByLabelText("Limit"), {
+    fireEvent.change(within(auditCard).getByLabelText("Limit"), {
       target: { value: "1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    fireEvent.click(within(auditCard).getByRole("button", { name: "Apply filters" }));
 
     expect(await screen.findByText("chat.started")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Load older events" }));
+    fireEvent.click(within(auditCard).getByRole("button", { name: "Load older events" }));
     expect(await screen.findByText("{\"sessionId\":\"s0\"}")).toBeInTheDocument();
+  });
+
+  it("applies session filters and loads older sessions", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_root",
+        refreshToken: "rtk_root",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+      mockJsonResponse([
+        {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 11,
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          username: "alice",
+          displayName: "Alice",
+          roleCode: "tenant_user",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: "mdl_global_default",
+          scopeType: "global",
+          tenant: null,
+          provider: "openai",
+          model: "gpt-5.4",
+          label: "GPT-5.4",
+          baseUrl: "https://api.openai.com/v1",
+          isDefault: true,
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([]),
+      mockJsonResponse([
+        {
+          id: 201,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          eventType: "workspace.initialized",
+          payload: { modelCount: 1 },
+          occurredAt: "2026-04-18T12:00:00.000Z",
+          createdAt: "2026-04-18T12:00:01.000Z",
+        },
+      ]),
+      mockJsonResponse([
+        {
+          sessionId: "session-201",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          lastAccount: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          lastEventType: "workspace.initialized",
+          lastOccurredAt: "2026-04-18T12:00:00.000Z",
+          eventCount: 1,
+          hasFailure: false,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          sessionId: "session-199",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          lastAccount: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          lastEventType: "chat.failed",
+          lastOccurredAt: "2026-04-18T11:00:00.000Z",
+          eventCount: 2,
+          hasFailure: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          sessionId: "session-188",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          lastAccount: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          lastEventType: "chat.failed",
+          lastOccurredAt: "2026-04-18T10:00:00.000Z",
+          eventCount: 1,
+          hasFailure: true,
+        },
+      ]),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tenant code"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "root" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "Secret123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Session center" }),
+    ).toBeInTheDocument();
+
+    const sessionCard = getCardForHeading("Session center");
+
+    fireEvent.change(within(sessionCard).getByLabelText("Last event type"), {
+      target: { value: "chat.failed" },
+    });
+    fireEvent.change(within(sessionCard).getByLabelText("Has failure"), {
+      target: { value: "true" },
+    });
+    fireEvent.change(within(sessionCard).getByLabelText("Last occurred from"), {
+      target: { value: "2026-04-18T10:00" },
+    });
+    fireEvent.change(within(sessionCard).getByLabelText("Last occurred to"), {
+      target: { value: "2026-04-18T12:00" },
+    });
+    fireEvent.change(within(sessionCard).getByLabelText("Limit"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(within(sessionCard).getByRole("button", { name: "Apply filters" }));
+
+    expect(await screen.findByText("session-199")).toBeInTheDocument();
+    expect(screen.getByText("2 events")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+
+    fireEvent.click(within(sessionCard).getByRole("button", { name: "Load older sessions" }));
+
+    expect(await screen.findByText("session-188")).toBeInTheDocument();
   });
 });
