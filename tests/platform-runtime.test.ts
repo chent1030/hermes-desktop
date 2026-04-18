@@ -3,6 +3,7 @@ import { enqueueAuditEvent, resetAuditState } from "../src/main/platform/audit";
 import {
   clearWorkspaceSession,
   flushWorkspaceAuditEvents,
+  getWorkspaceAuditStatus,
   getWorkspaceRuntime,
   initializeWorkspaceState,
   loginWithPassword,
@@ -221,6 +222,67 @@ describe("platform runtime", () => {
     await expect(initializeWorkspaceState()).rejects.toMatchObject({
       message: "workspace bootstrap disabled",
       status: 503,
+    });
+  });
+
+  it("degrades audit status when the remote audit health probe fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: "audit service unavailable" }), {
+            status: 503,
+            statusText: "Service Unavailable",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }),
+        ),
+    );
+
+    await loginWithPassword({
+      tenantCode: "acme",
+      username: "alice",
+      password: "secret",
+    });
+
+    await expect(getWorkspaceAuditStatus()).resolves.toMatchObject({
+      health: "degraded",
+      queuedEvents: 0,
+      lastError: "audit service unavailable",
+    });
+  });
+
+  it("requires re-login when the remote audit health probe returns unauthorized", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: "session expired" }), {
+            status: 401,
+            statusText: "Unauthorized",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }),
+        ),
+    );
+
+    await loginWithPassword({
+      tenantCode: "acme",
+      username: "alice",
+      password: "secret",
+    });
+
+    await expect(getWorkspaceAuditStatus()).resolves.toMatchObject({
+      health: "reauth-required",
+      lastError: "session expired",
     });
   });
 

@@ -48,7 +48,43 @@ describe("platform screen localization", () => {
     expect(
       screen.getByText("正在加载租户上下文、模型和 Skill 清单..."),
     ).toBeInTheDocument();
+    expect(screen.getByText("失败阶段：初始化")).toBeInTheDocument();
+    expect(
+      screen.getByText("工作区初始化失败，请检查平台服务状态后重试。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => element?.textContent === "原始错误: 初始化失败"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
+  it("renders localized staged initialization guidance in Chinese", () => {
+    render(
+      <I18nProvider>
+        <PlatformContext.Provider
+          value={{
+            stage: "initializing",
+            workspace: null,
+            audit: null,
+            initError: "platform default model missing",
+            login: vi.fn(),
+            retryInitialization: vi.fn(),
+            logout: vi.fn(),
+            setSelectedModel: vi.fn(),
+          }}
+        >
+          <Initializing />
+        </PlatformContext.Provider>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText("失败阶段：模型配置")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "平台未下发可用默认模型，请联系租户管理员或超级管理员检查授权模型与默认模型配置。",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/platform default model missing/i)).toBeInTheDocument();
   });
 
   it("renders localized skill statuses and audit banner copy in Chinese", () => {

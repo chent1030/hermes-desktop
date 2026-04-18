@@ -128,3 +128,13 @@ export function postAuditEvents(
     body: JSON.stringify({ events }),
   });
 }
+
+export function fetchAuditHealth(
+  accessToken: string,
+): Promise<{ status: string }> {
+  return request("/api/audit/health", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}

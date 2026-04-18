@@ -7,6 +7,20 @@ export default {
   signIn: "Sign in",
   initializingTitle: "Initializing workspace",
   initializingHint: "Loading tenant context, models, and skills...",
+  initFailureStage: "Failed at: {{stage}}",
+  initStageBootstrap: "Platform context",
+  initStageModels: "Model configuration",
+  initStageSkills: "Skill catalog",
+  initStageGeneric: "Workspace initialization",
+  initBootstrapHint:
+    "Platform bootstrap data could not be loaded. Check connectivity and tenant authorization, then retry.",
+  initModelsHint:
+    "No authorized default model is ready. Ask your tenant or platform administrator to configure an available default model.",
+  initSkillsHint:
+    "Skill catalog could not be loaded. Check platform skill configuration and retry.",
+  initGenericHint:
+    "Workspace initialization failed. Retry after checking platform availability.",
+  initRawErrorLabel: "Raw error",
   retry: "Retry",
   auditWarningTitle: "Audit warning",
   auditBlockedTitle: "Audit blocked",

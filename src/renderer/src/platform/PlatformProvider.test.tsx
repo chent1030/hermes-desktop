@@ -162,9 +162,15 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("platform models unavailable")).toBeInTheDocument();
+      expect(screen.getByText("Failed at: Model configuration")).toBeInTheDocument();
     });
 
+    expect(
+      screen.getByText(
+        "No authorized default model is ready. Ask your tenant or platform administrator to configure an available default model.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/platform models unavailable/i)).toBeInTheDocument();
     expect(screen.getByText("Initializing workspace")).toBeInTheDocument();
     expect(screen.queryByText("Workspace ready")).not.toBeInTheDocument();
   });
@@ -217,11 +223,61 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("platform default model missing")).toBeInTheDocument();
+      expect(screen.getByText("Failed at: Model configuration")).toBeInTheDocument();
     });
 
+    expect(
+      screen.getByText(
+        "No authorized default model is ready. Ask your tenant or platform administrator to configure an available default model.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/platform default model missing/i)).toBeInTheDocument();
     expect(screen.getByText("Initializing workspace")).toBeInTheDocument();
     expect(screen.queryByText("Workspace ready")).not.toBeInTheDocument();
+  });
+
+  it("shows a staged bootstrap hint when platform bootstrap loading fails", async () => {
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        loginTenant: vi.fn().mockResolvedValue(undefined),
+        initializeWorkspace: vi
+          .fn()
+          .mockRejectedValue(new Error("workspace bootstrap disabled")),
+        logoutTenant: vi.fn().mockResolvedValue(undefined),
+        selectWorkspaceModel: vi.fn(),
+      },
+    });
+
+    render(
+      <I18nProvider>
+        <PlatformProvider>
+          <DesktopRoot />
+        </PlatformProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Tenant"), {
+      target: { value: "acme" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "alice" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Failed at: Platform context")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText(
+        "Platform bootstrap data could not be loaded. Check connectivity and tenant authorization, then retry.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/workspace bootstrap disabled/i)).toBeInTheDocument();
   });
 
   it("returns to the tenant login path after the desktop app remounts", async () => {

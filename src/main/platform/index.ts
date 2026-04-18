@@ -8,6 +8,7 @@ import type {
 import {
   clearWorkspaceSession,
   flushWorkspaceAuditEvents,
+  getWorkspaceAuditStatus,
   initializeWorkspaceState,
   loginWithPassword,
   refreshWorkspaceSession,
@@ -16,7 +17,6 @@ import {
 import { findDownloadedSkillPackage, listInstalledSkills } from "../skills";
 import {
   enqueueAuditEvent,
-  getAuditStatus,
   markAuditFailure,
   markAuditReauthRequired,
 } from "./audit";
@@ -125,7 +125,7 @@ export async function platformSelectModel(
 }
 
 export async function platformGetAuditStatus(): Promise<AuditStatus> {
-  return getAuditStatus();
+  return getWorkspaceAuditStatus();
 }
 
 export async function platformRetryAuditFlush(): Promise<AuditStatus> {

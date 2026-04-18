@@ -14,6 +14,12 @@ vi.mock("../src/main/platform/runtime", () => ({
     droppedEvents: 0,
     lastError: null,
   }),
+  getWorkspaceAuditStatus: vi.fn().mockResolvedValue({
+    health: "healthy",
+    queuedEvents: 0,
+    droppedEvents: 0,
+    lastError: null,
+  }),
   initializeWorkspaceState: vi.fn(),
   loginWithPassword: vi.fn(),
   refreshWorkspaceSession: vi.fn(),
@@ -33,6 +39,7 @@ vi.mock("../src/main/skills", () => ({
 }));
 
 import {
+  platformGetAuditStatus,
   platformInitializeWorkspace,
   platformLogin,
   platformRefreshSession,
@@ -44,6 +51,7 @@ import {
   markAuditReauthRequired,
 } from "../src/main/platform/audit";
 import {
+  getWorkspaceAuditStatus,
   initializeWorkspaceState,
   loginWithPassword,
   refreshWorkspaceSession,
@@ -137,5 +145,19 @@ describe("platform lifecycle audit", () => {
       }),
     );
     expect(markAuditFailure).toHaveBeenCalledWith("unauthorized model");
+  });
+
+  it("returns the merged workspace audit status from runtime", async () => {
+    vi.mocked(getWorkspaceAuditStatus).mockResolvedValueOnce({
+      health: "degraded",
+      queuedEvents: 0,
+      droppedEvents: 0,
+      lastError: "audit service unavailable",
+    });
+
+    await expect(platformGetAuditStatus()).resolves.toMatchObject({
+      health: "degraded",
+      lastError: "audit service unavailable",
+    });
   });
 });

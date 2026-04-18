@@ -4,6 +4,7 @@ import type {
   WorkspaceBootstrap,
 } from "../../shared/platform/contracts";
 import {
+  fetchAuditHealth,
   fetchBootstrap,
   fetchModels,
   fetchSkillCatalog,
@@ -104,6 +105,48 @@ export function getWorkspaceRuntime() {
 
 export function clearWorkspaceSession(): void {
   clearSessionState();
+}
+
+function isReauthError(error: unknown): boolean {
+  const statusCode =
+    typeof error === "object" && error !== null && "status" in error
+      ? Number((error as { status?: unknown }).status)
+      : Number.NaN;
+
+  if (statusCode === 401 || statusCode === 403) {
+    return true;
+  }
+
+  return /(^|\s)(401|403)\b/.test((error as Error)?.message || "");
+}
+
+export async function getWorkspaceAuditStatus(): Promise<AuditStatus> {
+  const localStatus = getAuditStatus();
+  const session = getSessionState();
+  if (!session || localStatus.health === "reauth-required") {
+    return localStatus;
+  }
+
+  try {
+    await fetchAuditHealth(session.accessToken);
+    return localStatus;
+  } catch (error) {
+    const message = (error as Error)?.message || "audit health check failed";
+    if (isReauthError(error)) {
+      markAuditReauthRequired(message);
+      return getAuditStatus();
+    }
+
+    if (localStatus.health === "buffering") {
+      return localStatus;
+    }
+
+    return {
+      ...localStatus,
+      health: "degraded",
+      lastError: message,
+    };
+  }
 }
 
 export async function flushWorkspaceAuditEvents(): Promise<AuditStatus> {
