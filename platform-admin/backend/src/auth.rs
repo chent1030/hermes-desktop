@@ -1298,6 +1298,13 @@ mod tests {
         let store = PgAuthStore::new(database_url);
         store.ensure_schema().expect("schema should be created");
 
+        let mut check_store = PgAuthStore::new(
+            env::var("ADMIN_DATABASE_URL").expect("ADMIN_DATABASE_URL should be configured"),
+        );
+        let had_super_admin_before = check_store
+            .has_active_super_admin()
+            .expect("super admin state should be readable");
+
         let mut bootstrap_store = PgAuthStore::new(
             env::var("ADMIN_DATABASE_URL").expect("ADMIN_DATABASE_URL should be configured"),
         );
@@ -1310,6 +1317,10 @@ mod tests {
             },
         )
         .expect("bootstrap should succeed");
+
+        if had_super_admin_before {
+            return;
+        }
 
         let mut login_store = PgAuthStore::new(
             env::var("ADMIN_DATABASE_URL").expect("ADMIN_DATABASE_URL should be configured"),
