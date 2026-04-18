@@ -85,6 +85,16 @@ interface AuditEventRecord {
   createdAt: string;
 }
 
+interface SessionSummaryRecord {
+  sessionId: string;
+  tenant: SessionTenant;
+  lastAccount: AuditActorRecord;
+  lastEventType: string;
+  lastOccurredAt: string;
+  eventCount: number;
+  hasFailure: boolean;
+}
+
 interface AuditFilters {
   eventType: string;
   occurredFrom: string;
@@ -133,6 +143,7 @@ export default function App(): React.JSX.Element {
   const [modelProfiles, setModelProfiles] = useState<ModelProfileRecord[]>([]);
   const [skillCatalog, setSkillCatalog] = useState<SkillCatalogRecord[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
+  const [sessions, setSessions] = useState<SessionSummaryRecord[]>([]);
   const [auditFilters, setAuditFilters] = useState<AuditFilters>({
     eventType: "",
     occurredFrom: "",
@@ -312,6 +323,30 @@ export default function App(): React.JSX.Element {
     );
   };
 
+  const fetchSuperAdminSessions = async (
+    nextSession: LoginResponse,
+    tenantId: number | null,
+  ): Promise<SessionSummaryRecord[]> => {
+    if (!tenantId) {
+      return [];
+    }
+    return requestJson<SessionSummaryRecord[]>(
+      `/api/admin/sessions?tenantId=${tenantId}&limit=100`,
+      {
+        method: "GET",
+        headers: authHeaders(nextSession),
+      },
+    );
+  };
+
+  const fetchTenantSessions = async (
+    nextSession: LoginResponse,
+  ): Promise<SessionSummaryRecord[]> =>
+    requestJson<SessionSummaryRecord[]>("/api/admin/tenant/sessions?limit=100", {
+      method: "GET",
+      headers: authHeaders(nextSession),
+    });
+
   const loadWorkspace = async (nextSession: LoginResponse, preferredTenantId?: number | null) => {
     setIsLoadingWorkspace(true);
     setWorkspaceError(null);
@@ -347,14 +382,16 @@ export default function App(): React.JSX.Element {
           skillScope === "tenant" && nextSelectedTenantId ? "tenant" : "global";
         setModelScope(nextModelScope);
         setSkillScope(nextSkillScope);
-        const [nextModels, nextSkills, nextAuditEvents] = await Promise.all([
+        const [nextModels, nextSkills, nextAuditEvents, nextSessions] = await Promise.all([
           fetchSuperAdminModelProfiles(nextSession, nextModelScope, nextSelectedTenantId),
           fetchSuperAdminSkillCatalog(nextSession, nextSkillScope, nextSelectedTenantId),
           fetchSuperAdminAuditEvents(nextSession, nextSelectedTenantId, auditFilters),
+          fetchSuperAdminSessions(nextSession, nextSelectedTenantId),
         ]);
         setModelProfiles(nextModels);
         setSkillCatalog(nextSkills);
         setAuditEvents(nextAuditEvents);
+        setSessions(nextSessions);
         setAuditHasMore(nextAuditEvents.length >= Number(auditFilters.limit || "100"));
         return;
       }
@@ -369,7 +406,7 @@ export default function App(): React.JSX.Element {
       setTenants([]);
       setSelectedTenantId(nextSession.tenant?.id ?? null);
       setAccounts(tenantAccounts);
-      const [tenantModels, tenantSkills, tenantAuditEvents] = await Promise.all([
+      const [tenantModels, tenantSkills, tenantAuditEvents, tenantSessions] = await Promise.all([
         requestJson<ModelProfileRecord[]>("/api/admin/tenant/model-profiles", {
           method: "GET",
           headers: authHeaders(nextSession),
@@ -379,10 +416,12 @@ export default function App(): React.JSX.Element {
           headers: authHeaders(nextSession),
         }),
         fetchTenantAuditEvents(nextSession, auditFilters),
+        fetchTenantSessions(nextSession),
       ]);
       setModelProfiles(tenantModels);
       setSkillCatalog(tenantSkills);
       setAuditEvents(tenantAuditEvents);
+      setSessions(tenantSessions);
       setAuditHasMore(tenantAuditEvents.length >= Number(auditFilters.limit || "100"));
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Workspace load failed");
@@ -419,6 +458,7 @@ export default function App(): React.JSX.Element {
       setModelProfiles([]);
       setSkillCatalog([]);
       setAuditEvents([]);
+      setSessions([]);
       setAuditHasMore(false);
       setLoginError(error instanceof Error ? error.message : "Unknown login error");
     } finally {
@@ -786,6 +826,17 @@ export default function App(): React.JSX.Element {
       <small>{item.account.displayName}</small>
       <small>{item.occurredAt}</small>
       <small>{JSON.stringify(item.payload)}</small>
+    </div>
+  );
+
+  const renderSessionSummary = (item: SessionSummaryRecord): React.JSX.Element => (
+    <div key={item.sessionId} className="platform-admin-list-item is-static">
+      <span>{item.sessionId}</span>
+      <small>{item.lastEventType}</small>
+      <small>{item.lastAccount.displayName}</small>
+      <small>{item.lastOccurredAt}</small>
+      <small>{`${item.eventCount} events`}</small>
+      {item.hasFailure ? <small>Failed</small> : null}
     </div>
   );
 
@@ -1306,6 +1357,19 @@ export default function App(): React.JSX.Element {
                   </button>
                 ) : null}
               </article>
+
+              <article className="platform-admin-card platform-admin-stack-card">
+                <p className="platform-admin-section-label">Session center</p>
+                <h3>Session center</h3>
+                {!selectedTenantId ? (
+                  <p className="platform-admin-panel-note">
+                    Select a tenant to inspect runtime sessions.
+                  </p>
+                ) : null}
+                <div className="platform-admin-list">
+                  {sessions.map((item) => renderSessionSummary(item))}
+                </div>
+              </article>
             </div>
           ) : null}
 
@@ -1534,6 +1598,14 @@ export default function App(): React.JSX.Element {
                     {isLoadingAudit ? "Loading..." : "Load older events"}
                   </button>
                 ) : null}
+              </article>
+
+              <article className="platform-admin-card platform-admin-stack-card">
+                <p className="platform-admin-section-label">Tenant session center</p>
+                <h3>Tenant session center</h3>
+                <div className="platform-admin-list">
+                  {sessions.map((item) => renderSessionSummary(item))}
+                </div>
               </article>
             </div>
           ) : null}

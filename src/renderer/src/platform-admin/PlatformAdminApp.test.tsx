@@ -105,6 +105,26 @@ describe("platform admin frontend", () => {
           createdAt: "2026-04-18T12:00:01.000Z",
         },
       ]),
+      mockJsonResponse([
+        {
+          sessionId: "session-1",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          lastAccount: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          lastEventType: "chat.completed",
+          lastOccurredAt: "2026-04-18T12:01:00.000Z",
+          eventCount: 2,
+          hasFailure: false,
+        },
+      ]),
       mockJsonResponse({
         accessToken: "atk_root_rotated",
         refreshToken: "rtk_root_rotated",
@@ -154,9 +174,17 @@ describe("platform admin frontend", () => {
         name: "Audit center",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Session center",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
     expect(screen.getByText("Code Review")).toBeInTheDocument();
     expect(screen.getByText("workspace.initialized")).toBeInTheDocument();
+    expect(screen.getByText("session-1")).toBeInTheDocument();
+    expect(screen.getByText("chat.completed")).toBeInTheDocument();
+    expect(screen.getByText("2 events")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Refresh session" }));
     expect(await screen.findByText("Session refreshed")).toBeInTheDocument();
 
@@ -257,6 +285,26 @@ describe("platform admin frontend", () => {
           createdAt: "2026-04-18T13:00:00.500Z",
         },
       ]),
+      mockJsonResponse([
+        {
+          sessionId: "tenant-session-1",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          lastAccount: {
+            id: 42,
+            username: "admin",
+            displayName: "ACME Admin",
+            roleCode: "tenant_admin",
+          },
+          lastEventType: "chat.failed",
+          lastOccurredAt: "2026-04-18T13:01:00.000Z",
+          eventCount: 1,
+          hasFailure: true,
+        },
+      ]),
     ]);
 
     render(<App />);
@@ -294,6 +342,11 @@ describe("platform admin frontend", () => {
         name: "Tenant audit center",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Tenant session center",
+      }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Create tenant admin")).not.toBeInTheDocument();
     expect(screen.queryByText("Global models")).not.toBeInTheDocument();
     expect(screen.queryByText("Global skills")).not.toBeInTheDocument();
@@ -301,6 +354,8 @@ describe("platform admin frontend", () => {
     expect(screen.getByText("GPT-4.1 Tenant")).toBeInTheDocument();
     expect(screen.getByText("Acme CRM")).toBeInTheDocument();
     expect(screen.getByText("chat.started")).toBeInTheDocument();
+    expect(screen.getByText("tenant-session-1")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
   });
 
   it("applies audit filters and loads older audit events", async () => {
@@ -373,6 +428,26 @@ describe("platform admin frontend", () => {
           payload: { modelCount: 1 },
           occurredAt: "2026-04-18T12:00:00.000Z",
           createdAt: "2026-04-18T12:00:01.000Z",
+        },
+      ]),
+      mockJsonResponse([
+        {
+          sessionId: "session-201",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          lastAccount: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          lastEventType: "workspace.initialized",
+          lastOccurredAt: "2026-04-18T12:00:00.000Z",
+          eventCount: 1,
+          hasFailure: false,
         },
       ]),
       mockJsonResponse([
