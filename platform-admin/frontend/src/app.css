@@ -626,6 +626,40 @@
     @apply grid gap-4;
   }
 
+  .platform-admin-resource-page {
+    @apply gap-5;
+  }
+
+  .platform-admin-resource-head {
+    @apply flex items-start justify-between gap-4;
+  }
+
+  .platform-admin-resource-count {
+    @apply inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-600 shadow-sm;
+    font-family: var(--font-mono);
+  }
+
+  .platform-admin-resource-layout {
+    @apply grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)];
+  }
+
+  .platform-admin-resource-editor,
+  .platform-admin-resource-list-panel {
+    @apply rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4;
+  }
+
+  .platform-admin-resource-editor {
+    @apply grid gap-4;
+  }
+
+  .platform-admin-resource-list-panel {
+    @apply grid gap-4 bg-white;
+  }
+
+  .platform-admin-resource-actions {
+    @apply flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4;
+  }
+
   .platform-admin-card h2 {
     @apply mb-2 text-xl font-semibold tracking-tight text-slate-950;
   }

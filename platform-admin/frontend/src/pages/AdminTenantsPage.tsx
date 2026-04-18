@@ -23,52 +23,66 @@ export function AdminTenantsPage({
   onDeactivateTenant,
 }: AdminTenantsPageProps): React.JSX.Element {
   return (
-    <article className="platform-admin-card platform-admin-stack-card">
-      <p className="platform-admin-section-label">{copy.tenantControl.section}</p>
-      <h3>{copy.tenantControl.createTitle}</h3>
-      <form className="platform-admin-form" onSubmit={onSubmit}>
-        <label className="platform-admin-field">
-          <span>{copy.tenantControl.tenantCode}</span>
-          <input
-            value={tenantForm.code}
-            onChange={(event) => onTenantFormChange({ code: event.target.value })}
-          />
-        </label>
-        <label className="platform-admin-field">
-          <span>{copy.tenantControl.tenantName}</span>
-          <input
-            value={tenantForm.name}
-            onChange={(event) => onTenantFormChange({ name: event.target.value })}
-          />
-        </label>
-        <button className="platform-admin-submit" type="submit">
-          {copy.tenantControl.createButton}
-        </button>
-      </form>
-
-      <div className="platform-admin-list">
-        {tenants.map((tenant) => (
-          <button
-            key={tenant.id}
-            type="button"
-            className={`platform-admin-list-item${selectedTenantId === tenant.id ? " is-selected" : ""}`}
-            onClick={() => onSelectTenant(tenant.id)}
-          >
-            <span>{tenant.name}</span>
-            <small>{tenant.code}</small>
-            <small>{tenant.isActive ? copy.common.active : copy.common.inactive}</small>
-          </button>
-        ))}
+    <article className="platform-admin-card platform-admin-stack-card platform-admin-resource-page">
+      <div className="platform-admin-resource-head">
+        <div>
+          <p className="platform-admin-section-label">{copy.tenantControl.section}</p>
+          <h3>{copy.tenantControl.createTitle}</h3>
+        </div>
+        <span className="platform-admin-resource-count">{tenants.length}</span>
       </div>
-      {selectedTenantId ? (
-        <button
-          className="platform-admin-secondary-button"
-          type="button"
-          onClick={() => onDeactivateTenant(selectedTenantId)}
-        >
-          {copy.tenantControl.deactivateButton}
-        </button>
-      ) : null}
+
+      <div className="platform-admin-resource-layout">
+        <section className="platform-admin-resource-editor">
+          <form className="platform-admin-form" onSubmit={onSubmit}>
+            <label className="platform-admin-field">
+              <span>{copy.tenantControl.tenantCode}</span>
+              <input
+                value={tenantForm.code}
+                onChange={(event) => onTenantFormChange({ code: event.target.value })}
+              />
+            </label>
+            <label className="platform-admin-field">
+              <span>{copy.tenantControl.tenantName}</span>
+              <input
+                value={tenantForm.name}
+                onChange={(event) => onTenantFormChange({ name: event.target.value })}
+              />
+            </label>
+            <button className="platform-admin-submit" type="submit">
+              {copy.tenantControl.createButton}
+            </button>
+          </form>
+        </section>
+
+        <section className="platform-admin-resource-list-panel">
+          <div className="platform-admin-list">
+            {tenants.map((tenant) => (
+              <button
+                key={tenant.id}
+                type="button"
+                className={`platform-admin-list-item${selectedTenantId === tenant.id ? " is-selected" : ""}`}
+                onClick={() => onSelectTenant(tenant.id)}
+              >
+                <span>{tenant.name}</span>
+                <small>{tenant.code}</small>
+                <small>{tenant.isActive ? copy.common.active : copy.common.inactive}</small>
+              </button>
+            ))}
+          </div>
+          {selectedTenantId ? (
+            <div className="platform-admin-resource-actions">
+              <button
+                className="platform-admin-secondary-button"
+                type="button"
+                onClick={() => onDeactivateTenant(selectedTenantId)}
+              >
+                {copy.tenantControl.deactivateButton}
+              </button>
+            </div>
+          ) : null}
+        </section>
+      </div>
     </article>
   );
 }
