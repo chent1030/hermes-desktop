@@ -274,7 +274,7 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
 
 当前桌面端会写入的 Skill 探测聚合审计包括：
 
-- 事件名：`skill.sync.completed`
+- 事件名：`run.skill.sync.completed`
 - 聚合字段：
   - `installedCount`
   - `downloadedCount`

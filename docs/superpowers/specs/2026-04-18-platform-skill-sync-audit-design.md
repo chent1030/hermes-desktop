@@ -7,9 +7,9 @@
 - 平台 Skill 只读清单下发
 - 本地 Skill 探测
 - Skill 页基于平台清单与本地状态合并展示
-- `skill.sync.completed` / `skill.sync.failed` 审计事件上报
+- `run.skill.sync.completed` / `run.skill.sync.failed` 审计事件上报
 
-但当前 `skill.sync.completed` 的审计 payload 只有：
+但当前 `run.skill.sync.completed` 的审计 payload 只有：
 
 - `installedCount`
 - `totalCount`
@@ -30,7 +30,7 @@
 
 采用最小增强方案：
 
-- 保留事件名 `skill.sync.completed`
+- 保留事件名 `run.skill.sync.completed`
 - 保留现有 `installedCount` / `totalCount`
 - 新增分状态统计字段：
   - `downloadedCount`
@@ -62,7 +62,7 @@
 
 - `installedCount` 不再混入 `outdated` / `broken`
 - 各状态计数之和应等于 `totalCount`
-- 本次不新增额外错误级别；错误仍沿用 `skill.sync.failed`
+- 本次不新增额外错误级别；错误仍沿用 `run.skill.sync.failed`
 
 ## 5. 影响面
 
@@ -83,6 +83,6 @@
 
 至少覆盖：
 
-1. 混合状态 Skill 探测时，`skill.sync.completed` 事件包含完整状态统计
+1. 混合状态 Skill 探测时，`run.skill.sync.completed` 事件包含完整状态统计
 2. 统计值与返回给 UI 的本地状态映射一致
 3. 原有 `platformSyncSkillInstallations()` 返回值保持兼容

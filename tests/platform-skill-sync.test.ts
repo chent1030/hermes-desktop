@@ -170,7 +170,7 @@ describe("platform skill sync", () => {
 
     expect(enqueueAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "skill.sync.completed",
+        type: "run.skill.sync.completed",
         payload: {
           installedCount: 1,
           downloadedCount: 1,

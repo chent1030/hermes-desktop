@@ -143,7 +143,7 @@ export async function platformDownloadSkillPackage(
 ): Promise<boolean> {
   try {
     enqueueAuditEvent({
-      type: "skill.download.clicked",
+      type: "run.skill.download.clicked",
       payload: { skillId },
     });
     void flushWorkspaceAuditEvents();
@@ -159,7 +159,7 @@ export async function platformDownloadSkillPackage(
   } catch (error) {
     const message = (error as Error).message;
     enqueueAuditEvent({
-      type: "skill.download.failed",
+      type: "run.skill.download.failed",
       payload: { skillId, error: message },
     });
     markAuditFailure(message);
@@ -232,7 +232,7 @@ export async function platformSyncSkillInstallations(): Promise<
     });
 
     enqueueAuditEvent({
-      type: "skill.sync.completed",
+      type: "run.skill.sync.completed",
       payload: {
         installedCount: summary.installedCount,
         downloadedCount: summary.downloadedCount,
@@ -249,7 +249,7 @@ export async function platformSyncSkillInstallations(): Promise<
   } catch (error) {
     const message = (error as Error).message;
     enqueueAuditEvent({
-      type: "skill.sync.failed",
+      type: "run.skill.sync.failed",
       payload: { error: message },
     });
     markAuditFailure(message);
