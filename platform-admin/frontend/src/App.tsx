@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./app.css";
 import {
+  ADMIN_ACTIVE_SECTION_STORAGE_KEY,
   ADMIN_COPY,
   ADMIN_LOCALE_STORAGE_KEY,
   resolveAdminLocale,
@@ -34,6 +35,16 @@ import { AdminSessionsPage } from "./pages/AdminSessionsPage";
 
 const API_BASE_URL = "http://127.0.0.1:8080";
 const ADMIN_SESSION_STORAGE_KEY = "platform_admin_session";
+
+const WORKSPACE_SECTIONS: WorkspaceSection[] = [
+  "overview",
+  "tenants",
+  "accounts",
+  "models",
+  "skills",
+  "audit",
+  "sessions",
+];
 
 function formatMessage(
   template: string,
@@ -116,6 +127,32 @@ function clearPersistedSession(): void {
     return;
   }
   window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+}
+
+function readPersistedActiveSection(): WorkspaceSection {
+  if (typeof window === "undefined") {
+    return "overview";
+  }
+
+  const rawValue = window.localStorage.getItem(ADMIN_ACTIVE_SECTION_STORAGE_KEY);
+  if (rawValue && WORKSPACE_SECTIONS.includes(rawValue as WorkspaceSection)) {
+    return rawValue as WorkspaceSection;
+  }
+  return "overview";
+}
+
+function persistActiveSection(section: WorkspaceSection): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(ADMIN_ACTIVE_SECTION_STORAGE_KEY, section);
+}
+
+function clearPersistedActiveSection(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.removeItem(ADMIN_ACTIVE_SECTION_STORAGE_KEY);
 }
 
 function readPayloadString(
@@ -245,7 +282,9 @@ function resolveAuditEventFamily(item: AuditEventRecord): AuditEventFamilyKey {
 
 export default function App(): React.JSX.Element {
   const [locale, setLocale] = useState<AdminLocale>(() => resolveAdminLocale());
-  const [activeSection, setActiveSection] = useState<WorkspaceSection>("overview");
+  const [activeSection, setActiveSection] = useState<WorkspaceSection>(() =>
+    readPersistedActiveSection(),
+  );
   const [tenantCode, setTenantCode] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -357,8 +396,20 @@ export default function App(): React.JSX.Element {
   }, [copy.workspace.accounts, copy.workspace.audit, copy.workspace.models, copy.workspace.overview, copy.workspace.sessions, copy.workspace.skills, copy.workspace.tenants, session]);
 
   useEffect(() => {
-    setActiveSection("overview");
-  }, [session?.user.roleCode, session?.tenant?.id]);
+    if (!session) {
+      return;
+    }
+
+    const allowedSections = new Set(navItems.map((item) => item.key));
+    setActiveSection((current) => (allowedSections.has(current) ? current : "overview"));
+  }, [navItems, session]);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    persistActiveSection(activeSection);
+  }, [activeSection, session]);
 
   const auditSummary = useMemo(() => {
     const counts: Record<AuditFamilySummary["key"], number> = {
@@ -707,6 +758,22 @@ export default function App(): React.JSX.Element {
     }
   };
 
+  const resetWorkspaceState = () => {
+    setSession(null);
+    setSessionNotice(null);
+    setWorkspaceError(null);
+    setTenants([]);
+    setSelectedTenantId(null);
+    setAccounts([]);
+    setModelProfiles([]);
+    setSkillCatalog([]);
+    setAuditEvents([]);
+    setSessions([]);
+    setAuditHasMore(false);
+    setSessionHasMore(false);
+    setActiveSection("overview");
+  };
+
   useEffect(() => {
     const persistedSession = readPersistedSession();
     if (!persistedSession) {
@@ -735,12 +802,14 @@ export default function App(): React.JSX.Element {
         setSession(payload);
         persistSession(payload);
         await loadWorkspace(payload, payload.tenant?.id ?? persistedSession.tenant?.id ?? null);
-      } catch {
+      } catch (error) {
         if (cancelled) {
           return;
         }
         clearPersistedSession();
-        setSession(null);
+        clearPersistedActiveSection();
+        resetWorkspaceState();
+        setLoginError(resolveErrorMessage(error, copy.errors.sessionExpired));
       } finally {
         if (!cancelled) {
           setIsRestoringSession(false);
@@ -779,15 +848,8 @@ export default function App(): React.JSX.Element {
       await loadWorkspace(payload, payload.tenant?.id ?? null);
     } catch (error) {
       clearPersistedSession();
-      setSession(null);
-      setAccounts([]);
-      setTenants([]);
-      setModelProfiles([]);
-      setSkillCatalog([]);
-      setAuditEvents([]);
-      setSessions([]);
-      setAuditHasMore(false);
-      setSessionHasMore(false);
+      clearPersistedActiveSection();
+      resetWorkspaceState();
       setLoginError(resolveErrorMessage(error, copy.errors.unknownLoginError));
     } finally {
       setIsSubmitting(false);
@@ -817,10 +879,20 @@ export default function App(): React.JSX.Element {
       persistSession(payload);
       setSessionNotice(copy.notices.sessionRefreshed);
     } catch (error) {
-      setLoginError(resolveErrorMessage(error, copy.errors.unknownRefreshError));
+      clearPersistedSession();
+      clearPersistedActiveSection();
+      resetWorkspaceState();
+      setLoginError(resolveErrorMessage(error, copy.errors.sessionExpired));
     } finally {
       setIsRefreshingSession(false);
     }
+  };
+
+  const handleSignOut = () => {
+    clearPersistedSession();
+    clearPersistedActiveSection();
+    setLoginError(null);
+    resetWorkspaceState();
   };
 
   const handleSelectTenant = async (tenantId: number) => {
@@ -2060,6 +2132,13 @@ export default function App(): React.JSX.Element {
                 disabled={isRefreshingSession}
               >
                 {isRefreshingSession ? copy.login.refreshing : copy.login.refresh}
+              </button>
+              <button
+                className="platform-admin-secondary-button"
+                type="button"
+                onClick={handleSignOut}
+              >
+                {copy.login.signOut}
               </button>
               {sessionNotice ? (
                 <span className="platform-admin-session-notice">{sessionNotice}</span>

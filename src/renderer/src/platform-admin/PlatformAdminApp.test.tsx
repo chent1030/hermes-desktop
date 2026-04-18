@@ -137,6 +137,193 @@ describe("platform admin frontend", () => {
     });
   });
 
+  it("restores the last active workspace section after page reload", async () => {
+    window.localStorage.setItem(
+      "platform_admin_session",
+      JSON.stringify({
+        accessToken: "atk_cached",
+        refreshToken: "rtk_cached",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+    );
+    window.localStorage.setItem("platform_admin_active_section", "models");
+
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_root_restored",
+        refreshToken: "rtk_root_restored",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+      mockJsonResponse([
+        {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 11,
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          username: "alice",
+          displayName: "Alice",
+          roleCode: "tenant_user",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: "mdl_global_default",
+          scopeType: "global",
+          tenant: null,
+          provider: "openai",
+          model: "gpt-5.4",
+          label: "GPT-5.4",
+          baseUrl: "https://api.openai.com/v1",
+          isDefault: true,
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Model profile control" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
+  });
+
+  it("signs out from the admin workspace and clears the persisted session", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_root",
+        refreshToken: "rtk_root",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    signIn("", "root", "Secret123!");
+
+    expect(
+      await screen.findByRole("heading", { name: "Workspace overview" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to the shared platform" }),
+    ).toBeInTheDocument();
+    expect(window.localStorage.getItem("platform_admin_session")).toBeNull();
+    expect(window.localStorage.getItem("platform_admin_active_section")).toBeNull();
+  });
+
+  it("returns to the login screen with a clear error when refresh session fails", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_root",
+        refreshToken: "rtk_root",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+      mockJsonResponse([
+        {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 11,
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          username: "alice",
+          displayName: "Alice",
+          roleCode: "tenant_user",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse({ message: "Refresh token expired, please sign in again." }, false, 401, "Unauthorized"),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    signIn("", "root", "Secret123!");
+
+    expect(
+      await screen.findByRole("heading", { name: "Workspace overview" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh session" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to the shared platform" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Refresh token expired, please sign in again."),
+    ).toBeInTheDocument();
+  });
+
   it("switches the admin console copy to Chinese", async () => {
     setupFetch([mockJsonResponse({ status: "ok", service: "platform-admin-backend" })]);
 

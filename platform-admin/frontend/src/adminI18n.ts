@@ -1,6 +1,7 @@
 export type AdminLocale = "en" | "zh-CN";
 
 export const ADMIN_LOCALE_STORAGE_KEY = "platform_admin_locale";
+export const ADMIN_ACTIVE_SECTION_STORAGE_KEY = "platform_admin_active_section";
 
 export const ADMIN_COPY = {
   en: {
@@ -40,6 +41,7 @@ export const ADMIN_COPY = {
       role: "Role",
       refresh: "Refresh session",
       refreshing: "Refreshing...",
+      signOut: "Sign out",
     },
     workspace: {
       section: "Workspace",
@@ -117,6 +119,7 @@ export const ADMIN_COPY = {
       workspaceLoadFailed: "Workspace load failed",
       unknownLoginError: "Unknown login error",
       unknownRefreshError: "Unknown refresh error",
+      sessionExpired: "Refresh token expired, please sign in again.",
       loadModelProfilesFailed: "Load model profiles failed",
       loadSkillCatalogFailed: "Load skill catalog failed",
       createTenantFailed: "Create tenant failed",
@@ -289,6 +292,7 @@ export const ADMIN_COPY = {
       role: "角色",
       refresh: "刷新会话",
       refreshing: "刷新中...",
+      signOut: "退出登录",
     },
     workspace: {
       section: "工作台",
@@ -361,6 +365,7 @@ export const ADMIN_COPY = {
       workspaceLoadFailed: "工作台加载失败",
       unknownLoginError: "未知登录错误",
       unknownRefreshError: "未知刷新错误",
+      sessionExpired: "刷新令牌已失效，请重新登录。",
       loadModelProfilesFailed: "加载模型配置失败",
       loadSkillCatalogFailed: "加载技能目录失败",
       createTenantFailed: "创建租户失败",
