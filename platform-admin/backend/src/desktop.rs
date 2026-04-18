@@ -78,6 +78,8 @@ pub struct DesktopModelProfile {
     pub label: String,
     pub base_url: String,
     pub is_default: bool,
+    #[serde(skip_serializing)]
+    pub tenant_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -177,7 +179,7 @@ impl DesktopStore for PgDesktopStore {
         let mut client = self.connect()?;
         let rows = client.query(
             "
-            SELECT id, provider, model, label, base_url, is_default
+            SELECT id, tenant_id, provider, model, label, base_url, is_default
             FROM platform_desktop_model_profiles
             WHERE is_active = TRUE
               AND (tenant_id IS NULL OR tenant_id = $1)
@@ -195,6 +197,7 @@ impl DesktopStore for PgDesktopStore {
                 label: row.get("label"),
                 base_url: row.get("base_url"),
                 is_default: row.get("is_default"),
+                tenant_id: row.get("tenant_id"),
             })
             .collect())
     }
@@ -258,9 +261,26 @@ pub fn desktop_model_profiles_for_actor<S: DesktopStore>(
     actor: &AuthPrincipal,
 ) -> Result<DesktopModelProfilesResponse, DesktopError> {
     let tenant = tenant_context(actor)?;
-    let items = store
+    let mut items = store
         .list_model_profiles(tenant.id)
         .map_err(|error| DesktopError::Store(error.to_string()))?;
+    let has_tenant_default = items
+        .iter()
+        .any(|item| item.tenant_id == Some(tenant.id) && item.is_default);
+    let has_global_default = items
+        .iter()
+        .any(|item| item.tenant_id.is_none() && item.is_default);
+
+    if has_tenant_default {
+        for item in &mut items {
+            item.is_default = item.tenant_id == Some(tenant.id) && item.is_default;
+        }
+    } else if has_global_default {
+        for item in &mut items {
+            item.is_default = item.tenant_id.is_none() && item.is_default;
+        }
+    }
+
     Ok(DesktopModelProfilesResponse { items })
 }
 
@@ -342,6 +362,7 @@ mod tests {
             label: "GPT-5.4".to_string(),
             base_url: "https://api.openai.com/v1".to_string(),
             is_default: true,
+            tenant_id: None,
         }];
         store.skills = vec![DesktopSkillCatalogItem {
             id: "skill-global-1".to_string(),
@@ -363,5 +384,42 @@ mod tests {
         assert_eq!(bootstrap.user.username, "admin");
         assert_eq!(models.items.len(), 1);
         assert_eq!(skills.items.len(), 1);
+    }
+
+    #[test]
+    fn tenant_default_model_overrides_global_default_in_desktop_view() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemoryDesktopStore::default();
+        store.models = vec![
+            DesktopModelProfile {
+                id: "global-default".to_string(),
+                provider: "openai".to_string(),
+                model: "gpt-5.4".to_string(),
+                label: "GPT-5.4".to_string(),
+                base_url: "https://api.openai.com/v1".to_string(),
+                is_default: true,
+                tenant_id: None,
+            },
+            DesktopModelProfile {
+                id: "tenant-default".to_string(),
+                provider: "openai".to_string(),
+                model: "gpt-4.1".to_string(),
+                label: "GPT-4.1 Tenant".to_string(),
+                base_url: "https://api.openai.com/v1".to_string(),
+                is_default: true,
+                tenant_id: Some(7),
+            },
+        ];
+
+        let models =
+            desktop_model_profiles_for_actor(&mut store, &actor).expect("models should succeed");
+
+        let defaults = models
+            .items
+            .iter()
+            .filter(|item| item.is_default)
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(defaults, vec!["tenant-default"]);
     }
 }

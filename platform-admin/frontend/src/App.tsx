@@ -45,6 +45,18 @@ interface AdminAccountRecord {
   isActive: boolean;
 }
 
+interface ModelProfileRecord {
+  id: string;
+  scopeType: "global" | "tenant";
+  tenant: SessionTenant | null;
+  provider: string;
+  model: string;
+  label: string;
+  baseUrl: string;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   const body = (await response.json()) as Record<string, unknown>;
@@ -83,13 +95,22 @@ export default function App(): React.JSX.Element {
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
   const [accounts, setAccounts] = useState<AdminAccountRecord[]>([]);
+  const [modelProfiles, setModelProfiles] = useState<ModelProfileRecord[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
+  const [modelScope, setModelScope] = useState<"global" | "tenant">("global");
   const [tenantForm, setTenantForm] = useState({ code: "", name: "" });
   const [accountForm, setAccountForm] = useState({
     username: "",
     displayName: "",
     password: "",
     roleCode: "tenant_user" as RoleCode,
+  });
+  const [modelForm, setModelForm] = useState({
+    provider: "openai",
+    model: "",
+    label: "",
+    baseUrl: "",
+    isDefault: true,
   });
 
   useEffect(() => {
@@ -139,6 +160,26 @@ export default function App(): React.JSX.Element {
       : "Tenant workspace";
   }, [session]);
 
+  const fetchSuperAdminModelProfiles = async (
+    nextSession: LoginResponse,
+    scope: "global" | "tenant",
+    tenantId: number | null,
+  ): Promise<ModelProfileRecord[]> => {
+    if (scope === "tenant" && tenantId) {
+      return requestJson<ModelProfileRecord[]>(
+        `/api/admin/model-profiles?tenantId=${tenantId}`,
+        {
+          method: "GET",
+          headers: authHeaders(nextSession),
+        },
+      );
+    }
+    return requestJson<ModelProfileRecord[]>("/api/admin/model-profiles", {
+      method: "GET",
+      headers: authHeaders(nextSession),
+    });
+  };
+
   const loadWorkspace = async (nextSession: LoginResponse, preferredTenantId?: number | null) => {
     setIsLoadingWorkspace(true);
     setWorkspaceError(null);
@@ -167,6 +208,16 @@ export default function App(): React.JSX.Element {
         } else {
           setAccounts([]);
         }
+
+        const nextModelScope =
+          modelScope === "tenant" && nextSelectedTenantId ? "tenant" : "global";
+        setModelScope(nextModelScope);
+        const nextModels = await fetchSuperAdminModelProfiles(
+          nextSession,
+          nextModelScope,
+          nextSelectedTenantId,
+        );
+        setModelProfiles(nextModels);
         return;
       }
 
@@ -180,6 +231,14 @@ export default function App(): React.JSX.Element {
       setTenants([]);
       setSelectedTenantId(nextSession.tenant?.id ?? null);
       setAccounts(tenantAccounts);
+      const tenantModels = await requestJson<ModelProfileRecord[]>(
+        "/api/admin/tenant/model-profiles",
+        {
+          method: "GET",
+          headers: authHeaders(nextSession),
+        },
+      );
+      setModelProfiles(tenantModels);
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Workspace load failed");
     } finally {
@@ -212,6 +271,7 @@ export default function App(): React.JSX.Element {
       setSession(null);
       setAccounts([]);
       setTenants([]);
+      setModelProfiles([]);
       setLoginError(error instanceof Error ? error.message : "Unknown login error");
     } finally {
       setIsSubmitting(false);
@@ -252,6 +312,24 @@ export default function App(): React.JSX.Element {
     }
     setSelectedTenantId(tenantId);
     await loadWorkspace(session, tenantId);
+  };
+
+  const handleSelectModelScope = async (scope: "global" | "tenant") => {
+    if (!session || session.user.roleCode !== "super_admin") {
+      return;
+    }
+    const nextScope = scope === "tenant" && !selectedTenantId ? "global" : scope;
+    setModelScope(nextScope);
+    try {
+      const nextModels = await fetchSuperAdminModelProfiles(
+        session,
+        nextScope,
+        selectedTenantId,
+      );
+      setModelProfiles(nextModels);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Load model profiles failed");
+    }
   };
 
   const handleCreateTenant = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -358,6 +436,74 @@ export default function App(): React.JSX.Element {
       setSessionNotice("Tenant deactivated");
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Deactivate tenant failed");
+    }
+  };
+
+  const handleCreateModelProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!session) {
+      return;
+    }
+
+    setWorkspaceError(null);
+    try {
+      const isSuperAdmin = session.user.roleCode === "super_admin";
+      const path = isSuperAdmin
+        ? "/api/admin/model-profiles"
+        : "/api/admin/tenant/model-profiles";
+      const payload = isSuperAdmin
+        ? {
+            ...modelForm,
+            tenantId: modelScope === "tenant" ? selectedTenantId : null,
+          }
+        : modelForm;
+      const created = await requestJson<ModelProfileRecord>(path, {
+        method: "POST",
+        headers: authHeaders(session, true),
+        body: JSON.stringify(payload),
+      });
+      setModelProfiles((current) => {
+        const next = current.map((item) =>
+          created.isDefault ? { ...item, isDefault: false } : item,
+        );
+        return [created, ...next];
+      });
+      setModelForm({
+        provider: "openai",
+        model: "",
+        label: "",
+        baseUrl: "",
+        isDefault: true,
+      });
+      setSessionNotice("Model profile created");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Create model profile failed");
+    }
+  };
+
+  const handleDeactivateModelProfile = async (modelId: string) => {
+    if (!session) {
+      return;
+    }
+
+    setWorkspaceError(null);
+    try {
+      const path =
+        session.user.roleCode === "super_admin"
+          ? `/api/admin/model-profiles/${modelId}/deactivate`
+          : `/api/admin/tenant/model-profiles/${modelId}/deactivate`;
+      await requestJson<{ status: string }>(path, {
+        method: "POST",
+        headers: authHeaders(session),
+      });
+      setModelProfiles((current) =>
+        current.map((item) =>
+          item.id === modelId ? { ...item, isActive: false } : item,
+        ),
+      );
+      setSessionNotice("Model profile deactivated");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Deactivate model profile failed");
     }
   };
 
@@ -627,6 +773,100 @@ export default function App(): React.JSX.Element {
                   ))}
                 </div>
               </article>
+
+              <article className="platform-admin-card platform-admin-stack-card">
+                <p className="platform-admin-section-label">Config center</p>
+                <h3>Model profile control</h3>
+                <label className="platform-admin-field">
+                  <span>Model scope</span>
+                  <select
+                    value={modelScope}
+                    onChange={(event) =>
+                      void handleSelectModelScope(event.target.value as "global" | "tenant")
+                    }
+                  >
+                    <option value="global">Global models</option>
+                    {selectedTenantId ? (
+                      <option value="tenant">Selected tenant models</option>
+                    ) : null}
+                  </select>
+                </label>
+                <form className="platform-admin-form" onSubmit={handleCreateModelProfile}>
+                  <label className="platform-admin-field">
+                    <span>Provider</span>
+                    <input
+                      value={modelForm.provider}
+                      onChange={(event) =>
+                        setModelForm((current) => ({ ...current, provider: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Model ID</span>
+                    <input
+                      value={modelForm.model}
+                      onChange={(event) =>
+                        setModelForm((current) => ({ ...current, model: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Label</span>
+                    <input
+                      value={modelForm.label}
+                      onChange={(event) =>
+                        setModelForm((current) => ({ ...current, label: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Base URL</span>
+                    <input
+                      value={modelForm.baseUrl}
+                      onChange={(event) =>
+                        setModelForm((current) => ({ ...current, baseUrl: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Default</span>
+                    <select
+                      value={modelForm.isDefault ? "true" : "false"}
+                      onChange={(event) =>
+                        setModelForm((current) => ({
+                          ...current,
+                          isDefault: event.target.value === "true",
+                        }))
+                      }
+                    >
+                      <option value="true">Default model</option>
+                      <option value="false">Optional model</option>
+                    </select>
+                  </label>
+                  <button className="platform-admin-submit" type="submit">
+                    Create model profile
+                  </button>
+                </form>
+
+                <div className="platform-admin-list">
+                  {modelProfiles.map((item) => (
+                    <div key={item.id} className="platform-admin-list-item is-static">
+                      <span>{item.label}</span>
+                      <small>{item.provider}</small>
+                      <small>{item.model}</small>
+                      <small>{item.isDefault ? "default" : "optional"}</small>
+                      <small>{item.isActive ? "active" : "inactive"}</small>
+                      <button
+                        className="platform-admin-secondary-button"
+                        type="button"
+                        onClick={() => handleDeactivateModelProfile(item.id)}
+                      >
+                        Deactivate model
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </article>
             </div>
           ) : null}
 
@@ -682,6 +922,86 @@ export default function App(): React.JSX.Element {
                         onClick={() => handleDeactivateAccount(account.id)}
                       >
                         Deactivate account
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="platform-admin-card platform-admin-stack-card">
+                <p className="platform-admin-section-label">Tenant config center</p>
+                <h3>Tenant model profiles</h3>
+                <form className="platform-admin-form" onSubmit={handleCreateModelProfile}>
+                  <label className="platform-admin-field">
+                    <span>Provider</span>
+                    <input
+                      value={modelForm.provider}
+                      onChange={(event) =>
+                        setModelForm((current) => ({ ...current, provider: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Model ID</span>
+                    <input
+                      value={modelForm.model}
+                      onChange={(event) =>
+                        setModelForm((current) => ({ ...current, model: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Label</span>
+                    <input
+                      value={modelForm.label}
+                      onChange={(event) =>
+                        setModelForm((current) => ({ ...current, label: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Base URL</span>
+                    <input
+                      value={modelForm.baseUrl}
+                      onChange={(event) =>
+                        setModelForm((current) => ({ ...current, baseUrl: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Default</span>
+                    <select
+                      value={modelForm.isDefault ? "true" : "false"}
+                      onChange={(event) =>
+                        setModelForm((current) => ({
+                          ...current,
+                          isDefault: event.target.value === "true",
+                        }))
+                      }
+                    >
+                      <option value="true">Default model</option>
+                      <option value="false">Optional model</option>
+                    </select>
+                  </label>
+                  <button className="platform-admin-submit" type="submit">
+                    Create model profile
+                  </button>
+                </form>
+
+                <div className="platform-admin-list">
+                  {modelProfiles.map((item) => (
+                    <div key={item.id} className="platform-admin-list-item is-static">
+                      <span>{item.label}</span>
+                      <small>{item.provider}</small>
+                      <small>{item.model}</small>
+                      <small>{item.isDefault ? "default" : "optional"}</small>
+                      <small>{item.isActive ? "active" : "inactive"}</small>
+                      <button
+                        className="platform-admin-secondary-button"
+                        type="button"
+                        onClick={() => handleDeactivateModelProfile(item.id)}
+                      >
+                        Deactivate model
                       </button>
                     </div>
                   ))}

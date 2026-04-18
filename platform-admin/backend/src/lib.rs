@@ -9,6 +9,7 @@ pub mod admin;
 pub mod audit;
 pub mod auth;
 pub mod desktop;
+pub mod model_profiles;
 
 use admin::{
     AdminError, CreateAccountInput, CreateTenantInput, PgAdminStore, create_account_for_actor,
@@ -22,6 +23,11 @@ use audit::{
 use desktop::{
     DesktopError, PgDesktopStore, desktop_bootstrap_for_actor, desktop_model_profiles_for_actor,
     desktop_skill_catalog_for_actor,
+};
+use model_profiles::{
+    CreateModelProfileInput, ModelProfileError, PgModelProfileStore,
+    create_model_profile_for_actor, deactivate_model_profile_for_actor,
+    list_model_profiles_for_actor,
 };
 use auth::{
     AuthError, BootstrapConfig, PgAuthStore, authenticate_access_token, authenticate_login,
@@ -188,11 +194,27 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         (Some("GET"), "/api/admin/me") => handle_admin_me(request, config),
         (Some("GET"), "/api/admin/tenants") => handle_list_tenants(request, config),
         (Some("POST"), "/api/admin/tenants") => handle_create_tenant(request, config),
+        (Some("GET"), "/api/admin/model-profiles") => handle_list_model_profiles(request, config),
+        (Some("POST"), "/api/admin/model-profiles") => {
+            handle_create_model_profile(request, config)
+        }
         (Some("GET"), "/api/admin/accounts") => handle_list_accounts(request, config),
         (Some("POST"), "/api/admin/accounts") => handle_create_account(request, config),
+        (Some("GET"), "/api/admin/tenant/model-profiles") => {
+            handle_list_tenant_model_profiles(request, config)
+        }
+        (Some("POST"), "/api/admin/tenant/model-profiles") => {
+            handle_create_tenant_model_profile(request, config)
+        }
         (Some("GET"), "/api/admin/tenant/accounts") => handle_list_tenant_accounts(request, config),
         (Some("POST"), "/api/admin/tenant/accounts") => {
             handle_create_tenant_scoped_account(request, config)
+        }
+        (Some("POST"), _) if normalized_path.starts_with("/api/admin/model-profiles/") && normalized_path.ends_with("/deactivate") => {
+            handle_deactivate_model_profile(request, config, &normalized_path)
+        }
+        (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenant/model-profiles/") && normalized_path.ends_with("/deactivate") => {
+            handle_deactivate_model_profile(request, config, &normalized_path)
         }
         (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenants/") && normalized_path.ends_with("/deactivate") => {
             handle_deactivate_tenant(request, config, &normalized_path)
@@ -461,6 +483,120 @@ fn handle_create_tenant(request: &str, config: &ServerConfig) -> String {
     }
 }
 
+fn handle_list_model_profiles(request: &str, config: &ServerConfig) -> String {
+    let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
+        .and_then(|value: String| value.parse::<i64>().ok());
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgModelProfileStore::new(&config.database_url);
+        list_model_profiles_for_actor(&mut store, &to_principal(actor), tenant_id)
+            .map_err(map_model_profile_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_list_tenant_model_profiles(request: &str, config: &ServerConfig) -> String {
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgModelProfileStore::new(&config.database_url);
+        list_model_profiles_for_actor(&mut store, &to_principal(actor), None)
+            .map_err(map_model_profile_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_create_model_profile(request: &str, config: &ServerConfig) -> String {
+    let body = request_body(request);
+    let input = match serde_json::from_str::<CreateModelProfileInput>(body) {
+        Ok(payload) => payload,
+        Err(_) => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "request body must be valid JSON".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgModelProfileStore::new(&config.database_url);
+        create_model_profile_for_actor(&mut store, &to_principal(actor), input)
+            .map_err(map_model_profile_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_create_tenant_model_profile(request: &str, config: &ServerConfig) -> String {
+    let body = request_body(request);
+    let input = match serde_json::from_str::<CreateModelProfileInput>(body) {
+        Ok(payload) => payload,
+        Err(_) => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "request body must be valid JSON".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let tenant_id = actor
+            .tenant
+            .as_ref()
+            .map(|tenant| tenant.id)
+            .ok_or(AdminError::Forbidden(
+                "tenant admin must belong to a tenant".to_string(),
+            ))?;
+        let mut store = PgModelProfileStore::new(&config.database_url);
+        create_model_profile_for_actor(
+            &mut store,
+            &to_principal(actor),
+            CreateModelProfileInput {
+                tenant_id: Some(tenant_id),
+                ..input
+            },
+        )
+        .map_err(map_model_profile_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_deactivate_model_profile(request: &str, config: &ServerConfig, path: &str) -> String {
+    let model_id = trailing_string_resource_id_from_model_path(path);
+    let model_id = match model_id {
+        Some(value) => value,
+        None => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "model id is invalid".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgModelProfileStore::new(&config.database_url);
+        deactivate_model_profile_for_actor(&mut store, &to_principal(actor), &model_id)
+            .map_err(map_model_profile_to_admin_error)
+    }) {
+        Ok(()) => json_response("HTTP/1.1 200 OK", r#"{"status":"ok"}"#),
+        Err(error) => admin_error_response(error),
+    }
+}
+
 fn handle_deactivate_tenant(request: &str, config: &ServerConfig, path: &str) -> String {
     let tenant_id = match trailing_resource_id(path, "/api/admin/tenants/", "/deactivate") {
         Some(value) => value,
@@ -634,6 +770,16 @@ fn map_desktop_to_admin_error(error: DesktopError) -> AdminError {
     }
 }
 
+fn map_model_profile_to_admin_error(error: ModelProfileError) -> AdminError {
+    match error {
+        ModelProfileError::InvalidRequest(message) => AdminError::InvalidRequest(message),
+        ModelProfileError::Forbidden(message) => AdminError::Forbidden(message),
+        ModelProfileError::Conflict(message) => AdminError::Conflict(message),
+        ModelProfileError::NotFound(message) => AdminError::NotFound(message),
+        ModelProfileError::Store(message) => AdminError::Store(message),
+    }
+}
+
 fn map_audit_to_admin_error(error: AuditError) -> AdminError {
     match error {
         AuditError::InvalidRequest(message) => AdminError::InvalidRequest(message),
@@ -700,6 +846,21 @@ fn trailing_resource_id_from_account_path(path: &str) -> Option<i64> {
         .or_else(|| trailing_resource_id(path, "/api/admin/tenant/accounts/", "/deactivate"))
 }
 
+fn trailing_string_resource_id(path: &str, prefix: &str, suffix: &str) -> Option<String> {
+    let trimmed = path.strip_prefix(prefix)?.strip_suffix(suffix)?;
+    if trimmed.trim().is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn trailing_string_resource_id_from_model_path(path: &str) -> Option<String> {
+    trailing_string_resource_id(path, "/api/admin/model-profiles/", "/deactivate").or_else(|| {
+        trailing_string_resource_id(path, "/api/admin/tenant/model-profiles/", "/deactivate")
+    })
+}
+
 fn json_response(status_line: &str, body: &str) -> String {
     format!(
         "{status_line}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{body}",
@@ -727,6 +888,12 @@ fn cors_headers() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn builds_health_payload_json() {
@@ -804,6 +971,9 @@ mod tests {
 
     #[test]
     fn rejects_invalid_port_from_env() {
+        let _guard = env_lock()
+            .lock()
+            .expect("env-based config tests should acquire the shared lock");
         unsafe {
             env::set_var("ADMIN_BACKEND_PORT", "invalid");
         }
@@ -816,6 +986,9 @@ mod tests {
 
     #[test]
     fn reads_bootstrap_super_admin_from_env() {
+        let _guard = env_lock()
+            .lock()
+            .expect("env-based config tests should acquire the shared lock");
         unsafe {
             env::set_var("ADMIN_BOOTSTRAP_SUPER_USERNAME", "root");
             env::set_var("ADMIN_BOOTSTRAP_SUPER_PASSWORD", "Secret123!");

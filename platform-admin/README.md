@@ -32,9 +32,14 @@
   - 平台授权模型下发
   - Skill 只读清单下发
   - 审计事件批量接收与健康检查
+- 后端支持模型配置管理：
+  - 超级管理员管理全局模型与租户模型
+  - 租户管理员管理本租户模型
+  - 同作用域默认模型唯一
 - 前端已提供双工作台：
   - 超级管理员：管理租户、管理租户账号
   - 租户管理员：仅管理本租户普通用户
+  - 两类工作台都已补模型配置卡片
 - 浏览器跨端口访问已补齐 CORS / `OPTIONS` 预检支持
 
 ## 环境变量
@@ -126,13 +131,42 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `GET /api/admin/tenant/accounts`：租户管理员查看本租户账号
 - `POST /api/admin/tenant/accounts`：租户管理员创建本租户普通用户
 - `POST /api/admin/tenant/accounts/:accountId/deactivate`：租户管理员停用本租户普通用户
+- `GET /api/admin/model-profiles?tenantId=:tenantId`：超级管理员读取全局或指定租户模型
+- `POST /api/admin/model-profiles`：超级管理员创建全局或指定租户模型
+- `POST /api/admin/model-profiles/:modelId/deactivate`：超级管理员停用模型
+- `GET /api/admin/tenant/model-profiles`：租户管理员读取本租户模型
+- `POST /api/admin/tenant/model-profiles`：租户管理员创建本租户模型
+- `POST /api/admin/tenant/model-profiles/:modelId/deactivate`：租户管理员停用本租户模型
 
 当前权限边界：
 
 - 超级管理员不属于任何租户
 - 租户管理员只能看到并管理自己租户下的数据
 - 租户管理员不能创建租户管理员
+- 租户管理员不能管理全局模型
 - 删除策略当前统一为“停用/禁用”，不做物理删除
+
+## 模型配置管理规则
+
+模型配置继续复用 `platform_desktop_model_profiles` 表，字段包括：
+
+- `id`
+- `tenant_id`
+- `provider`
+- `model`
+- `label`
+- `base_url`
+- `is_default`
+- `is_active`
+
+默认规则如下：
+
+- 全局模型与租户模型分别维护各自的默认值
+- 同一作用域内创建新的默认模型时，旧默认会自动取消
+- 桌面执行端拉取模型时：
+  - 优先使用租户默认模型
+  - 若租户没有默认模型，则回落到全局默认模型
+  - 返回给桌面端的列表里最多只有一个 `isDefault = true`
 
 ## 桌面执行端接口
 

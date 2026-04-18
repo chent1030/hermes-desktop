@@ -58,6 +58,19 @@ describe("platform admin frontend", () => {
           isActive: true,
         },
       ]),
+      mockJsonResponse([
+        {
+          id: "mdl_global_default",
+          scopeType: "global",
+          tenant: null,
+          provider: "openai",
+          model: "gpt-5.4",
+          label: "GPT-5.4",
+          baseUrl: "https://api.openai.com/v1",
+          isDefault: true,
+          isActive: true,
+        },
+      ]),
       mockJsonResponse({
         accessToken: "atk_root_rotated",
         refreshToken: "rtk_root_rotated",
@@ -92,6 +105,12 @@ describe("platform admin frontend", () => {
         name: "Create tenant",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Model profile control",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Refresh session" }));
     expect(await screen.findByText("Session refreshed")).toBeInTheDocument();
 
@@ -137,6 +156,23 @@ describe("platform admin frontend", () => {
           isActive: true,
         },
       ]),
+      mockJsonResponse([
+        {
+          id: "mdl_tenant_default",
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          provider: "openai",
+          model: "gpt-4.1",
+          label: "GPT-4.1 Tenant",
+          baseUrl: "https://api.openai.com/v1",
+          isDefault: true,
+          isActive: true,
+        },
+      ]),
     ]);
 
     render(<App />);
@@ -159,7 +195,14 @@ describe("platform admin frontend", () => {
         name: "Create tenant user",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Tenant model profiles",
+      }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Create tenant admin")).not.toBeInTheDocument();
+    expect(screen.queryByText("Global models")).not.toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByText("GPT-4.1 Tenant")).toBeInTheDocument();
   });
 });
