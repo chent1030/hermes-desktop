@@ -305,6 +305,16 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
 - `run.model.*`：展示 `modelId`、`error`
 - `run.skill.*`：展示 `skillId` 或关键同步统计
 
+同时，管理端审计接口与前端页面现在都增加了统一的 `eventFamily` 投影视角，固定取值为：
+
+- `run`
+- `chat`
+- `auth`
+- `workspace`
+- `other`
+
+这样管理端就不必只依赖 `eventPrefix` 做前缀匹配，也能为后续统一执行大盘保留更稳定的筛选口径。
+
 管理端会话中心当前还会补一层最小工具执行摘要：
 
 - `toolRunCount`

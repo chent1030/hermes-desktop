@@ -1192,9 +1192,9 @@ describe("platform admin frontend", () => {
     expect(await within(auditCard).findByText("Audit summary")).toBeInTheDocument();
     expect(within(auditCard).getByText("3")).toBeInTheDocument();
     expect(within(auditCard).getByText("1 failed")).toBeInTheDocument();
-    expect(within(auditCard).getByText("Run")).toBeInTheDocument();
-    expect(within(auditCard).getByText("Chat")).toBeInTheDocument();
-    expect(within(auditCard).getByText("Workspace")).toBeInTheDocument();
+    expect(within(auditCard).getAllByText("Run").length).toBeGreaterThan(0);
+    expect(within(auditCard).getAllByText("Chat").length).toBeGreaterThan(0);
+    expect(within(auditCard).getAllByText("Workspace").length).toBeGreaterThan(0);
   });
 
   it("applies event family filters and renders run audit summaries", async () => {
@@ -1289,13 +1289,13 @@ describe("platform admin frontend", () => {
 
     const auditCard = getCardForHeading("Tenant audit center");
     fireEvent.change(within(auditCard).getByLabelText("Event family"), {
-      target: { value: "run." },
+      target: { value: "run" },
     });
     fireEvent.click(within(auditCard).getByRole("button", { name: "Apply filters" }));
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:8080/api/admin/tenant/audit/events?limit=100&eventPrefix=run.",
+        "http://127.0.0.1:8080/api/admin/tenant/audit/events?limit=100&eventFamily=run",
         expect.objectContaining({ method: "GET" }),
       );
     });

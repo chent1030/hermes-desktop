@@ -70,10 +70,13 @@ export interface AuditActorRecord {
   roleCode: RoleCode;
 }
 
+export type AuditEventFamilyKey = "run" | "chat" | "auth" | "workspace" | "other";
+
 export interface AuditEventRecord {
   id: number;
   tenant: SessionTenant;
   account: AuditActorRecord;
+  eventFamily?: AuditEventFamilyKey;
   eventType: string;
   payload: Record<string, unknown>;
   occurredAt: string;
@@ -95,7 +98,7 @@ export interface SessionSummaryRecord {
 }
 
 export interface AuditFilters {
-  eventPrefix: string;
+  eventFamily: AuditEventFamilyKey | "";
   eventType: string;
   occurredFrom: string;
   occurredTo: string;
@@ -113,7 +116,7 @@ export interface SessionFilters {
 }
 
 export interface AuditFamilySummary {
-  key: "run" | "chat" | "auth" | "workspace" | "other";
+  key: AuditEventFamilyKey;
   label: string;
   count: number;
 }

@@ -577,6 +577,7 @@ fn handle_create_tenant(request: &str, config: &ServerConfig) -> String {
 fn handle_list_audit_events(request: &str, config: &ServerConfig) -> String {
     let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
         .and_then(|value: String| value.parse::<i64>().ok());
+    let event_family = query_param(request_path(request).unwrap_or_default(), "eventFamily");
     let event_type = query_param(request_path(request).unwrap_or_default(), "eventType");
     let event_prefix = query_param(request_path(request).unwrap_or_default(), "eventPrefix");
     let occurred_from = query_param(request_path(request).unwrap_or_default(), "occurredFrom");
@@ -588,6 +589,7 @@ fn handle_list_audit_events(request: &str, config: &ServerConfig) -> String {
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
         .and_then(|value: String| value.parse::<i64>().ok());
     let query = match build_audit_event_query(
+        event_family,
         event_type,
         event_prefix,
         occurred_from,
@@ -612,6 +614,7 @@ fn handle_list_audit_events(request: &str, config: &ServerConfig) -> String {
 }
 
 fn handle_list_tenant_audit_events(request: &str, config: &ServerConfig) -> String {
+    let event_family = query_param(request_path(request).unwrap_or_default(), "eventFamily");
     let event_type = query_param(request_path(request).unwrap_or_default(), "eventType");
     let event_prefix = query_param(request_path(request).unwrap_or_default(), "eventPrefix");
     let occurred_from = query_param(request_path(request).unwrap_or_default(), "occurredFrom");
@@ -623,6 +626,7 @@ fn handle_list_tenant_audit_events(request: &str, config: &ServerConfig) -> Stri
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
         .and_then(|value: String| value.parse::<i64>().ok());
     let query = match build_audit_event_query(
+        event_family,
         event_type,
         event_prefix,
         occurred_from,

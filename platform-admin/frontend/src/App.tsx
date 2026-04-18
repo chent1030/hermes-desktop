@@ -10,6 +10,7 @@ import {
 import {
   type AdminAccountRecord,
   type AuditEventRecord,
+  type AuditEventFamilyKey,
   type AuditFamilySummary,
   type AuditFilters,
   type LoginResponse,
@@ -189,9 +190,7 @@ function buildAuditSummaryLines(
   return [];
 }
 
-function auditFamilyKey(
-  eventType: string,
-): AuditFamilySummary["key"] {
+function auditFamilyKey(eventType: string): AuditFamilySummary["key"] {
   if (eventType.startsWith("run.")) {
     return "run";
   }
@@ -205,6 +204,10 @@ function auditFamilyKey(
     return "workspace";
   }
   return "other";
+}
+
+function resolveAuditEventFamily(item: AuditEventRecord): AuditEventFamilyKey {
+  return item.eventFamily ?? auditFamilyKey(item.eventType);
 }
 
 export default function App(): React.JSX.Element {
@@ -230,7 +233,7 @@ export default function App(): React.JSX.Element {
   const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
   const [sessions, setSessions] = useState<SessionSummaryRecord[]>([]);
   const [auditFilters, setAuditFilters] = useState<AuditFilters>({
-    eventPrefix: "",
+    eventFamily: "",
     eventType: "",
     occurredFrom: "",
     occurredTo: "",
@@ -333,7 +336,7 @@ export default function App(): React.JSX.Element {
     };
 
     for (const item of auditEvents) {
-      counts[auditFamilyKey(item.eventType)] += 1;
+      counts[resolveAuditEventFamily(item)] += 1;
     }
 
     const families: AuditFamilySummary[] = [
@@ -451,8 +454,8 @@ export default function App(): React.JSX.Element {
       tenantId: String(tenantId),
       limit: filters.limit || "100",
     });
-    if (filters.eventPrefix.trim()) {
-      params.set("eventPrefix", filters.eventPrefix.trim());
+    if (filters.eventFamily) {
+      params.set("eventFamily", filters.eventFamily);
     }
     if (filters.eventType.trim()) {
       params.set("eventType", filters.eventType.trim());
@@ -486,8 +489,8 @@ export default function App(): React.JSX.Element {
     const params = new URLSearchParams({
       limit: filters.limit || "100",
     });
-    if (filters.eventPrefix.trim()) {
-      params.set("eventPrefix", filters.eventPrefix.trim());
+    if (filters.eventFamily) {
+      params.set("eventFamily", filters.eventFamily);
     }
     if (filters.eventType.trim()) {
       params.set("eventType", filters.eventType.trim());
@@ -1067,7 +1070,7 @@ export default function App(): React.JSX.Element {
     }
 
     const nextFilters: AuditFilters = {
-      eventPrefix: "",
+      eventFamily: "",
       eventType: "",
       occurredFrom: "",
       occurredTo: "",
@@ -1144,10 +1147,12 @@ export default function App(): React.JSX.Element {
 
   const renderAuditEvent = (item: AuditEventRecord): React.JSX.Element => {
     const summaryLines = buildAuditSummaryLines(item, copy);
+    const eventFamily = resolveAuditEventFamily(item);
 
     return (
       <div key={item.id} className="platform-admin-list-item is-static">
         <span>{item.eventType}</span>
+        <small>{copy.audit.families[eventFamily]}</small>
         <small>{item.account.displayName}</small>
         <small>{item.occurredAt}</small>
         {summaryLines.map((line) => (
@@ -1202,16 +1207,20 @@ export default function App(): React.JSX.Element {
       <label className="platform-admin-field">
         <span>{copy.audit.eventFamily}</span>
         <select
-          value={auditFilters.eventPrefix}
+          value={auditFilters.eventFamily}
           onChange={(event) =>
-            setAuditFilters((current) => ({ ...current, eventPrefix: event.target.value }))
+            setAuditFilters((current) => ({
+              ...current,
+              eventFamily: event.target.value as AuditFilters["eventFamily"],
+            }))
           }
         >
           <option value="">{copy.audit.allEvents}</option>
-          <option value="run.">{copy.audit.runEvents}</option>
-          <option value="chat.">{copy.audit.chatEvents}</option>
-          <option value="auth.">{copy.audit.authEvents}</option>
-          <option value="workspace.">{copy.audit.workspaceEvents}</option>
+          <option value="run">{copy.audit.runEvents}</option>
+          <option value="chat">{copy.audit.chatEvents}</option>
+          <option value="auth">{copy.audit.authEvents}</option>
+          <option value="workspace">{copy.audit.workspaceEvents}</option>
+          <option value="other">{copy.audit.otherEvents}</option>
         </select>
       </label>
       <label className="platform-admin-field">

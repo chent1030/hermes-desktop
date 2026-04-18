@@ -12,6 +12,7 @@ pub struct AuditEventRecord {
     pub id: i64,
     pub tenant: AuthTenant,
     pub account: AuditActorRecord,
+    pub event_family: String,
     pub event_type: String,
     pub payload: Value,
     pub occurred_at: String,
@@ -29,6 +30,7 @@ pub struct AuditActorRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuditEventQuery {
+    pub event_family: Option<AuditEventFamily>,
     pub event_type: Option<String>,
     pub event_prefix: Option<String>,
     pub occurred_from: Option<String>,
@@ -37,6 +39,54 @@ pub struct AuditEventQuery {
     pub payload_query: Option<String>,
     pub before_id: Option<i64>,
     pub limit: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuditEventFamily {
+    Run,
+    Chat,
+    Auth,
+    Workspace,
+    Other,
+}
+
+impl AuditEventFamily {
+    fn from_query_value(value: &str) -> Option<Self> {
+        match value {
+            "run" => Some(Self::Run),
+            "chat" => Some(Self::Chat),
+            "auth" => Some(Self::Auth),
+            "workspace" => Some(Self::Workspace),
+            "other" => Some(Self::Other),
+            _ => None,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Run => "run",
+            Self::Chat => "chat",
+            Self::Auth => "auth",
+            Self::Workspace => "workspace",
+            Self::Other => "other",
+        }
+    }
+
+    #[cfg(test)]
+    fn matches_event_type(self, event_type: &str) -> bool {
+        match self {
+            Self::Run => event_type.starts_with("run."),
+            Self::Chat => event_type.starts_with("chat."),
+            Self::Auth => event_type.starts_with("auth."),
+            Self::Workspace => event_type.starts_with("workspace."),
+            Self::Other => {
+                !event_type.starts_with("run.")
+                    && !event_type.starts_with("chat.")
+                    && !event_type.starts_with("auth.")
+                    && !event_type.starts_with("workspace.")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -142,6 +192,13 @@ impl AuditCenterStore for PgAuditCenterStore {
                 a.username,
                 a.display_name,
                 a.role_code,
+                CASE
+                    WHEN e.event_type LIKE 'run.%' THEN 'run'
+                    WHEN e.event_type LIKE 'chat.%' THEN 'chat'
+                    WHEN e.event_type LIKE 'auth.%' THEN 'auth'
+                    WHEN e.event_type LIKE 'workspace.%' THEN 'workspace'
+                    ELSE 'other'
+                END AS event_family,
                 e.event_type,
                 e.payload::text AS payload_text,
                 to_char(e.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS occurred_at,
@@ -150,22 +207,33 @@ impl AuditCenterStore for PgAuditCenterStore {
             INNER JOIN platform_admin_tenants t ON t.id = e.tenant_id
             INNER JOIN platform_admin_accounts a ON a.id = e.account_id
             WHERE e.tenant_id = $1
-              AND ($2::varchar IS NULL OR e.event_type = $2)
-              AND ($3::varchar IS NULL OR e.event_type LIKE ($3 || '%'))
-              AND ($4::text::timestamptz IS NULL OR e.occurred_at >= $4::text::timestamptz)
-              AND ($5::text::timestamptz IS NULL OR e.occurred_at <= $5::text::timestamptz)
               AND (
-                    $6::varchar IS NULL
-                    OR a.username ILIKE ('%' || $6 || '%')
-                    OR a.display_name ILIKE ('%' || $6 || '%')
+                    $2::varchar IS NULL
+                    OR CASE
+                        WHEN e.event_type LIKE 'run.%' THEN 'run'
+                        WHEN e.event_type LIKE 'chat.%' THEN 'chat'
+                        WHEN e.event_type LIKE 'auth.%' THEN 'auth'
+                        WHEN e.event_type LIKE 'workspace.%' THEN 'workspace'
+                        ELSE 'other'
+                    END = $2
               )
-              AND ($7::varchar IS NULL OR e.payload::text ILIKE ('%' || $7 || '%'))
-              AND ($8::bigint IS NULL OR e.id < $8)
+              AND ($3::varchar IS NULL OR e.event_type = $3)
+              AND ($4::varchar IS NULL OR e.event_type LIKE ($4 || '%'))
+              AND ($5::text::timestamptz IS NULL OR e.occurred_at >= $5::text::timestamptz)
+              AND ($6::text::timestamptz IS NULL OR e.occurred_at <= $6::text::timestamptz)
+              AND (
+                    $7::varchar IS NULL
+                    OR a.username ILIKE ('%' || $7 || '%')
+                    OR a.display_name ILIKE ('%' || $7 || '%')
+              )
+              AND ($8::varchar IS NULL OR e.payload::text ILIKE ('%' || $8 || '%'))
+              AND ($9::bigint IS NULL OR e.id < $9)
             ORDER BY e.occurred_at DESC, e.id DESC
-            LIMIT $9
+            LIMIT $10
             ",
             &[
                 &tenant_id,
+                &query.event_family.as_ref().map(|family| family.as_str()),
                 &query.event_type,
                 &query.event_prefix,
                 &query.occurred_from,
@@ -227,6 +295,7 @@ pub fn list_audit_events_for_actor<S: AuditCenterStore>(
 }
 
 pub fn build_audit_event_query(
+    requested_event_family: Option<String>,
     requested_event_type: Option<String>,
     requested_event_prefix: Option<String>,
     requested_occurred_from: Option<String>,
@@ -236,6 +305,17 @@ pub fn build_audit_event_query(
     requested_before_id: Option<i64>,
     requested_limit: Option<i64>,
 ) -> Result<AuditEventQuery, AuditCenterError> {
+    let event_family = requested_event_family
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            AuditEventFamily::from_query_value(value.trim()).ok_or(
+                AuditCenterError::InvalidRequest(
+                    "eventFamily must be one of run, chat, auth, workspace, other"
+                        .to_string(),
+                ),
+            )
+        })
+        .transpose()?;
     let occurred_from = requested_occurred_from.filter(|value| !value.trim().is_empty());
     let occurred_to = requested_occurred_to.filter(|value| !value.trim().is_empty());
 
@@ -256,6 +336,7 @@ pub fn build_audit_event_query(
     }
 
     Ok(AuditEventQuery {
+        event_family,
         event_type: requested_event_type.filter(|value| !value.trim().is_empty()),
         event_prefix: requested_event_prefix.filter(|value| !value.trim().is_empty()),
         occurred_from,
@@ -323,6 +404,7 @@ fn row_to_audit_event(row: postgres::Row) -> AuditEventRecord {
             display_name: row.get("display_name"),
             role_code: row.get("role_code"),
         },
+        event_family: row.get("event_family"),
         event_type: row.get("event_type"),
         payload: serde_json::from_str(&payload_text)
             .unwrap_or_else(|_| Value::String(payload_text.clone())),
@@ -368,6 +450,12 @@ mod tests {
                 .events
                 .iter()
                 .filter(|event| event.tenant.id == tenant_id)
+                .filter(|event| {
+                    query
+                        .event_family
+                        .as_ref()
+                        .is_none_or(|value| value.matches_event_type(&event.event_type))
+                })
                 .filter(|event| {
                     query
                         .event_type
@@ -465,6 +553,7 @@ mod tests {
                 display_name: "ACME Admin".to_string(),
                 role_code: "tenant_admin".to_string(),
             },
+            event_family: "workspace".to_string(),
             event_type: "workspace.initialized".to_string(),
             payload: serde_json::json!({ "modelCount": 2 }),
             occurred_at: "2026-04-18T12:00:00.000Z".to_string(),
@@ -482,7 +571,7 @@ mod tests {
             &mut store,
             &actor,
             Some(7),
-            build_audit_event_query(None, None, None, None, None, None, None, Some(50))
+            build_audit_event_query(None, None, None, None, None, None, None, None, Some(50))
                 .expect("query"),
         )
         .expect("tenant admin should read own audit events");
@@ -500,7 +589,7 @@ mod tests {
             &mut store,
             &actor,
             None,
-            build_audit_event_query(None, None, None, None, None, None, None, None)
+            build_audit_event_query(None, None, None, None, None, None, None, None, None)
                 .expect("query"),
         )
         .expect_err("super admin must provide tenant scope");
@@ -522,6 +611,7 @@ mod tests {
             &actor,
             Some(7),
             build_audit_event_query(
+                None,
                 Some("chat.started".to_string()),
                 None,
                 None,
@@ -546,22 +636,72 @@ mod tests {
         let mut model_event = sample_audit_event_record();
         model_event.id = 12;
         model_event.event_type = "run.model.selected".to_string();
+        model_event.event_family = "run".to_string();
         let mut chat_event = sample_audit_event_record();
         chat_event.id = 13;
         chat_event.event_type = "chat.started".to_string();
+        chat_event.event_family = "chat".to_string();
         store.events = vec![model_event, chat_event];
 
         let items = list_audit_events_for_actor(
             &mut store,
             &actor,
             Some(7),
-            build_audit_event_query(None, Some("run.".to_string()), None, None, None, None, None, None)
-                .expect("query"),
+            build_audit_event_query(
+                Some("run".to_string()),
+                None,
+                Some("run.".to_string()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .expect("query"),
         )
         .expect("tenant admin should filter audit events by prefix");
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].event_type, "run.model.selected");
+    }
+
+    #[test]
+    fn filters_audit_events_by_event_family() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemoryAuditCenterStore::default();
+        let mut run_event = sample_audit_event_record();
+        run_event.id = 12;
+        run_event.event_type = "run.tool.failed".to_string();
+        run_event.event_family = "run".to_string();
+        let mut other_event = sample_audit_event_record();
+        other_event.id = 13;
+        other_event.event_type = "system.heartbeat".to_string();
+        other_event.event_family = "other".to_string();
+        store.events = vec![run_event, other_event];
+
+        let items = list_audit_events_for_actor(
+            &mut store,
+            &actor,
+            Some(7),
+            build_audit_event_query(
+                Some("other".to_string()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .expect("query"),
+        )
+        .expect("tenant admin should filter audit events by family");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].event_type, "system.heartbeat");
+        assert_eq!(items[0].event_family, "other");
     }
 
     #[test]
@@ -579,6 +719,7 @@ mod tests {
             &actor,
             Some(7),
             build_audit_event_query(
+                None,
                 None,
                 None,
                 None,
@@ -615,6 +756,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
                 Some("needle".to_string()),
                 None,
                 None,
@@ -643,7 +785,7 @@ mod tests {
             &mut store,
             &actor,
             Some(7),
-            build_audit_event_query(None, None, None, None, None, None, Some(11), None)
+            build_audit_event_query(None, None, None, None, None, None, None, Some(11), None)
                 .expect("query"),
         )
         .expect("tenant admin should paginate audit events");
@@ -657,6 +799,7 @@ mod tests {
         let error = build_audit_event_query(
             None,
             None,
+            None,
             Some("not-a-time".to_string()),
             None,
             None,
@@ -665,6 +808,24 @@ mod tests {
             None,
         )
         .expect_err("invalid time should be rejected");
+
+        assert!(matches!(error, AuditCenterError::InvalidRequest(_)));
+    }
+
+    #[test]
+    fn rejects_unknown_event_family_filter() {
+        let error = build_audit_event_query(
+            Some("custom".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect_err("unknown event family should be rejected");
 
         assert!(matches!(error, AuditCenterError::InvalidRequest(_)));
     }
@@ -704,6 +865,7 @@ mod tests {
             &actor,
             Some(tenant_id),
             build_audit_event_query(
+                None,
                 Some("workspace.initialized".to_string()),
                 None,
                 None,
