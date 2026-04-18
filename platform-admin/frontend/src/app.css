@@ -1,0 +1,85 @@
+:root {
+  color-scheme: light;
+  --admin-bg: #f6f3ea;
+  --admin-panel: rgba(255, 255, 255, 0.82);
+  --admin-border: rgba(22, 31, 44, 0.12);
+  --admin-text: #18212d;
+  --admin-muted: #566273;
+  --admin-accent: #a63d40;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Google Sans", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(166, 61, 64, 0.14), transparent 32%),
+    linear-gradient(135deg, #f9f4ea 0%, #eef2f5 100%);
+  color: var(--admin-text);
+}
+
+.platform-admin-app {
+  min-height: 100vh;
+  padding: 56px 28px;
+}
+
+.platform-admin-hero {
+  max-width: 760px;
+  margin: 0 auto 28px;
+}
+
+.platform-admin-eyebrow {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--admin-accent);
+}
+
+.platform-admin-hero h1 {
+  margin: 0;
+  font-size: clamp(36px, 6vw, 64px);
+  line-height: 0.96;
+}
+
+.platform-admin-description {
+  margin: 16px 0 0;
+  max-width: 620px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--admin-muted);
+}
+
+.platform-admin-grid {
+  max-width: 1040px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.platform-admin-card {
+  padding: 20px;
+  border: 1px solid var(--admin-border);
+  border-radius: 20px;
+  background: var(--admin-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 45px rgba(24, 33, 45, 0.08);
+}
+
+.platform-admin-card h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.platform-admin-card p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--admin-muted);
+}

@@ -1,0 +1,11 @@
+[package]
+name = "platform-admin-backend"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "platform-admin-backend"
+path = "src/main.rs"
