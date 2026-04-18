@@ -495,24 +495,28 @@
   }
 
   .platform-admin-form {
-    @apply grid gap-4;
+    @apply grid gap-3;
   }
 
   .platform-admin-field {
     @apply grid gap-2 text-sm font-medium text-slate-700;
   }
 
+  .platform-admin-field > span {
+    @apply text-[12px] font-semibold tracking-[0.03em] text-slate-600;
+  }
+
   .platform-admin-field input,
   .platform-admin-field select {
-    @apply w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition duration-200 placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-100;
+    @apply min-h-12 w-full rounded-[1rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800 outline-none transition duration-200 placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-100;
   }
 
   .platform-admin-submit {
-    @apply mt-1 inline-flex cursor-pointer items-center justify-center rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/20 transition duration-200 hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-100 disabled:cursor-progress disabled:opacity-70;
+    @apply mt-1 inline-flex min-h-12 cursor-pointer items-center justify-center rounded-[1rem] bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/20 transition duration-200 hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-100 disabled:cursor-progress disabled:opacity-70;
   }
 
   .platform-admin-secondary-button {
-    @apply inline-flex cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition duration-200 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-100 disabled:cursor-progress disabled:opacity-70;
+    @apply inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition duration-200 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-100 disabled:cursor-progress disabled:opacity-70;
   }
 
   .platform-admin-error {
@@ -655,6 +659,14 @@
     @apply bg-slate-50/72;
   }
 
+  .platform-admin-filter-panel .platform-admin-form {
+    @apply md:grid-cols-2 2xl:grid-cols-3;
+  }
+
+  .platform-admin-filter-panel .platform-admin-submit {
+    @apply w-full md:col-span-2 2xl:col-span-3;
+  }
+
   .platform-admin-data-list-panel {
     @apply grid gap-4 bg-white;
   }
@@ -693,8 +705,16 @@
     @apply grid gap-4;
   }
 
+  .platform-admin-resource-editor > .platform-admin-field {
+    @apply rounded-[1.2rem] border border-slate-200 bg-white p-3.5 shadow-sm;
+  }
+
   .platform-admin-resource-list-panel {
     @apply grid gap-4 bg-white;
+  }
+
+  .platform-admin-resource-list-panel .platform-admin-list {
+    @apply xl:grid-cols-2;
   }
 
   .platform-admin-resource-actions {
@@ -787,7 +807,7 @@
   }
 
   .platform-admin-list-item {
-    @apply relative grid w-full gap-1.5 overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white px-4 py-4 text-left text-sm shadow-sm transition duration-200;
+    @apply relative grid w-full gap-3 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white px-4 py-4 text-left text-sm shadow-sm transition duration-200;
   }
 
   .platform-admin-list-item::before {
@@ -861,6 +881,26 @@
   }
 
   .platform-admin-record-actions {
+    @apply flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3;
+  }
+
+  .platform-admin-resource-record {
+    @apply gap-3 rounded-[1.25rem] border-slate-200 bg-gradient-to-br from-white to-slate-50/70 p-4;
+  }
+
+  .platform-admin-resource-record-head {
+    @apply flex items-start justify-between gap-3 border-b border-slate-200 pb-3;
+  }
+
+  .platform-admin-resource-record-title {
+    @apply text-base font-semibold tracking-tight text-slate-950;
+  }
+
+  .platform-admin-resource-record-meta {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .platform-admin-resource-record-actions {
     @apply flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3;
   }
 

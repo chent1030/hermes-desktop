@@ -61,12 +61,17 @@ export function AdminTenantsPage({
               <button
                 key={tenant.id}
                 type="button"
-                className={`platform-admin-list-item${selectedTenantId === tenant.id ? " is-selected" : ""}`}
+                className={`platform-admin-list-item platform-admin-resource-record${selectedTenantId === tenant.id ? " is-selected" : ""}`}
                 onClick={() => onSelectTenant(tenant.id)}
               >
-                <span>{tenant.name}</span>
-                <small>{tenant.code}</small>
-                <small>{tenant.isActive ? copy.common.active : copy.common.inactive}</small>
+                <div className="platform-admin-resource-record-head">
+                  <span className="platform-admin-resource-record-title">{tenant.name}</span>
+                  <small>{tenant.isActive ? copy.common.active : copy.common.inactive}</small>
+                </div>
+                <div className="platform-admin-resource-record-meta">
+                  <small>{tenant.code}</small>
+                  {selectedTenantId === tenant.id ? <small>{copy.workspace.selectedTenant}</small> : null}
+                </div>
               </button>
             ))}
           </div>

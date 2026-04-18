@@ -101,20 +101,29 @@ export function AdminSkillsPage({
         <section className="platform-admin-resource-list-panel">
           <div className="platform-admin-list">
             {skillCatalog.map((item) => (
-              <div key={item.id} className="platform-admin-list-item is-static">
-                <span>{item.name}</span>
-                <small>{item.version}</small>
-                <small>
-                  {item.scopeType === "global" ? copy.common.global : copy.common.tenant}
-                </small>
-                <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
-                <button
-                  className="platform-admin-secondary-button"
-                  type="button"
-                  onClick={() => onDeactivate(item.id)}
-                >
-                  {copy.skillControl.deactivateButton}
-                </button>
+              <div
+                key={item.id}
+                className="platform-admin-list-item is-static platform-admin-resource-record"
+              >
+                <div className="platform-admin-resource-record-head">
+                  <span className="platform-admin-resource-record-title">{item.name}</span>
+                  <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
+                </div>
+                <div className="platform-admin-resource-record-meta">
+                  <small>{item.version}</small>
+                  <small>
+                    {item.scopeType === "global" ? copy.common.global : copy.common.tenant}
+                  </small>
+                </div>
+                <div className="platform-admin-resource-record-actions">
+                  <button
+                    className="platform-admin-secondary-button"
+                    type="button"
+                    onClick={() => onDeactivate(item.id)}
+                  >
+                    {copy.skillControl.deactivateButton}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
