@@ -1669,6 +1669,30 @@ export default function App(): React.JSX.Element {
             <article className="platform-admin-panel platform-admin-login-panel">
               <span className="platform-admin-login-panel-scan" aria-hidden="true" />
               <span className="platform-admin-login-panel-glow" aria-hidden="true" />
+              <span
+                className="platform-admin-login-panel-corner is-top-left"
+                aria-hidden="true"
+              />
+              <span
+                className="platform-admin-login-panel-corner is-top-right"
+                aria-hidden="true"
+              />
+              <span
+                className="platform-admin-login-panel-corner is-bottom-left"
+                aria-hidden="true"
+              />
+              <span
+                className="platform-admin-login-panel-corner is-bottom-right"
+                aria-hidden="true"
+              />
+              <div className="platform-admin-login-panel-topline" aria-hidden="true">
+                <div className="platform-admin-login-panel-dots">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span className="platform-admin-login-panel-code">AUTH://PANEL-01</span>
+              </div>
               <div className="platform-admin-panel-header">
                 <div>
                   <p className="platform-admin-section-label">{copy.login.section}</p>
@@ -1678,40 +1702,64 @@ export default function App(): React.JSX.Element {
               </div>
 
               <form className="platform-admin-form" onSubmit={handleSubmit}>
-                <label className="platform-admin-field">
+                <label className="platform-admin-field platform-admin-login-field">
                   <span>{copy.login.tenantCode}</span>
-                  <input
-                    value={tenantCode}
-                    onChange={(event) => setTenantCode(event.target.value)}
-                    placeholder="acme"
-                  />
+                  <div className="platform-admin-login-input-shell">
+                    <span className="platform-admin-login-input-prefix" aria-hidden="true">
+                      [01]
+                    </span>
+                    <input
+                      aria-label={copy.login.tenantCode}
+                      value={tenantCode}
+                      onChange={(event) => setTenantCode(event.target.value)}
+                      placeholder="acme"
+                    />
+                    <span className="platform-admin-login-input-signal" aria-hidden="true" />
+                  </div>
                 </label>
 
-                <label className="platform-admin-field">
+                <label className="platform-admin-field platform-admin-login-field">
                   <span>{copy.login.username}</span>
-                  <input
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value)}
-                    placeholder="admin"
-                  />
+                  <div className="platform-admin-login-input-shell">
+                    <span className="platform-admin-login-input-prefix" aria-hidden="true">
+                      [02]
+                    </span>
+                    <input
+                      aria-label={copy.login.username}
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      placeholder="admin"
+                    />
+                    <span className="platform-admin-login-input-signal" aria-hidden="true" />
+                  </div>
                 </label>
 
-                <label className="platform-admin-field">
+                <label className="platform-admin-field platform-admin-login-field">
                   <span>{copy.login.password}</span>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="••••••••"
-                  />
+                  <div className="platform-admin-login-input-shell">
+                    <span className="platform-admin-login-input-prefix" aria-hidden="true">
+                      [03]
+                    </span>
+                    <input
+                      aria-label={copy.login.password}
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="••••••••"
+                    />
+                    <span className="platform-admin-login-input-signal" aria-hidden="true" />
+                  </div>
                 </label>
 
                 <button
-                  className="platform-admin-submit"
+                  className="platform-admin-submit platform-admin-login-submit"
                   type="submit"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? copy.login.signingIn : copy.login.signIn}
+                  <span>{isSubmitting ? copy.login.signingIn : copy.login.signIn}</span>
+                  <span className="platform-admin-login-submit-code" aria-hidden="true">
+                    /RUN
+                  </span>
                 </button>
               </form>
 
