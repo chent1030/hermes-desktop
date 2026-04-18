@@ -21,8 +21,10 @@
 
 - 后端已支持 `GET /api/health`
 - 后端已支持 `POST /api/auth/login`
+- 后端已支持 `POST /api/auth/refresh`
 - 后端会自动初始化 `platform_admin_tenants` / `platform_admin_users` 两张认证基础表
-- 前端已提供管理端登录页，并连通健康检查与账号密码登录请求
+- 后端会自动初始化 `platform_admin_auth_sessions` 会话表，并在 refresh 时轮转刷新令牌
+- 前端已提供管理端登录页，并连通健康检查、账号密码登录、会话续期请求
 - 浏览器跨端口访问已补齐 CORS / `OPTIONS` 预检支持
 
 ## 登录接口约定
@@ -56,6 +58,16 @@
   }
 }
 ```
+
+刷新请求：
+
+```json
+{
+  "refreshToken": "rtk_xxx"
+}
+```
+
+刷新成功后会返回一组新的 `accessToken` / `refreshToken`，旧 refresh token 会在服务端立即失效。
 
 ## 本地验证
 

@@ -64,7 +64,9 @@ export default function App(): React.JSX.Element {
   const [healthError, setHealthError] = useState<string | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshingSession, setIsRefreshingSession] = useState(false);
   const [session, setSession] = useState<LoginResponse | null>(null);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +110,7 @@ export default function App(): React.JSX.Element {
     event.preventDefault();
     setIsSubmitting(true);
     setLoginError(null);
+    setSessionNotice(null);
 
     try {
       const payload = await requestJson<LoginResponse>("/api/auth/login", {
@@ -122,11 +125,40 @@ export default function App(): React.JSX.Element {
         }),
       });
       setSession(payload);
+      setSessionNotice("Session active");
     } catch (error) {
       setSession(null);
       setLoginError(error instanceof Error ? error.message : "Unknown login error");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRefreshSession = async () => {
+    if (!session) {
+      return;
+    }
+
+    setIsRefreshingSession(true);
+    setLoginError(null);
+    setSessionNotice(null);
+
+    try {
+      const payload = await requestJson<LoginResponse>("/api/auth/refresh", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          refreshToken: session.refreshToken,
+        }),
+      });
+      setSession(payload);
+      setSessionNotice("Session refreshed");
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Unknown refresh error");
+    } finally {
+      setIsRefreshingSession(false);
     }
   };
 
@@ -215,6 +247,19 @@ export default function App(): React.JSX.Element {
               <p>Tenant: {session.tenant.name} ({session.tenant.code})</p>
               <p>Account: {session.user.username}</p>
               <p>Role: {session.user.roleCode}</p>
+              <div className="platform-admin-session-actions">
+                <button
+                  className="platform-admin-secondary-button"
+                  type="button"
+                  onClick={handleRefreshSession}
+                  disabled={isRefreshingSession}
+                >
+                  {isRefreshingSession ? "Refreshing..." : "Refresh session"}
+                </button>
+                {sessionNotice ? (
+                  <span className="platform-admin-session-notice">{sessionNotice}</span>
+                ) : null}
+              </div>
             </section>
           ) : null}
         </article>

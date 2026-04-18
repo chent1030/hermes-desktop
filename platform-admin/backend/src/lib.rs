@@ -7,7 +7,11 @@ use serde::Serialize;
 
 pub mod auth;
 
-use auth::{AuthError, PgAuthStore, authenticate_login, invalid_credentials_message, parse_login_request_json};
+use auth::{
+    AuthError, PgAuthStore, authenticate_login, invalid_credentials_message,
+    invalid_refresh_token_message, parse_login_request_json, parse_refresh_request_json,
+    refresh_session,
+};
 
 pub const SERVICE_NAME: &str = "platform-admin-backend";
 
@@ -127,7 +131,9 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
     match (method, path) {
         (Some("GET"), Some("/api/health")) => json_response("HTTP/1.1 200 OK", &health_payload_json()),
         (Some("OPTIONS"), Some("/api/auth/login")) => empty_response("HTTP/1.1 204 No Content"),
+        (Some("OPTIONS"), Some("/api/auth/refresh")) => empty_response("HTTP/1.1 204 No Content"),
         (Some("POST"), Some("/api/auth/login")) => handle_login_request(request, config),
+        (Some("POST"), Some("/api/auth/refresh")) => handle_refresh_request(request, config),
         _ => json_response(
             "HTTP/1.1 404 Not Found",
             &serialize_json(&ErrorPayload {
@@ -181,6 +187,53 @@ fn handle_login_request(request: &str, config: &ServerConfig) -> String {
             &serialize_json(&ErrorPayload {
                 error: "invalid_request",
                 message,
+            }),
+        ),
+        Err(AuthError::InvalidCredentials) => json_response(
+            "HTTP/1.1 401 Unauthorized",
+            &serialize_json(&ErrorPayload {
+                error: "invalid_credentials",
+                message: invalid_credentials_message().to_string(),
+            }),
+        ),
+        Err(AuthError::InvalidRefreshToken) => json_response(
+            "HTTP/1.1 401 Unauthorized",
+            &serialize_json(&ErrorPayload {
+                error: "invalid_refresh_token",
+                message: invalid_refresh_token_message().to_string(),
+            }),
+        ),
+        Err(AuthError::Store(message)) => json_response(
+            "HTTP/1.1 500 Internal Server Error",
+            &serialize_json(&ErrorPayload {
+                error: "internal_error",
+                message,
+            }),
+        ),
+    }
+}
+
+fn handle_refresh_request(request: &str, config: &ServerConfig) -> String {
+    let body = request_body(request);
+    let auth_result = parse_refresh_request_json(body).and_then(|payload| {
+        let mut store = PgAuthStore::new(&config.database_url);
+        refresh_session(&mut store, payload, &config.session_salt)
+    });
+
+    match auth_result {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(AuthError::InvalidRequest(message)) => json_response(
+            "HTTP/1.1 400 Bad Request",
+            &serialize_json(&ErrorPayload {
+                error: "invalid_request",
+                message,
+            }),
+        ),
+        Err(AuthError::InvalidRefreshToken) => json_response(
+            "HTTP/1.1 401 Unauthorized",
+            &serialize_json(&ErrorPayload {
+                error: "invalid_refresh_token",
+                message: invalid_refresh_token_message().to_string(),
             }),
         ),
         Err(AuthError::InvalidCredentials) => json_response(
@@ -271,6 +324,25 @@ mod tests {
     fn supports_cors_preflight_for_login_requests() {
         let response = handle_health_request(
             "OPTIONS /api/auth/login HTTP/1.1\r\nHost: localhost\r\nOrigin: http://127.0.0.1:4173\r\nAccess-Control-Request-Method: POST\r\nAccess-Control-Request-Headers: content-type\r\n\r\n",
+        );
+        assert!(response.starts_with("HTTP/1.1 204 No Content\r\n"));
+        assert!(response.contains("access-control-allow-origin: *"));
+        assert!(response.contains("access-control-allow-methods: GET, POST, OPTIONS"));
+    }
+
+    #[test]
+    fn validates_refresh_request_payload() {
+        let response = handle_health_request(
+            "POST /api/auth/refresh HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}",
+        );
+        assert!(response.starts_with("HTTP/1.1 400 Bad Request\r\n"));
+        assert!(response.contains("\"error\":\"invalid_request\""));
+    }
+
+    #[test]
+    fn supports_cors_preflight_for_refresh_requests() {
+        let response = handle_health_request(
+            "OPTIONS /api/auth/refresh HTTP/1.1\r\nHost: localhost\r\nOrigin: http://127.0.0.1:4173\r\nAccess-Control-Request-Method: POST\r\nAccess-Control-Request-Headers: content-type\r\n\r\n",
         );
         assert!(response.starts_with("HTTP/1.1 204 No Content\r\n"));
         assert!(response.contains("access-control-allow-origin: *"));

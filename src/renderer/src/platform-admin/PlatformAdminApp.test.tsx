@@ -37,6 +37,23 @@ describe("platform admin frontend", () => {
             roleCode: "tenant_admin",
           },
         }),
+      )
+      .mockResolvedValueOnce(
+        mockJsonResponse({
+          accessToken: "atk_rotated",
+          refreshToken: "rtk_rotated",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          user: {
+            id: 42,
+            username: "admin",
+            displayName: "ACME Admin",
+            roleCode: "tenant_admin",
+          },
+        }),
       );
 
     vi.stubGlobal("fetch", fetchMock);
@@ -46,7 +63,7 @@ describe("platform admin frontend", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the login screen and signs in an admin account", async () => {
+  it("renders the login screen, signs in, and refreshes the session", async () => {
     render(<App />);
 
     expect(screen.getByText("Hermes Platform Admin")).toBeInTheDocument();
@@ -65,9 +82,12 @@ describe("platform admin frontend", () => {
 
     expect(await screen.findByText("Signed in as ACME Admin")).toBeInTheDocument();
     expect(screen.getByText("Tenant: Acme Corp (acme)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh session" }));
+
+    expect(await screen.findByText("Session refreshed")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(fetch).toHaveBeenCalledTimes(3);
     });
 
     expect(fetch).toHaveBeenNthCalledWith(
@@ -86,6 +106,16 @@ describe("platform admin frontend", () => {
           tenantCode: "acme",
           username: "admin",
           password: "secret123",
+        }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://127.0.0.1:8080/api/auth/refresh",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          refreshToken: "rtk_demo",
         }),
       }),
     );
