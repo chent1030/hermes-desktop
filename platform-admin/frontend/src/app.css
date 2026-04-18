@@ -385,23 +385,43 @@
   }
 
   .platform-admin-console-header {
-    @apply mb-5 flex flex-col gap-4 rounded-[2rem] border border-slate-200/80 bg-white/90 px-5 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)] ring-1 ring-white/80 backdrop-blur sm:px-6 lg:flex-row lg:items-start lg:justify-between;
+    @apply mb-4 flex flex-col gap-4 rounded-[1.7rem] border border-slate-200/80 bg-white/90 px-5 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)] ring-1 ring-white/80 backdrop-blur sm:px-6 lg:flex-row lg:items-center lg:justify-between;
   }
 
-  .platform-admin-console-kicker {
-    @apply mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-700;
+  .platform-admin-console-badge-row {
+    @apply mb-2 flex flex-wrap items-center gap-2;
+  }
+
+  .platform-admin-console-badge {
+    @apply inline-flex items-center rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-700;
+  }
+
+  .platform-admin-console-badge.is-muted {
+    @apply border-slate-200 bg-slate-100 text-slate-600;
   }
 
   .platform-admin-console-header h1 {
-    @apply m-0 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl;
+    @apply m-0 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl;
   }
 
   .platform-admin-console-description {
-    @apply mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base;
+    @apply mt-2 max-w-3xl text-sm leading-6 text-slate-600;
+  }
+
+  .platform-admin-console-meta {
+    @apply mt-3 flex flex-wrap items-center gap-2.5;
+  }
+
+  .platform-admin-console-meta-pill {
+    @apply inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm;
   }
 
   .platform-admin-console-actions {
-    @apply flex flex-col items-start gap-3 lg:items-end;
+    @apply flex flex-col items-start gap-2.5 lg:items-end;
+  }
+
+  .platform-admin-console-locale {
+    @apply inline-flex rounded-full border border-slate-200 bg-white/85 p-1 shadow-sm;
   }
 
   .platform-admin-status {
@@ -496,6 +516,26 @@
     @apply mt-0 grid gap-4 border-slate-200 bg-gradient-to-br from-slate-50 to-white;
   }
 
+  .platform-admin-session-hero {
+    @apply flex flex-col gap-3 rounded-[1.6rem] border border-slate-200 bg-slate-950 px-4 py-4 text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] sm:flex-row sm:items-start sm:justify-between;
+  }
+
+  .platform-admin-session-kicker {
+    @apply m-0 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200/80;
+  }
+
+  .platform-admin-session-hero h3 {
+    @apply mt-2 text-xl text-white;
+  }
+
+  .platform-admin-session-subtitle {
+    @apply mt-1 text-sm text-slate-300;
+  }
+
+  .platform-admin-session-role-pill {
+    @apply inline-flex items-center self-start rounded-full border border-emerald-400/20 bg-emerald-400/12 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200;
+  }
+
   .platform-admin-session p {
     @apply mt-2 text-sm leading-6 text-slate-600;
   }
@@ -505,7 +545,7 @@
   }
 
   .platform-admin-session-item {
-    @apply grid gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm;
+    @apply grid gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition duration-200 hover:border-brand-200 hover:shadow-md;
   }
 
   .platform-admin-session-item span {
@@ -517,7 +557,7 @@
   }
 
   .platform-admin-session-actions {
-    @apply mt-4 flex flex-wrap items-center gap-3;
+    @apply mt-1 flex flex-wrap items-center gap-3;
   }
 
   .platform-admin-session-notice {

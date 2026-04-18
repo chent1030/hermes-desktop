@@ -1788,13 +1788,26 @@ export default function App(): React.JSX.Element {
     <main className="platform-admin-app">
       <section className="platform-admin-console-header">
         <div>
-          <p className="platform-admin-console-kicker">{copy.title}</p>
+          <div className="platform-admin-console-badge-row">
+            <span className="platform-admin-console-badge">{copy.workspace.section}</span>
+            <span className="platform-admin-console-badge is-muted">
+              {roleLabel(session.user.roleCode)}
+            </span>
+          </div>
           <h1>{copy.title}</h1>
           <p className="platform-admin-console-description">{copy.workspace.overviewDesc}</p>
+          <div className="platform-admin-console-meta">
+            <span className="platform-admin-console-meta-pill">@{session.user.username}</span>
+            <span className="platform-admin-console-meta-pill">
+              {session.tenant
+                ? `${session.tenant.name} (${session.tenant.code})`
+                : copy.login.platformScope}
+            </span>
+          </div>
         </div>
         <div className="platform-admin-console-actions">
           <div
-            className="inline-flex rounded-full border border-slate-200 bg-white/85 p-1 shadow-sm"
+            className="platform-admin-console-locale"
             aria-label={copy.localeLabel}
           >
             <button
@@ -1857,6 +1870,17 @@ export default function App(): React.JSX.Element {
           </div>
 
           <section className="platform-admin-session is-console" aria-label="login-session">
+            <div className="platform-admin-session-hero">
+              <div>
+                <p className="platform-admin-session-kicker">{copy.login.account}</p>
+                <h3>{session.user.displayName}</h3>
+                <p className="platform-admin-session-subtitle">@{session.user.username}</p>
+              </div>
+              <span className="platform-admin-session-role-pill">
+                {roleLabel(session.user.roleCode)}
+              </span>
+            </div>
+
             <div className="platform-admin-session-grid">
               <div className="platform-admin-session-item">
                 <span>{copy.login.account}</span>
