@@ -72,6 +72,14 @@ describe("platform screen localization", () => {
                 description: "Review code",
                 downloadUrl: "https://example.com/a.zip",
               },
+              {
+                id: "skill-b",
+                scope: "tenant",
+                name: "Acme CRM",
+                version: "1.1.0",
+                description: "CRM sync",
+                downloadUrl: "https://example.com/b.zip",
+              },
             ]}
             localStates={[
               {
@@ -80,6 +88,13 @@ describe("platform screen localization", () => {
                 version: "0.9.0",
                 status: "outdated",
                 path: "/tmp/review",
+              },
+              {
+                skillId: "skill-b",
+                installed: false,
+                version: null,
+                status: "not-downloaded",
+                path: null,
               },
             ]}
             onDownloadSkill={vi.fn()}
@@ -97,9 +112,11 @@ describe("platform screen localization", () => {
     );
 
     expect(screen.getByText("技能")).toBeInTheDocument();
+    expect(screen.getByText("全局技能")).toBeInTheDocument();
+    expect(screen.getByText("租户技能")).toBeInTheDocument();
     expect(screen.getByText("版本过期")).toBeInTheDocument();
     expect(screen.getByText("本地 0.9.0 / 平台 1.0.0")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "下载" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "下载" })).toHaveLength(2);
     expect(screen.getByText("审计告警")).toBeInTheDocument();
     expect(screen.getByText("待补传：2")).toBeInTheDocument();
     expect(screen.getByText("已丢弃：1")).toBeInTheDocument();

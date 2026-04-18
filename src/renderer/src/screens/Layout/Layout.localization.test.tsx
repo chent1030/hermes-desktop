@@ -77,6 +77,7 @@ describe("Layout localization", () => {
     );
 
     expect(screen.getByRole("button", { name: /聊天/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /办公/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /模型/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /技能/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /设置/i })).toBeInTheDocument();

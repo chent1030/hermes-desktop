@@ -83,6 +83,14 @@ export default function Skills({
     [catalog, detectedStates],
   );
 
+  const groupedCatalog = useMemo(
+    () => ({
+      global: mergedCatalog.filter((skill) => skill.scope === "global"),
+      tenant: mergedCatalog.filter((skill) => skill.scope === "tenant"),
+    }),
+    [mergedCatalog],
+  );
+
   const handleDownload = async (skillId: string): Promise<void> => {
     if (onDownloadSkill) {
       await onDownloadSkill(skillId);
@@ -90,6 +98,48 @@ export default function Skills({
     }
 
     await window.hermesAPI.downloadSkillPackage(skillId);
+  };
+
+  const renderSkillCard = (
+    skill: SkillCatalogItem & { local: LocalSkillState },
+  ): React.JSX.Element => {
+    const localVersionSummary = getLocalVersionSummary(skill, skill.local, t);
+
+    return (
+      <div key={skill.id} className="skills-card">
+        <div className="skills-card-title">{skill.name}</div>
+        <div className="skills-card-meta">
+          <span>
+            {skill.scope === "global"
+              ? t("skills.scopeGlobal")
+              : t("skills.scopeTenant")}
+          </span>
+          <span>{skill.version}</span>
+        </div>
+        <div className="skills-card-description">{skill.description}</div>
+        <div className="skills-card-status">
+          {t(
+            `skills.status.${
+              skill.local.status === "not-downloaded"
+                ? "notDownloaded"
+                : skill.local.status
+            }`,
+          )}
+        </div>
+        {localVersionSummary && (
+          <div className="skills-card-local-version">{localVersionSummary}</div>
+        )}
+        {skill.local.path && (
+          <div className="skills-card-local-path">{skill.local.path}</div>
+        )}
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={() => void handleDownload(skill.id)}
+        >
+          {t("skills.download")}
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -103,44 +153,19 @@ export default function Skills({
         </div>
       </div>
 
-      <div className="skills-grid">
-        {mergedCatalog.map((skill) => (
-          <div key={skill.id} className="skills-card">
-            <div className="skills-card-title">{skill.name}</div>
-            <div className="skills-card-meta">
-              <span>
-                {skill.scope === "global"
-                  ? t("skills.scopeGlobal")
-                  : t("skills.scopeTenant")}
-              </span>
-              <span>{skill.version}</span>
-            </div>
-            <div className="skills-card-description">{skill.description}</div>
-            <div className="skills-card-status">
-              {t(
-                `skills.status.${
-                  skill.local.status === "not-downloaded"
-                    ? "notDownloaded"
-                    : skill.local.status
-                }`,
-              )}
-            </div>
-            {getLocalVersionSummary(skill, skill.local, t) && (
-              <div className="skills-card-local-version">
-                {getLocalVersionSummary(skill, skill.local, t)}
-              </div>
-            )}
-            {skill.local.path && (
-              <div className="skills-card-local-path">{skill.local.path}</div>
-            )}
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => void handleDownload(skill.id)}
-            >
-              {t("skills.download")}
-            </button>
+      <div className="skills-sections">
+        <section className="skills-section">
+          <div className="skills-section-title">{t("skills.sectionGlobal")}</div>
+          <div className="skills-grid">
+            {groupedCatalog.global.map((skill) => renderSkillCard(skill))}
           </div>
-        ))}
+        </section>
+        <section className="skills-section">
+          <div className="skills-section-title">{t("skills.sectionTenant")}</div>
+          <div className="skills-grid">
+            {groupedCatalog.tenant.map((skill) => renderSkillCard(skill))}
+          </div>
+        </section>
       </div>
     </div>
   );

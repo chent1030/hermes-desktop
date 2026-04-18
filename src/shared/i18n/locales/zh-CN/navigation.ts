@@ -2,7 +2,7 @@ export default {
   chat: "聊天",
   sessions: "会话",
   agents: "配置",
-  office: "Office",
+  office: "办公",
   models: "模型",
   skills: "技能",
   soul: "人格",

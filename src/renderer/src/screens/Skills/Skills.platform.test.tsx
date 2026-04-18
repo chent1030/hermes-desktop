@@ -49,6 +49,8 @@ describe("Skills platform catalog", () => {
 
     expect(screen.getByText("Code Review")).toBeInTheDocument();
     expect(screen.getByText("Acme CRM")).toBeInTheDocument();
+    expect(screen.getByText("Global Skills")).toBeInTheDocument();
+    expect(screen.getByText("Tenant Skills")).toBeInTheDocument();
     expect(screen.getByText("installed")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Download/i })).toHaveLength(2);
   });

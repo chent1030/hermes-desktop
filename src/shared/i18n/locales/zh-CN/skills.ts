@@ -4,6 +4,8 @@ export default {
   download: "下载",
   scopeGlobal: "全局",
   scopeTenant: "租户",
+  sectionGlobal: "全局技能",
+  sectionTenant: "租户技能",
   status: {
     installed: "已安装",
     downloaded: "已下载",

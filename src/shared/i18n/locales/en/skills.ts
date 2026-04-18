@@ -4,6 +4,8 @@ export default {
   download: "Download",
   scopeGlobal: "Global",
   scopeTenant: "Tenant",
+  sectionGlobal: "Global Skills",
+  sectionTenant: "Tenant Skills",
   status: {
     installed: "installed",
     downloaded: "downloaded",
