@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import "./app.css";
+import {
+  ADMIN_COPY,
+  ADMIN_LOCALE_STORAGE_KEY,
+  resolveAdminLocale,
+  type AdminLocale,
+} from "./adminI18n";
 
 const API_BASE_URL = "http://127.0.0.1:8080";
 
@@ -123,6 +129,16 @@ interface AuditFamilySummary {
   count: number;
 }
 
+function formatMessage(
+  template: string,
+  values: Record<string, string | number>,
+): string {
+  return Object.entries(values).reduce(
+    (message, [key, value]) => message.replaceAll(`{${key}}`, String(value)),
+    template,
+  );
+}
+
 function isObjectBody(value: unknown): value is { message?: unknown } {
   return typeof value === "object" && value !== null;
 }
@@ -180,7 +196,10 @@ function readPayloadNumber(
   return typeof value === "number" ? value : null;
 }
 
-function buildAuditSummaryLines(item: AuditEventRecord): string[] {
+function buildAuditSummaryLines(
+  item: AuditEventRecord,
+  copy: typeof ADMIN_COPY.en,
+): string[] {
   if (item.eventType.startsWith("run.tool.")) {
     const parts: string[] = [];
     const source = readPayloadString(item.payload, "source");
@@ -189,18 +208,20 @@ function buildAuditSummaryLines(item: AuditEventRecord): string[] {
     const error = readPayloadString(item.payload, "error");
 
     if (source) {
-      parts.push(`Source: ${source}`);
+      parts.push(formatMessage(copy.audit.summary.source, { value: source }));
     }
     if (lastLabel) {
-      parts.push(`Last label: ${lastLabel}`);
+      parts.push(formatMessage(copy.audit.summary.lastLabel, { value: lastLabel }));
     }
     if (typeof progressCount === "number") {
-      parts.push(`Progress count: ${progressCount}`);
+      parts.push(formatMessage(copy.audit.summary.progressCount, { value: progressCount }));
     }
 
     return [
       parts.join(" • "),
-      ...(error ? [`Error: ${error}`] : []),
+      ...(error
+        ? [formatMessage(copy.audit.summary.error, { value: error })]
+        : []),
     ].filter(Boolean);
   }
 
@@ -210,10 +231,10 @@ function buildAuditSummaryLines(item: AuditEventRecord): string[] {
     const error = readPayloadString(item.payload, "error");
 
     if (modelId) {
-      parts.push(`Model: ${modelId}`);
+      parts.push(formatMessage(copy.audit.summary.model, { value: modelId }));
     }
     if (error) {
-      parts.push(`Error: ${error}`);
+      parts.push(formatMessage(copy.audit.summary.error, { value: error }));
     }
 
     return parts.length > 0 ? [parts.join(" • ")] : [];
@@ -227,16 +248,20 @@ function buildAuditSummaryLines(item: AuditEventRecord): string[] {
     const parts: string[] = [];
 
     if (typeof installedCount === "number") {
-      parts.push(`Installed: ${installedCount}`);
+      parts.push(formatMessage(copy.audit.summary.installed, { value: installedCount }));
     }
     if (typeof downloadedCount === "number") {
-      parts.push(`Downloaded: ${downloadedCount}`);
+      parts.push(formatMessage(copy.audit.summary.downloaded, { value: downloadedCount }));
     }
     if (typeof brokenCount === "number") {
-      parts.push(`Broken: ${brokenCount}`);
+      parts.push(formatMessage(copy.audit.summary.broken, { value: brokenCount }));
     }
     if (typeof notDownloadedCount === "number") {
-      parts.push(`Not downloaded: ${notDownloadedCount}`);
+      parts.push(
+        formatMessage(copy.audit.summary.notDownloaded, {
+          value: notDownloadedCount,
+        }),
+      );
     }
 
     return parts.length > 0 ? [parts.join(" • ")] : [];
@@ -248,10 +273,10 @@ function buildAuditSummaryLines(item: AuditEventRecord): string[] {
     const error = readPayloadString(item.payload, "error");
 
     if (skillId) {
-      parts.push(`Skill: ${skillId}`);
+      parts.push(formatMessage(copy.audit.summary.skill, { value: skillId }));
     }
     if (error) {
-      parts.push(`Error: ${error}`);
+      parts.push(formatMessage(copy.audit.summary.error, { value: error }));
     }
 
     return parts.length > 0 ? [parts.join(" • ")] : [];
@@ -279,6 +304,7 @@ function auditFamilyKey(
 }
 
 export default function App(): React.JSX.Element {
+  const [locale, setLocale] = useState<AdminLocale>(() => resolveAdminLocale());
   const [tenantCode, setTenantCode] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -341,6 +367,33 @@ export default function App(): React.JSX.Element {
     description: "",
     downloadUrl: "",
   });
+  const copy = useMemo(() => ADMIN_COPY[locale], [locale]);
+
+  useEffect(() => {
+    window.localStorage.setItem(ADMIN_LOCALE_STORAGE_KEY, locale);
+  }, [locale]);
+
+  const resolveErrorMessage = (error: unknown, fallback: string): string => {
+    if (!(error instanceof Error)) {
+      return fallback;
+    }
+
+    if (error.message.startsWith("Empty JSON response from ")) {
+      return formatMessage(copy.errors.emptyJson, {
+        path: error.message.replace("Empty JSON response from ", ""),
+      });
+    }
+
+    if (error.message.startsWith("Invalid JSON response from ")) {
+      return formatMessage(copy.errors.invalidJson, {
+        path: error.message.replace("Invalid JSON response from ", ""),
+      });
+    }
+
+    return error.message;
+  };
+
+  const roleLabel = (roleCode: RoleCode): string => copy.roles[roleCode];
 
   const auditSummary = useMemo(() => {
     const counts: Record<AuditFamilySummary["key"], number> = {
@@ -356,11 +409,11 @@ export default function App(): React.JSX.Element {
     }
 
     const families: AuditFamilySummary[] = [
-      { key: "run", label: "Run", count: counts.run },
-      { key: "chat", label: "Chat", count: counts.chat },
-      { key: "auth", label: "Auth", count: counts.auth },
-      { key: "workspace", label: "Workspace", count: counts.workspace },
-      { key: "other", label: "Other", count: counts.other },
+      { key: "run", label: copy.audit.families.run, count: counts.run },
+      { key: "chat", label: copy.audit.families.chat, count: counts.chat },
+      { key: "auth", label: copy.audit.families.auth, count: counts.auth },
+      { key: "workspace", label: copy.audit.families.workspace, count: counts.workspace },
+      { key: "other", label: copy.audit.families.other, count: counts.other },
     ];
 
     return {
@@ -368,7 +421,7 @@ export default function App(): React.JSX.Element {
       failures: auditEvents.filter((item) => item.eventType.endsWith(".failed")).length,
       families,
     };
-  }, [auditEvents]);
+  }, [auditEvents, copy.audit.families]);
 
   useEffect(() => {
     let cancelled = false;
@@ -413,9 +466,9 @@ export default function App(): React.JSX.Element {
       return null;
     }
     return session.user.roleCode === "super_admin"
-      ? "Platform workspace"
-      : "Tenant workspace";
-  }, [session]);
+      ? copy.workspace.platformWorkspace
+      : copy.workspace.tenantWorkspace;
+  }, [copy.workspace.platformWorkspace, copy.workspace.tenantWorkspace, session]);
 
   const fetchSuperAdminModelProfiles = async (
     nextSession: LoginResponse,
@@ -683,7 +736,7 @@ export default function App(): React.JSX.Element {
       setAuditHasMore(tenantAuditEvents.length >= Number(auditFilters.limit || "100"));
       setSessionHasMore(tenantSessions.length >= Number(sessionFilters.limit || "100"));
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Workspace load failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.workspaceLoadFailed));
     } finally {
       setIsLoadingWorkspace(false);
     }
@@ -708,7 +761,7 @@ export default function App(): React.JSX.Element {
         }),
       });
       setSession(payload);
-      setSessionNotice("Session active");
+      setSessionNotice(copy.notices.sessionActive);
       await loadWorkspace(payload, payload.tenant?.id ?? null);
     } catch (error) {
       setSession(null);
@@ -720,7 +773,7 @@ export default function App(): React.JSX.Element {
       setSessions([]);
       setAuditHasMore(false);
       setSessionHasMore(false);
-      setLoginError(error instanceof Error ? error.message : "Unknown login error");
+      setLoginError(resolveErrorMessage(error, copy.errors.unknownLoginError));
     } finally {
       setIsSubmitting(false);
     }
@@ -746,9 +799,9 @@ export default function App(): React.JSX.Element {
         }),
       });
       setSession(payload);
-      setSessionNotice("Session refreshed");
+      setSessionNotice(copy.notices.sessionRefreshed);
     } catch (error) {
-      setLoginError(error instanceof Error ? error.message : "Unknown refresh error");
+      setLoginError(resolveErrorMessage(error, copy.errors.unknownRefreshError));
     } finally {
       setIsRefreshingSession(false);
     }
@@ -776,7 +829,7 @@ export default function App(): React.JSX.Element {
       );
       setModelProfiles(nextModels);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Load model profiles failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadModelProfilesFailed));
     }
   };
 
@@ -794,7 +847,7 @@ export default function App(): React.JSX.Element {
       );
       setSkillCatalog(nextSkills);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Load skill catalog failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadSkillCatalogFailed));
     }
   };
 
@@ -815,9 +868,9 @@ export default function App(): React.JSX.Element {
       setTenants((current) => [created, ...current]);
       setSelectedTenantId(created.id);
       setAccounts([]);
-      setSessionNotice("Tenant created");
+      setSessionNotice(copy.notices.tenantCreated);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Create tenant failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.createTenantFailed));
     }
   };
 
@@ -850,9 +903,9 @@ export default function App(): React.JSX.Element {
         password: "",
         roleCode: "tenant_user",
       });
-      setSessionNotice("Account created");
+      setSessionNotice(copy.notices.accountCreated);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Create account failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.createAccountFailed));
     }
   };
 
@@ -877,9 +930,9 @@ export default function App(): React.JSX.Element {
           account.id === accountId ? { ...account, isActive: false } : account,
         ),
       );
-      setSessionNotice("Account deactivated");
+      setSessionNotice(copy.notices.accountDeactivated);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Deactivate account failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.deactivateAccountFailed));
     }
   };
 
@@ -899,9 +952,9 @@ export default function App(): React.JSX.Element {
           tenant.id === tenantId ? { ...tenant, isActive: false } : tenant,
         ),
       );
-      setSessionNotice("Tenant deactivated");
+      setSessionNotice(copy.notices.tenantDeactivated);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Deactivate tenant failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.deactivateTenantFailed));
     }
   };
 
@@ -941,9 +994,9 @@ export default function App(): React.JSX.Element {
         baseUrl: "",
         isDefault: true,
       });
-      setSessionNotice("Model profile created");
+      setSessionNotice(copy.notices.modelProfileCreated);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Create model profile failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.createModelProfileFailed));
     }
   };
 
@@ -967,9 +1020,9 @@ export default function App(): React.JSX.Element {
           item.id === modelId ? { ...item, isActive: false } : item,
         ),
       );
-      setSessionNotice("Model profile deactivated");
+      setSessionNotice(copy.notices.modelProfileDeactivated);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Deactivate model profile failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.deactivateModelProfileFailed));
     }
   };
 
@@ -1001,9 +1054,9 @@ export default function App(): React.JSX.Element {
         description: "",
         downloadUrl: "",
       });
-      setSessionNotice("Skill catalog item created");
+      setSessionNotice(copy.notices.skillCatalogCreated);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Create skill catalog failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.createSkillCatalogFailed));
     }
   };
 
@@ -1027,9 +1080,9 @@ export default function App(): React.JSX.Element {
           item.id === skillId ? { ...item, isActive: false } : item,
         ),
       );
-      setSessionNotice("Skill catalog item deactivated");
+      setSessionNotice(copy.notices.skillCatalogDeactivated);
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Deactivate skill failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.deactivateSkillFailed));
     }
   };
 
@@ -1048,7 +1101,7 @@ export default function App(): React.JSX.Element {
       setAuditEvents(items);
       setAuditHasMore(items.length >= Number(auditFilters.limit || "100"));
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Load audit events failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadAuditEventsFailed));
     } finally {
       setIsLoadingAudit(false);
     }
@@ -1074,7 +1127,7 @@ export default function App(): React.JSX.Element {
       setAuditEvents((current) => [...current, ...olderItems]);
       setAuditHasMore(olderItems.length >= Number(auditFilters.limit || "100"));
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Load older audit events failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadOlderAuditEventsFailed));
     } finally {
       setIsLoadingAudit(false);
     }
@@ -1105,9 +1158,9 @@ export default function App(): React.JSX.Element {
           : await fetchTenantAuditEvents(session, nextFilters);
       setAuditEvents(items);
       setAuditHasMore(items.length >= Number(nextFilters.limit || "100"));
-      setSessionNotice(`Audit center filtered by session ${sessionId}`);
+      setSessionNotice(formatMessage(copy.notices.auditFilteredBySession, { sessionId }));
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Load session audit failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadSessionAuditFailed));
     } finally {
       setIsLoadingAudit(false);
     }
@@ -1128,7 +1181,7 @@ export default function App(): React.JSX.Element {
       setSessions(items);
       setSessionHasMore(items.length >= Number(sessionFilters.limit || "100"));
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Load sessions failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadSessionsFailed));
     } finally {
       setIsLoadingSessions(false);
     }
@@ -1154,14 +1207,14 @@ export default function App(): React.JSX.Element {
       setSessions((current) => [...current, ...olderItems]);
       setSessionHasMore(olderItems.length >= Number(sessionFilters.limit || "100"));
     } catch (error) {
-      setWorkspaceError(error instanceof Error ? error.message : "Load older sessions failed");
+      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadOlderSessionsFailed));
     } finally {
       setIsLoadingSessions(false);
     }
   };
 
   const renderAuditEvent = (item: AuditEventRecord): React.JSX.Element => {
-    const summaryLines = buildAuditSummaryLines(item);
+    const summaryLines = buildAuditSummaryLines(item, copy);
 
     return (
       <div key={item.id} className="platform-admin-list-item is-static">
@@ -1179,13 +1232,19 @@ export default function App(): React.JSX.Element {
   const renderSessionSummary = (item: SessionSummaryRecord): React.JSX.Element => {
     const toolParts: string[] = [];
     if ((item.toolRunCount ?? 0) > 0) {
-      toolParts.push(`Tools: ${item.toolRunCount}`);
+      toolParts.push(
+        formatMessage(copy.sessions.tools, { count: item.toolRunCount }),
+      );
     }
     if (item.lastToolLabel) {
-      toolParts.push(`Last tool: ${item.lastToolLabel}`);
+      toolParts.push(
+        formatMessage(copy.sessions.lastTool, { value: item.lastToolLabel }),
+      );
     }
     if (item.lastToolSource) {
-      toolParts.push(`Source: ${item.lastToolSource}`);
+      toolParts.push(
+        formatMessage(copy.sessions.source, { value: item.lastToolSource }),
+      );
     }
 
     return (
@@ -1194,16 +1253,16 @@ export default function App(): React.JSX.Element {
         <small>{item.lastEventType}</small>
         <small>{item.lastAccount.displayName}</small>
         <small>{item.lastOccurredAt}</small>
-        <small>{`${item.eventCount} events`}</small>
+        <small>{formatMessage(copy.sessions.events, { count: item.eventCount })}</small>
         {toolParts.length > 0 ? <small>{toolParts.join(" • ")}</small> : null}
-        {item.hasFailure ? <small>Failed</small> : null}
-        {item.hasToolFailure ? <small>Tool failed</small> : null}
+        {item.hasFailure ? <small>{copy.sessions.failed}</small> : null}
+        {item.hasToolFailure ? <small>{copy.sessions.toolFailed}</small> : null}
         <button
           className="platform-admin-secondary-button"
           type="button"
           onClick={() => void handleOpenSessionAudit(item.sessionId)}
         >
-          Open in audit
+          {copy.common.openInAudit}
         </button>
       </div>
     );
@@ -1212,22 +1271,22 @@ export default function App(): React.JSX.Element {
   const renderAuditFilters = (): React.JSX.Element => (
     <div className="platform-admin-form">
       <label className="platform-admin-field">
-        <span>Event family</span>
+        <span>{copy.audit.eventFamily}</span>
         <select
           value={auditFilters.eventPrefix}
           onChange={(event) =>
             setAuditFilters((current) => ({ ...current, eventPrefix: event.target.value }))
           }
         >
-          <option value="">All events</option>
-          <option value="run.">Run events</option>
-          <option value="chat.">Chat events</option>
-          <option value="auth.">Auth events</option>
-          <option value="workspace.">Workspace events</option>
+          <option value="">{copy.audit.allEvents}</option>
+          <option value="run.">{copy.audit.runEvents}</option>
+          <option value="chat.">{copy.audit.chatEvents}</option>
+          <option value="auth.">{copy.audit.authEvents}</option>
+          <option value="workspace.">{copy.audit.workspaceEvents}</option>
         </select>
       </label>
       <label className="platform-admin-field">
-        <span>Event type</span>
+        <span>{copy.audit.eventType}</span>
         <input
           value={auditFilters.eventType}
           onChange={(event) =>
@@ -1236,7 +1295,7 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <label className="platform-admin-field">
-        <span>Account</span>
+        <span>{copy.audit.account}</span>
         <input
           value={auditFilters.accountQuery}
           onChange={(event) =>
@@ -1245,7 +1304,7 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <label className="platform-admin-field">
-        <span>Payload contains</span>
+        <span>{copy.audit.payloadContains}</span>
         <input
           value={auditFilters.payloadQuery}
           onChange={(event) =>
@@ -1254,7 +1313,7 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <label className="platform-admin-field">
-        <span>Occurred from</span>
+        <span>{copy.audit.occurredFrom}</span>
         <input
           type="datetime-local"
           value={auditFilters.occurredFrom}
@@ -1264,7 +1323,7 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <label className="platform-admin-field">
-        <span>Occurred to</span>
+        <span>{copy.audit.occurredTo}</span>
         <input
           type="datetime-local"
           value={auditFilters.occurredTo}
@@ -1274,7 +1333,7 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <label className="platform-admin-field">
-        <span>Limit</span>
+        <span>{copy.audit.limit}</span>
         <input
           type="number"
           min="1"
@@ -1286,7 +1345,7 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <button className="platform-admin-submit" type="button" onClick={() => void handleApplyAuditFilters()}>
-        Apply filters
+        {copy.common.applyFilters}
       </button>
     </div>
   );
@@ -1295,19 +1354,19 @@ export default function App(): React.JSX.Element {
     <section className="platform-admin-audit-summary" aria-label="audit-summary">
       <div className="platform-admin-audit-summary-header">
         <div>
-          <p className="platform-admin-section-label">Audit summary</p>
-          <h4>Current result snapshot</h4>
+          <p className="platform-admin-section-label">{copy.audit.summarySection}</p>
+          <h4>{copy.audit.summaryTitle}</h4>
         </div>
-        <small>Based on loaded audit events</small>
+        <small>{copy.audit.summaryNote}</small>
       </div>
       <div className="platform-admin-audit-summary-grid">
         <div className="platform-admin-audit-kpi">
-          <span>Total events</span>
+          <span>{copy.audit.totalEvents}</span>
           <strong>{auditSummary.total}</strong>
         </div>
         <div className="platform-admin-audit-kpi">
-          <span>Failures</span>
-          <strong>{`${auditSummary.failures} failed`}</strong>
+          <span>{copy.audit.failures}</span>
+          <strong>{formatMessage(copy.audit.failedSuffix, { count: auditSummary.failures })}</strong>
         </div>
       </div>
       <div className="platform-admin-audit-family-list">
@@ -1318,7 +1377,7 @@ export default function App(): React.JSX.Element {
             <div key={family.key} className="platform-admin-audit-family-row">
               <div className="platform-admin-audit-family-meta">
                 <span>{family.label}</span>
-                <small>{`${family.count} events`}</small>
+                <small>{formatMessage(copy.sessions.events, { count: family.count })}</small>
               </div>
               <div className="platform-admin-audit-family-bar">
                 <span style={{ width: `${percentage}%` }} />
@@ -1333,7 +1392,7 @@ export default function App(): React.JSX.Element {
   const renderSessionFilters = (): React.JSX.Element => (
     <div className="platform-admin-form">
       <label className="platform-admin-field">
-        <span>Last event type</span>
+        <span>{copy.sessions.lastEventType}</span>
         <input
           value={sessionFilters.lastEventType}
           onChange={(event) =>
@@ -1345,7 +1404,7 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <label className="platform-admin-field">
-        <span>Has failure</span>
+        <span>{copy.sessions.status}</span>
         <select
           value={sessionFilters.hasFailure}
           onChange={(event) =>
@@ -1355,13 +1414,13 @@ export default function App(): React.JSX.Element {
             }))
           }
         >
-          <option value="">All sessions</option>
-          <option value="true">Failed only</option>
-          <option value="false">Healthy only</option>
+          <option value="">{copy.sessions.allSessions}</option>
+          <option value="true">{copy.sessions.failedOnly}</option>
+          <option value="false">{copy.sessions.healthyOnly}</option>
         </select>
       </label>
       <label className="platform-admin-field">
-        <span>Last occurred from</span>
+        <span>{copy.sessions.lastOccurredFrom}</span>
         <input
           type="datetime-local"
           value={sessionFilters.lastOccurredFrom}
@@ -1374,7 +1433,7 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <label className="platform-admin-field">
-        <span>Last occurred to</span>
+        <span>{copy.sessions.lastOccurredTo}</span>
         <input
           type="datetime-local"
           value={sessionFilters.lastOccurredTo}
@@ -1387,7 +1446,7 @@ export default function App(): React.JSX.Element {
         />
       </label>
       <label className="platform-admin-field">
-        <span>Limit</span>
+        <span>{copy.sessions.limit}</span>
         <input
           type="number"
           min="1"
@@ -1403,7 +1462,7 @@ export default function App(): React.JSX.Element {
         type="button"
         onClick={() => void handleApplySessionFilters()}
       >
-        Apply filters
+        {copy.common.applyFilters}
       </button>
     </div>
   );
@@ -1412,47 +1471,73 @@ export default function App(): React.JSX.Element {
     <main className="platform-admin-app">
       <section className="platform-admin-hero">
         <div>
-          <p className="platform-admin-eyebrow">Stage 1 RBAC Slice</p>
-          <h1>Hermes Platform Admin</h1>
-          <p className="platform-admin-description">
-            Platform-ready admin console for bootstrap super admins, tenant boundaries,
-            tenant-account operations, and role-scoped management views.
+          <p className="platform-admin-eyebrow">{copy.stage}</p>
+          <h1>{copy.title}</h1>
+          <p className="platform-admin-description">{copy.description}</p>
+        </div>
+        <div className="flex flex-col items-start gap-3 lg:items-end">
+          <div
+            className="inline-flex rounded-full border border-slate-200 bg-white/85 p-1 shadow-sm"
+            aria-label={copy.localeLabel}
+          >
+            <button
+              type="button"
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                locale === "zh-CN"
+                  ? "bg-brand-600 text-white"
+                  : "text-slate-600 hover:text-brand-700"
+              }`}
+              onClick={() => setLocale("zh-CN")}
+              aria-pressed={locale === "zh-CN"}
+            >
+              {copy.localeChinese}
+            </button>
+            <button
+              type="button"
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                locale === "en"
+                  ? "bg-brand-600 text-white"
+                  : "text-slate-600 hover:text-brand-700"
+              }`}
+              onClick={() => setLocale("en")}
+              aria-pressed={locale === "en"}
+            >
+              {copy.localeEnglish}
+            </button>
+          </div>
+          <p className={healthClassName}>
+            {healthStatus === "online" ? (
+              <>
+                <span>{copy.health.online}</span>
+                <span className="platform-admin-status-detail">
+                  · {healthService || "platform-admin-backend"}
+                </span>
+              </>
+            ) : null}
+            {healthStatus === "offline" ? (
+              <>
+                <span>{copy.health.offline}</span>
+                <span className="platform-admin-status-detail">· {healthError}</span>
+              </>
+            ) : null}
+            {healthStatus === "checking" ? <span>{copy.health.checking}</span> : null}
           </p>
         </div>
-        <p className={healthClassName}>
-          {healthStatus === "online" ? (
-            <>
-              <span>Backend online</span>
-              <span className="platform-admin-status-detail">
-                · {healthService || "platform-admin-backend"}
-              </span>
-            </>
-          ) : null}
-          {healthStatus === "offline" ? (
-            <>
-              <span>Backend offline</span>
-              <span className="platform-admin-status-detail">· {healthError}</span>
-            </>
-          ) : null}
-          {healthStatus === "checking" ? <span>Checking backend reachability...</span> : null}
-        </p>
       </section>
 
       <section className="platform-admin-layout">
         <article className="platform-admin-panel">
           <div className="platform-admin-panel-header">
             <div>
-              <p className="platform-admin-section-label">Admin login</p>
-              <h2>Sign in to the shared platform</h2>
+              <p className="platform-admin-section-label">{copy.login.section}</p>
+              <h2>{copy.login.title}</h2>
             </div>
-            <p className="platform-admin-panel-note">
-              Leave tenant code empty when signing in as a platform super admin.
-            </p>
+            <p className="platform-admin-panel-note">{copy.login.note}</p>
           </div>
 
           <form className="platform-admin-form" onSubmit={handleSubmit}>
             <label className="platform-admin-field">
-              <span>Tenant code</span>
+              <span>{copy.login.tenantCode}</span>
               <input
                 value={tenantCode}
                 onChange={(event) => setTenantCode(event.target.value)}
@@ -1461,7 +1546,7 @@ export default function App(): React.JSX.Element {
             </label>
 
             <label className="platform-admin-field">
-              <span>Username</span>
+              <span>{copy.login.username}</span>
               <input
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
@@ -1470,7 +1555,7 @@ export default function App(): React.JSX.Element {
             </label>
 
             <label className="platform-admin-field">
-              <span>Password</span>
+              <span>{copy.login.password}</span>
               <input
                 type="password"
                 value={password}
@@ -1480,7 +1565,7 @@ export default function App(): React.JSX.Element {
             </label>
 
             <button className="platform-admin-submit" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Signing in..." : "Sign in"}
+              {isSubmitting ? copy.login.signingIn : copy.login.signIn}
             </button>
           </form>
 
@@ -1489,14 +1574,14 @@ export default function App(): React.JSX.Element {
 
           {session ? (
             <section className="platform-admin-session" aria-label="login-session">
-              <h3>Signed in as {session.user.displayName}</h3>
+              <h3>{formatMessage(copy.login.signedInAs, { name: session.user.displayName })}</h3>
               <p>
-                Scope: {session.tenant
+                {copy.login.scope}: {session.tenant
                   ? `${session.tenant.name} (${session.tenant.code})`
-                  : "Platform scope"}
+                  : copy.login.platformScope}
               </p>
-              <p>Account: {session.user.username}</p>
-              <p>Role: {session.user.roleCode}</p>
+              <p>{copy.login.account}: {session.user.username}</p>
+              <p>{copy.login.role}: {roleLabel(session.user.roleCode)}</p>
               <div className="platform-admin-session-actions">
                 <button
                   className="platform-admin-secondary-button"
@@ -1504,7 +1589,7 @@ export default function App(): React.JSX.Element {
                   onClick={handleRefreshSession}
                   disabled={isRefreshingSession}
                 >
-                  {isRefreshingSession ? "Refreshing..." : "Refresh session"}
+                  {isRefreshingSession ? copy.login.refreshing : copy.login.refresh}
                 </button>
                 {sessionNotice ? (
                   <span className="platform-admin-session-notice">{sessionNotice}</span>
@@ -1517,33 +1602,33 @@ export default function App(): React.JSX.Element {
         <section className="platform-admin-workspace" aria-label="admin-workspace">
           <div className="platform-admin-workspace-header">
             <div>
-              <p className="platform-admin-section-label">Workspace</p>
-              <h2>{workspaceTitle || "Management modules"}</h2>
+              <p className="platform-admin-section-label">{copy.workspace.section}</p>
+              <h2>{workspaceTitle || copy.workspace.managementModules}</h2>
             </div>
-            {isLoadingWorkspace ? <p className="platform-admin-panel-note">Loading...</p> : null}
+            {isLoadingWorkspace ? <p className="platform-admin-panel-note">{copy.workspace.loading}</p> : null}
           </div>
 
           {!session ? (
             <section className="platform-admin-grid" aria-label="phase-1-modules">
               <article className="platform-admin-card">
-                <p className="platform-admin-section-label">Next</p>
-                <h2>Tenants & RBAC</h2>
-                <p>Build tenant isolation, admin accounts, and permission boundaries first.</p>
+                <p className="platform-admin-section-label">{copy.workspace.next}</p>
+                <h2>{copy.workspace.tenantsRbacTitle}</h2>
+                <p>{copy.workspace.tenantsRbacDesc}</p>
               </article>
               <article className="platform-admin-card">
-                <p className="platform-admin-section-label">Next</p>
-                <h2>Config Center</h2>
-                <p>Deliver platform-authorized model profiles down to desktop clients.</p>
+                <p className="platform-admin-section-label">{copy.workspace.next}</p>
+                <h2>{copy.workspace.configCenterTitle}</h2>
+                <p>{copy.workspace.configCenterDesc}</p>
               </article>
               <article className="platform-admin-card">
-                <p className="platform-admin-section-label">Next</p>
-                <h2>Skill Hub</h2>
-                <p>Reserve the registry for global skills and tenant-owned skill catalogs.</p>
+                <p className="platform-admin-section-label">{copy.workspace.next}</p>
+                <h2>{copy.workspace.skillHubTitle}</h2>
+                <p>{copy.workspace.skillHubDesc}</p>
               </article>
               <article className="platform-admin-card">
-                <p className="platform-admin-section-label">Next</p>
-                <h2>Audit Center</h2>
-                <p>Keep login, runtime, and compliance events ready for full audit closure.</p>
+                <p className="platform-admin-section-label">{copy.workspace.next}</p>
+                <h2>{copy.workspace.auditCenterTitle}</h2>
+                <p>{copy.workspace.auditCenterDesc}</p>
               </article>
             </section>
           ) : null}
@@ -1551,11 +1636,11 @@ export default function App(): React.JSX.Element {
           {session?.user.roleCode === "super_admin" ? (
             <div className="platform-admin-workspace-grid">
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Tenant control</p>
-                <h3>Create tenant</h3>
+                <p className="platform-admin-section-label">{copy.tenantControl.section}</p>
+                <h3>{copy.tenantControl.createTitle}</h3>
                 <form className="platform-admin-form" onSubmit={handleCreateTenant}>
                   <label className="platform-admin-field">
-                    <span>Tenant code</span>
+                    <span>{copy.tenantControl.tenantCode}</span>
                     <input
                       value={tenantForm.code}
                       onChange={(event) =>
@@ -1564,7 +1649,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Tenant name</span>
+                    <span>{copy.tenantControl.tenantName}</span>
                     <input
                       value={tenantForm.name}
                       onChange={(event) =>
@@ -1573,7 +1658,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <button className="platform-admin-submit" type="submit">
-                    Create tenant
+                    {copy.tenantControl.createButton}
                   </button>
                 </form>
 
@@ -1589,7 +1674,7 @@ export default function App(): React.JSX.Element {
                     >
                       <span>{tenant.name}</span>
                       <small>{tenant.code}</small>
-                      <small>{tenant.isActive ? "active" : "inactive"}</small>
+                      <small>{tenant.isActive ? copy.common.active : copy.common.inactive}</small>
                     </button>
                   ))}
                 </div>
@@ -1599,17 +1684,17 @@ export default function App(): React.JSX.Element {
                     type="button"
                     onClick={() => handleDeactivateTenant(selectedTenantId)}
                   >
-                    Deactivate tenant
+                    {copy.tenantControl.deactivateButton}
                   </button>
                 ) : null}
               </article>
 
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Tenant account control</p>
-                <h3>Create tenant account</h3>
+                <p className="platform-admin-section-label">{copy.accountControl.section}</p>
+                <h3>{copy.accountControl.createTitle}</h3>
                 <form className="platform-admin-form" onSubmit={handleCreateAccount}>
                   <label className="platform-admin-field">
-                    <span>Username</span>
+                    <span>{copy.accountControl.username}</span>
                     <input
                       value={accountForm.username}
                       onChange={(event) =>
@@ -1618,7 +1703,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Display name</span>
+                    <span>{copy.accountControl.displayName}</span>
                     <input
                       value={accountForm.displayName}
                       onChange={(event) =>
@@ -1627,7 +1712,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Password</span>
+                    <span>{copy.accountControl.password}</span>
                     <input
                       type="password"
                       value={accountForm.password}
@@ -1637,7 +1722,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Role</span>
+                    <span>{copy.accountControl.role}</span>
                     <select
                       value={accountForm.roleCode}
                       onChange={(event) =>
@@ -1647,12 +1732,12 @@ export default function App(): React.JSX.Element {
                         }))
                       }
                     >
-                      <option value="tenant_admin">Create tenant admin</option>
-                      <option value="tenant_user">Create tenant user</option>
+                      <option value="tenant_admin">{copy.accountControl.createTenantAdmin}</option>
+                      <option value="tenant_user">{copy.accountControl.createTenantUser}</option>
                     </select>
                   </label>
                   <button className="platform-admin-submit" type="submit">
-                    Create account
+                    {copy.accountControl.createButton}
                   </button>
                 </form>
 
@@ -1661,14 +1746,14 @@ export default function App(): React.JSX.Element {
                     <div key={account.id} className="platform-admin-list-item is-static">
                       <span>{account.displayName}</span>
                       <small>{account.username}</small>
-                      <small>{account.roleCode}</small>
-                      <small>{account.isActive ? "active" : "inactive"}</small>
+                      <small>{roleLabel(account.roleCode)}</small>
+                      <small>{account.isActive ? copy.common.active : copy.common.inactive}</small>
                       <button
                         className="platform-admin-secondary-button"
                         type="button"
                         onClick={() => handleDeactivateAccount(account.id)}
                       >
-                        Deactivate account
+                        {copy.accountControl.deactivateButton}
                       </button>
                     </div>
                   ))}
@@ -1676,25 +1761,25 @@ export default function App(): React.JSX.Element {
               </article>
 
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Config center</p>
-                <h3>Model profile control</h3>
+                <p className="platform-admin-section-label">{copy.modelControl.section}</p>
+                <h3>{copy.modelControl.title}</h3>
                 <label className="platform-admin-field">
-                  <span>Model scope</span>
+                  <span>{copy.modelControl.scope}</span>
                   <select
                     value={modelScope}
                     onChange={(event) =>
                       void handleSelectModelScope(event.target.value as "global" | "tenant")
                     }
                   >
-                    <option value="global">Global models</option>
+                    <option value="global">{copy.modelControl.globalModels}</option>
                     {selectedTenantId ? (
-                      <option value="tenant">Selected tenant models</option>
+                      <option value="tenant">{copy.modelControl.tenantModels}</option>
                     ) : null}
                   </select>
                 </label>
                 <form className="platform-admin-form" onSubmit={handleCreateModelProfile}>
                   <label className="platform-admin-field">
-                    <span>Provider</span>
+                    <span>{copy.modelControl.provider}</span>
                     <input
                       value={modelForm.provider}
                       onChange={(event) =>
@@ -1703,7 +1788,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Model ID</span>
+                    <span>{copy.modelControl.modelId}</span>
                     <input
                       value={modelForm.model}
                       onChange={(event) =>
@@ -1712,7 +1797,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Label</span>
+                    <span>{copy.modelControl.label}</span>
                     <input
                       value={modelForm.label}
                       onChange={(event) =>
@@ -1721,7 +1806,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Base URL</span>
+                    <span>{copy.modelControl.baseUrl}</span>
                     <input
                       value={modelForm.baseUrl}
                       onChange={(event) =>
@@ -1730,7 +1815,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Default</span>
+                    <span>{copy.modelControl.defaultFlag}</span>
                     <select
                       value={modelForm.isDefault ? "true" : "false"}
                       onChange={(event) =>
@@ -1740,12 +1825,12 @@ export default function App(): React.JSX.Element {
                         }))
                       }
                     >
-                      <option value="true">Default model</option>
-                      <option value="false">Optional model</option>
+                      <option value="true">{copy.modelControl.defaultModel}</option>
+                      <option value="false">{copy.modelControl.optionalModel}</option>
                     </select>
                   </label>
                   <button className="platform-admin-submit" type="submit">
-                    Create model profile
+                    {copy.modelControl.createButton}
                   </button>
                 </form>
 
@@ -1755,14 +1840,14 @@ export default function App(): React.JSX.Element {
                       <span>{item.label}</span>
                       <small>{item.provider}</small>
                       <small>{item.model}</small>
-                      <small>{item.isDefault ? "default" : "optional"}</small>
-                      <small>{item.isActive ? "active" : "inactive"}</small>
+                      <small>{item.isDefault ? copy.common.default : copy.common.optional}</small>
+                      <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
                       <button
                         className="platform-admin-secondary-button"
                         type="button"
                         onClick={() => handleDeactivateModelProfile(item.id)}
                       >
-                        Deactivate model
+                        {copy.modelControl.deactivateButton}
                       </button>
                     </div>
                   ))}
@@ -1770,25 +1855,25 @@ export default function App(): React.JSX.Element {
               </article>
 
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Skill hub</p>
-                <h3>Skill catalog control</h3>
+                <p className="platform-admin-section-label">{copy.skillControl.section}</p>
+                <h3>{copy.skillControl.title}</h3>
                 <label className="platform-admin-field">
-                  <span>Skill scope</span>
+                  <span>{copy.skillControl.scope}</span>
                   <select
                     value={skillScope}
                     onChange={(event) =>
                       void handleSelectSkillScope(event.target.value as "global" | "tenant")
                     }
                   >
-                    <option value="global">Global skills</option>
+                    <option value="global">{copy.skillControl.globalSkills}</option>
                     {selectedTenantId ? (
-                      <option value="tenant">Selected tenant skills</option>
+                      <option value="tenant">{copy.skillControl.tenantSkills}</option>
                     ) : null}
                   </select>
                 </label>
                 <form className="platform-admin-form" onSubmit={handleCreateSkillCatalog}>
                   <label className="platform-admin-field">
-                    <span>Name</span>
+                    <span>{copy.skillControl.name}</span>
                     <input
                       value={skillForm.name}
                       onChange={(event) =>
@@ -1797,7 +1882,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Version</span>
+                    <span>{copy.skillControl.version}</span>
                     <input
                       value={skillForm.version}
                       onChange={(event) =>
@@ -1806,7 +1891,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Description</span>
+                    <span>{copy.skillControl.description}</span>
                     <input
                       value={skillForm.description}
                       onChange={(event) =>
@@ -1818,7 +1903,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Download URL</span>
+                    <span>{copy.skillControl.downloadUrl}</span>
                     <input
                       value={skillForm.downloadUrl}
                       onChange={(event) =>
@@ -1830,7 +1915,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <button className="platform-admin-submit" type="submit">
-                    Create skill
+                    {copy.skillControl.createButton}
                   </button>
                 </form>
 
@@ -1839,14 +1924,14 @@ export default function App(): React.JSX.Element {
                     <div key={item.id} className="platform-admin-list-item is-static">
                       <span>{item.name}</span>
                       <small>{item.version}</small>
-                      <small>{item.scopeType}</small>
-                      <small>{item.isActive ? "active" : "inactive"}</small>
+                      <small>{item.scopeType === "global" ? copy.common.global : copy.common.tenant}</small>
+                      <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
                       <button
                         className="platform-admin-secondary-button"
                         type="button"
                         onClick={() => handleDeactivateSkillCatalog(item.id)}
                       >
-                        Deactivate skill
+                        {copy.skillControl.deactivateButton}
                       </button>
                     </div>
                   ))}
@@ -1854,13 +1939,13 @@ export default function App(): React.JSX.Element {
               </article>
 
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Audit center</p>
-                <h3>Audit center</h3>
+                <p className="platform-admin-section-label">{copy.audit.section}</p>
+                <h3>{copy.audit.title}</h3>
                 {renderAuditFilters()}
                 {renderAuditSummary()}
                 {!selectedTenantId ? (
                   <p className="platform-admin-panel-note">
-                    Select a tenant to inspect runtime audit events.
+                    {copy.audit.selectTenantHint}
                   </p>
                 ) : null}
                 <div className="platform-admin-list">
@@ -1873,18 +1958,18 @@ export default function App(): React.JSX.Element {
                     onClick={() => void handleLoadOlderAuditEvents()}
                     disabled={isLoadingAudit}
                   >
-                    {isLoadingAudit ? "Loading..." : "Load older events"}
+                    {isLoadingAudit ? copy.common.loading : copy.common.loadOlderEvents}
                   </button>
                 ) : null}
               </article>
 
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Session center</p>
-                <h3>Session center</h3>
+                <p className="platform-admin-section-label">{copy.sessions.section}</p>
+                <h3>{copy.sessions.title}</h3>
                 {renderSessionFilters()}
                 {!selectedTenantId ? (
                   <p className="platform-admin-panel-note">
-                    Select a tenant to inspect runtime sessions.
+                    {copy.sessions.selectTenantHint}
                   </p>
                 ) : null}
                 <div className="platform-admin-list">
@@ -1897,7 +1982,7 @@ export default function App(): React.JSX.Element {
                     onClick={() => void handleLoadOlderSessions()}
                     disabled={isLoadingSessions}
                   >
-                    {isLoadingSessions ? "Loading..." : "Load older sessions"}
+                    {isLoadingSessions ? copy.common.loading : copy.common.loadOlderSessions}
                   </button>
                 ) : null}
               </article>
@@ -1907,11 +1992,11 @@ export default function App(): React.JSX.Element {
           {session?.user.roleCode === "tenant_admin" ? (
             <div className="platform-admin-workspace-grid is-single-column">
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Tenant account control</p>
-                <h3>Create tenant user</h3>
+                <p className="platform-admin-section-label">{copy.accountControl.section}</p>
+                <h3>{copy.accountControl.createTenantUserTitle}</h3>
                 <form className="platform-admin-form" onSubmit={handleCreateAccount}>
                   <label className="platform-admin-field">
-                    <span>Username</span>
+                    <span>{copy.accountControl.username}</span>
                     <input
                       value={accountForm.username}
                       onChange={(event) =>
@@ -1920,7 +2005,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Display name</span>
+                    <span>{copy.accountControl.displayName}</span>
                     <input
                       value={accountForm.displayName}
                       onChange={(event) =>
@@ -1929,7 +2014,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Password</span>
+                    <span>{copy.accountControl.password}</span>
                     <input
                       type="password"
                       value={accountForm.password}
@@ -1939,7 +2024,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <button className="platform-admin-submit" type="submit">
-                    Create tenant user
+                    {copy.accountControl.createTenantUser}
                   </button>
                 </form>
 
@@ -1948,14 +2033,14 @@ export default function App(): React.JSX.Element {
                     <div key={account.id} className="platform-admin-list-item is-static">
                       <span>{account.displayName}</span>
                       <small>{account.username}</small>
-                      <small>{account.roleCode}</small>
-                      <small>{account.isActive ? "active" : "inactive"}</small>
+                      <small>{roleLabel(account.roleCode)}</small>
+                      <small>{account.isActive ? copy.common.active : copy.common.inactive}</small>
                       <button
                         className="platform-admin-secondary-button"
                         type="button"
                         onClick={() => handleDeactivateAccount(account.id)}
                       >
-                        Deactivate account
+                        {copy.accountControl.deactivateButton}
                       </button>
                     </div>
                   ))}
@@ -1963,11 +2048,11 @@ export default function App(): React.JSX.Element {
               </article>
 
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Tenant config center</p>
-                <h3>Tenant model profiles</h3>
+                <p className="platform-admin-section-label">{copy.modelControl.tenantSection}</p>
+                <h3>{copy.modelControl.tenantTitle}</h3>
                 <form className="platform-admin-form" onSubmit={handleCreateModelProfile}>
                   <label className="platform-admin-field">
-                    <span>Provider</span>
+                    <span>{copy.modelControl.provider}</span>
                     <input
                       value={modelForm.provider}
                       onChange={(event) =>
@@ -1976,7 +2061,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Model ID</span>
+                    <span>{copy.modelControl.modelId}</span>
                     <input
                       value={modelForm.model}
                       onChange={(event) =>
@@ -1985,7 +2070,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Label</span>
+                    <span>{copy.modelControl.label}</span>
                     <input
                       value={modelForm.label}
                       onChange={(event) =>
@@ -1994,7 +2079,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Base URL</span>
+                    <span>{copy.modelControl.baseUrl}</span>
                     <input
                       value={modelForm.baseUrl}
                       onChange={(event) =>
@@ -2003,7 +2088,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Default</span>
+                    <span>{copy.modelControl.defaultFlag}</span>
                     <select
                       value={modelForm.isDefault ? "true" : "false"}
                       onChange={(event) =>
@@ -2013,12 +2098,12 @@ export default function App(): React.JSX.Element {
                         }))
                       }
                     >
-                      <option value="true">Default model</option>
-                      <option value="false">Optional model</option>
+                      <option value="true">{copy.modelControl.defaultModel}</option>
+                      <option value="false">{copy.modelControl.optionalModel}</option>
                     </select>
                   </label>
                   <button className="platform-admin-submit" type="submit">
-                    Create model profile
+                    {copy.modelControl.createButton}
                   </button>
                 </form>
 
@@ -2028,14 +2113,14 @@ export default function App(): React.JSX.Element {
                       <span>{item.label}</span>
                       <small>{item.provider}</small>
                       <small>{item.model}</small>
-                      <small>{item.isDefault ? "default" : "optional"}</small>
-                      <small>{item.isActive ? "active" : "inactive"}</small>
+                      <small>{item.isDefault ? copy.common.default : copy.common.optional}</small>
+                      <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
                       <button
                         className="platform-admin-secondary-button"
                         type="button"
                         onClick={() => handleDeactivateModelProfile(item.id)}
                       >
-                        Deactivate model
+                        {copy.modelControl.deactivateButton}
                       </button>
                     </div>
                   ))}
@@ -2043,11 +2128,11 @@ export default function App(): React.JSX.Element {
               </article>
 
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Tenant skill hub</p>
-                <h3>Tenant skill catalog</h3>
+                <p className="platform-admin-section-label">{copy.skillControl.tenantSection}</p>
+                <h3>{copy.skillControl.tenantTitle}</h3>
                 <form className="platform-admin-form" onSubmit={handleCreateSkillCatalog}>
                   <label className="platform-admin-field">
-                    <span>Name</span>
+                    <span>{copy.skillControl.name}</span>
                     <input
                       value={skillForm.name}
                       onChange={(event) =>
@@ -2056,7 +2141,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Version</span>
+                    <span>{copy.skillControl.version}</span>
                     <input
                       value={skillForm.version}
                       onChange={(event) =>
@@ -2065,7 +2150,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Description</span>
+                    <span>{copy.skillControl.description}</span>
                     <input
                       value={skillForm.description}
                       onChange={(event) =>
@@ -2077,7 +2162,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <label className="platform-admin-field">
-                    <span>Download URL</span>
+                    <span>{copy.skillControl.downloadUrl}</span>
                     <input
                       value={skillForm.downloadUrl}
                       onChange={(event) =>
@@ -2089,7 +2174,7 @@ export default function App(): React.JSX.Element {
                     />
                   </label>
                   <button className="platform-admin-submit" type="submit">
-                    Create skill
+                    {copy.skillControl.createButton}
                   </button>
                 </form>
 
@@ -2098,14 +2183,14 @@ export default function App(): React.JSX.Element {
                     <div key={item.id} className="platform-admin-list-item is-static">
                       <span>{item.name}</span>
                       <small>{item.version}</small>
-                      <small>{item.scopeType}</small>
-                      <small>{item.isActive ? "active" : "inactive"}</small>
+                      <small>{item.scopeType === "global" ? copy.common.global : copy.common.tenant}</small>
+                      <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
                       <button
                         className="platform-admin-secondary-button"
                         type="button"
                         onClick={() => handleDeactivateSkillCatalog(item.id)}
                       >
-                        Deactivate skill
+                        {copy.skillControl.deactivateButton}
                       </button>
                     </div>
                   ))}
@@ -2113,8 +2198,8 @@ export default function App(): React.JSX.Element {
               </article>
 
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Tenant audit center</p>
-                <h3>Tenant audit center</h3>
+                <p className="platform-admin-section-label">{copy.audit.tenantSection}</p>
+                <h3>{copy.audit.tenantTitle}</h3>
                 {renderAuditFilters()}
                 {renderAuditSummary()}
                 <div className="platform-admin-list">
@@ -2127,14 +2212,14 @@ export default function App(): React.JSX.Element {
                     onClick={() => void handleLoadOlderAuditEvents()}
                     disabled={isLoadingAudit}
                   >
-                    {isLoadingAudit ? "Loading..." : "Load older events"}
+                    {isLoadingAudit ? copy.common.loading : copy.common.loadOlderEvents}
                   </button>
                 ) : null}
               </article>
 
               <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">Tenant session center</p>
-                <h3>Tenant session center</h3>
+                <p className="platform-admin-section-label">{copy.sessions.tenantSection}</p>
+                <h3>{copy.sessions.tenantTitle}</h3>
                 {renderSessionFilters()}
                 <div className="platform-admin-list">
                   {sessions.map((item) => renderSessionSummary(item))}
@@ -2146,7 +2231,7 @@ export default function App(): React.JSX.Element {
                     onClick={() => void handleLoadOlderSessions()}
                     disabled={isLoadingSessions}
                   >
-                    {isLoadingSessions ? "Loading..." : "Load older sessions"}
+                    {isLoadingSessions ? copy.common.loading : copy.common.loadOlderSessions}
                   </button>
                 ) : null}
               </article>
@@ -2156,9 +2241,7 @@ export default function App(): React.JSX.Element {
       </section>
 
       <footer className="platform-admin-footer">
-        <p className="platform-admin-footer-note">
-          Hermes Platform Admin · Enterprise control plane for tenants, models, skills, and audit.
-        </p>
+        <p className="platform-admin-footer-note">{copy.footerNote}</p>
         <a
           href="http://beian.miit.gov.cn/"
           target="_blank"

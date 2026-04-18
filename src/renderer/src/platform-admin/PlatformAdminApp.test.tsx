@@ -37,9 +37,23 @@ function getCardForHeading(name: string): HTMLElement {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  window.localStorage.clear();
 });
 
 describe("platform admin frontend", () => {
+  it("switches the admin console copy to Chinese", async () => {
+    setupFetch([mockJsonResponse({ status: "ok", service: "platform-admin-backend" })]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+
+    expect(screen.getByRole("heading", { name: "登录共享平台" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+    expect(screen.getByText("后端在线")).toBeInTheDocument();
+  });
+
   it("renders the ICP filing footer link on the login screen", async () => {
     setupFetch([mockJsonResponse({ status: "ok", service: "platform-admin-backend" })]);
 
@@ -772,7 +786,7 @@ describe("platform admin frontend", () => {
     fireEvent.change(within(sessionCard).getByLabelText("Last event type"), {
       target: { value: "chat.failed" },
     });
-    fireEvent.change(within(sessionCard).getByLabelText("Has failure"), {
+    fireEvent.change(within(sessionCard).getByLabelText("Status"), {
       target: { value: "true" },
     });
     fireEvent.change(within(sessionCard).getByLabelText("Last occurred from"), {
