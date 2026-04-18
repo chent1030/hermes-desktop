@@ -1,5 +1,6 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
 import type { AuditStatus } from "../shared/platform/audit";
+import type { WorkspaceInitStatus } from "../shared/platform/init";
 import type {
   LocalSkillState,
   TenantLoginInput,
@@ -46,6 +47,7 @@ interface HermesAPI {
   refreshTenantSession: () => Promise<void>;
   logoutTenant: () => Promise<void>;
   initializeWorkspace: () => Promise<WorkspaceBootstrap>;
+  getWorkspaceInitStatus: () => Promise<WorkspaceInitStatus>;
   selectWorkspaceModel: (modelId: string) => Promise<WorkspaceBootstrap>;
   getAuditStatus: () => Promise<AuditStatus>;
   retryAuditFlush: () => Promise<AuditStatus>;

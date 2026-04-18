@@ -1,5 +1,6 @@
 import { shell } from "electron";
 import type { AuditStatus } from "../../shared/platform/audit";
+import type { WorkspaceInitStatus } from "../../shared/platform/init";
 import type {
   LocalSkillState,
   TenantLoginInput,
@@ -9,6 +10,7 @@ import {
   clearWorkspaceSession,
   flushWorkspaceAuditEvents,
   getWorkspaceAuditStatus,
+  getWorkspaceInitStatus,
   initializeWorkspaceState,
   loginWithPassword,
   refreshWorkspaceSession,
@@ -126,6 +128,10 @@ export async function platformSelectModel(
 
 export async function platformGetAuditStatus(): Promise<AuditStatus> {
   return getWorkspaceAuditStatus();
+}
+
+export async function platformGetInitStatus(): Promise<WorkspaceInitStatus> {
+  return getWorkspaceInitStatus();
 }
 
 export async function platformRetryAuditFlush(): Promise<AuditStatus> {

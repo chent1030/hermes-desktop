@@ -99,6 +99,7 @@ describe("Platform desktop APIs", () => {
     "refreshTenantSession",
     "logoutTenant",
     "initializeWorkspace",
+    "getWorkspaceInitStatus",
     "selectWorkspaceModel",
     "getAuditStatus",
     "retryAuditFlush",

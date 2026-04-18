@@ -104,6 +104,7 @@ import {
 import { getAppLocale, setAppLocale } from "./locale";
 import {
   platformDownloadSkillPackage,
+  platformGetInitStatus,
   platformGetAuditStatus,
   platformInitializeWorkspace,
   platformLogin,
@@ -249,6 +250,7 @@ function setupIPC(): void {
   ipcMain.handle("platform-initialize-workspace", () =>
     platformInitializeWorkspace(),
   );
+  ipcMain.handle("platform-get-init-status", () => platformGetInitStatus());
   ipcMain.handle("platform-select-model", (_event, modelId: string) =>
     platformSelectModel(modelId),
   );

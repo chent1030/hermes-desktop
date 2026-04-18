@@ -16,8 +16,15 @@ vi.mock("../src/main/platform/runtime", () => ({
   }),
   getWorkspaceAuditStatus: vi.fn().mockResolvedValue({
     health: "healthy",
+    localHealth: "healthy",
+    remoteHealth: "healthy",
     queuedEvents: 0,
     droppedEvents: 0,
+    lastError: null,
+  }),
+  getWorkspaceInitStatus: vi.fn().mockResolvedValue({
+    phase: "models",
+    failedPhase: null,
     lastError: null,
   }),
   initializeWorkspaceState: vi.fn(),
@@ -40,6 +47,7 @@ vi.mock("../src/main/skills", () => ({
 
 import {
   platformGetAuditStatus,
+  platformGetInitStatus,
   platformInitializeWorkspace,
   platformLogin,
   platformRefreshSession,
@@ -52,6 +60,7 @@ import {
 } from "../src/main/platform/audit";
 import {
   getWorkspaceAuditStatus,
+  getWorkspaceInitStatus,
   initializeWorkspaceState,
   loginWithPassword,
   refreshWorkspaceSession,
@@ -158,6 +167,19 @@ describe("platform lifecycle audit", () => {
     await expect(platformGetAuditStatus()).resolves.toMatchObject({
       health: "degraded",
       lastError: "audit service unavailable",
+    });
+  });
+
+  it("returns workspace init status from runtime", async () => {
+    vi.mocked(getWorkspaceInitStatus).mockResolvedValueOnce({
+      phase: "models",
+      failedPhase: null,
+      lastError: null,
+    });
+
+    await expect(platformGetInitStatus()).resolves.toMatchObject({
+      phase: "models",
+      failedPhase: null,
     });
   });
 });

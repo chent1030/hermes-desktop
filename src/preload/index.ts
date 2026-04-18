@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { AuditStatus } from "../shared/platform/audit";
+import type { WorkspaceInitStatus } from "../shared/platform/init";
 import type {
   LocalSkillState,
   TenantLoginInput,
@@ -71,6 +72,8 @@ const hermesAPI = {
   logoutTenant: (): Promise<void> => ipcRenderer.invoke("platform-logout"),
   initializeWorkspace: (): Promise<WorkspaceBootstrap> =>
     ipcRenderer.invoke("platform-initialize-workspace"),
+  getWorkspaceInitStatus: (): Promise<WorkspaceInitStatus> =>
+    ipcRenderer.invoke("platform-get-init-status"),
   selectWorkspaceModel: (modelId: string): Promise<WorkspaceBootstrap> =>
     ipcRenderer.invoke("platform-select-model", modelId),
   getAuditStatus: (): Promise<AuditStatus> =>

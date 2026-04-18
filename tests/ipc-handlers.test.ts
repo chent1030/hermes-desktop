@@ -84,6 +84,7 @@ describe("Platform IPC handlers", () => {
     "platform-refresh-session",
     "platform-logout",
     "platform-initialize-workspace",
+    "platform-get-init-status",
     "platform-select-model",
     "platform-get-audit-status",
     "platform-retry-audit-flush",
