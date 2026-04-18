@@ -176,6 +176,26 @@ function recordChatFailed(
   markAuditFailure(context.error);
 }
 
+function recordToolProgress(
+  context: ChatAuditContext & {
+    label: string;
+    sessionId?: string;
+    source: "api";
+  },
+): void {
+  if (!context.label) {
+    return;
+  }
+
+  flushChatAuditEvent("run.tool.progress", {
+    label: context.label,
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+    source: context.source,
+  });
+}
+
 function sendMessageViaApi(
   message: string,
   cb: ChatCallbacks,
@@ -285,12 +305,19 @@ function sendMessageViaApi(
 
   /** Handle a custom SSE event (non-data lines with `event:` prefix). */
   function processCustomEvent(eventType: string, data: string): void {
-    if (eventType === "hermes.tool.progress" && cb.onToolProgress) {
+    if (eventType === "hermes.tool.progress") {
       try {
         const payload = JSON.parse(data);
         const label = payload.label || payload.tool || "";
         const emoji = payload.emoji || "";
-        cb.onToolProgress(emoji ? `${emoji} ${label}` : label);
+        const displayLabel = emoji ? `${emoji} ${label}` : label;
+        cb.onToolProgress?.(displayLabel);
+        recordToolProgress({
+          ...auditContext,
+          label: displayLabel,
+          sessionId,
+          source: "api",
+        });
       } catch {
         /* malformed — skip */
       }
@@ -337,8 +364,15 @@ function sendMessageViaApi(
         const content = delta.content.trim();
         // Legacy: Detect tool progress lines injected into content: `🔍 search_web`
         const match = toolProgressRe.exec(content);
-        if (match && cb.onToolProgress) {
-          cb.onToolProgress(`${match[1]} ${match[2]}`);
+        if (match) {
+          const displayLabel = `${match[1]} ${match[2]}`;
+          cb.onToolProgress?.(displayLabel);
+          recordToolProgress({
+            ...auditContext,
+            label: displayLabel,
+            sessionId,
+            source: "api",
+          });
         } else {
           hasContent = true;
           cb.onChunk(delta.content);

@@ -64,6 +64,7 @@ import {
   initializeWorkspaceState,
   loginWithPassword,
   refreshWorkspaceSession,
+  selectWorkspaceModel,
 } from "../src/main/platform/runtime";
 
 describe("platform lifecycle audit", () => {
@@ -134,10 +135,8 @@ describe("platform lifecycle audit", () => {
   });
 
   it("records a model selection failure audit event", async () => {
-    const error = new Error("unauthorized model");
-    const { selectWorkspaceModel } = await import("../src/main/platform/runtime");
     vi.mocked(selectWorkspaceModel).mockImplementationOnce(() => {
-      throw error;
+      throw new Error("unauthorized model");
     });
 
     await expect(platformSelectModel("m-unauthorized")).rejects.toThrow(
@@ -146,7 +145,7 @@ describe("platform lifecycle audit", () => {
 
     expect(enqueueAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "model.select.failed",
+        type: "run.model.select.failed",
         payload: expect.objectContaining({
           modelId: "m-unauthorized",
           error: "unauthorized model",
@@ -154,6 +153,40 @@ describe("platform lifecycle audit", () => {
       }),
     );
     expect(markAuditFailure).toHaveBeenCalledWith("unauthorized model");
+  });
+
+  it("records a model selection success event under run model audit", async () => {
+    vi.mocked(selectWorkspaceModel).mockReturnValueOnce({
+      tenant: { id: "t1", code: "acme", name: "Acme" },
+      user: { id: "u1", username: "alice", displayName: "Alice" },
+      locale: "zh-CN",
+      features: { gatewayVisible: false },
+      models: [
+        {
+          id: "m-default",
+          provider: "openai",
+          model: "gpt-5.4",
+          label: "GPT-5.4",
+          baseUrl: "https://api.openai.com/v1",
+          isDefault: true,
+        },
+      ],
+      selectedModelId: "m-default",
+      skills: [],
+    });
+
+    await expect(platformSelectModel("m-default")).resolves.toMatchObject({
+      selectedModelId: "m-default",
+    });
+
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run.model.selected",
+        payload: expect.objectContaining({
+          modelId: "m-default",
+        }),
+      }),
+    );
   });
 
   it("returns the merged workspace audit status from runtime", async () => {

@@ -321,4 +321,79 @@ describe("hermes platform audit", () => {
       }),
     );
   });
+
+  it("records run tool progress events for API streaming tool updates", async () => {
+    httpGet.mockImplementation((_url, _options, callback) => {
+      const response = new EventEmitter() as EventEmitter & {
+        resume: () => void;
+        statusCode: number;
+      };
+      response.statusCode = 200;
+      response.resume = vi.fn();
+      callback(response);
+
+      return createRequestHandle();
+    });
+
+    httpRequest.mockImplementation((_url, _options, callback) => {
+      const request = createRequestHandle();
+      request.end.mockImplementation(() => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          statusCode: number;
+        };
+        response.statusCode = 200;
+        response.headers = {
+          "x-hermes-session-id": "session-tool-1",
+        };
+        callback(response);
+        response.emit(
+          "data",
+          Buffer.from(
+            'event: hermes.tool.progress\ndata: {"emoji":"🔍","tool":"search_web"}\n\n',
+          ),
+        );
+        response.emit(
+          "data",
+          Buffer.from(
+            'data: {"choices":[{"delta":{"content":"Tool finished."}}]}\n\n',
+          ),
+        );
+        response.emit("data", Buffer.from("data: [DONE]\n\n"));
+        response.emit("end");
+      });
+      return request;
+    });
+
+    const onToolProgress = vi.fn();
+    const hermes = await import("../src/main/hermes");
+    const donePromise = new Promise<string | undefined>((resolve) => {
+      void hermes.sendMessage(
+        "run tool please",
+        {
+          onChunk: vi.fn(),
+          onDone: resolve,
+          onError: vi.fn(),
+          onToolProgress,
+        },
+        "default",
+      );
+    });
+
+    await expect(donePromise).resolves.toBe("session-tool-1");
+
+    expect(onToolProgress).toHaveBeenCalledWith("🔍 search_web");
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run.tool.progress",
+        payload: expect.objectContaining({
+          label: "🔍 search_web",
+          profile: "default",
+          resumeSessionId: null,
+          sessionId: "session-tool-1",
+          source: "api",
+        }),
+      }),
+    );
+  });
 });

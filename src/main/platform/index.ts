@@ -110,7 +110,7 @@ export async function platformSelectModel(
   try {
     const workspace = selectWorkspaceModel(modelId);
     enqueueAuditEvent({
-      type: "model.selected",
+      type: "run.model.selected",
       payload: { modelId },
     });
     void flushWorkspaceAuditEvents();
@@ -118,7 +118,7 @@ export async function platformSelectModel(
   } catch (error) {
     const message = (error as Error).message;
     enqueueAuditEvent({
-      type: "model.select.failed",
+      type: "run.model.select.failed",
       payload: { modelId, error: message },
     });
     markAuditFailure(message);

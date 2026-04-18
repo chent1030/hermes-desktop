@@ -285,6 +285,16 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
   - `scopeBreakdown.global`
   - `scopeBreakdown.tenant`
 
+当前桌面端已经接入的主要运行审计事件包括：
+
+- `run.model.selected`
+- `run.model.select.failed`
+- `run.skill.download.clicked`
+- `run.skill.download.failed`
+- `run.skill.sync.completed`
+- `run.skill.sync.failed`
+- `run.tool.progress`
+
 模型表最小字段包括：
 
 - `id`
