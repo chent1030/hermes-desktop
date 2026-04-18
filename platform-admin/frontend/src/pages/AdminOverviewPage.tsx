@@ -16,10 +16,13 @@ interface AdminOverviewPageProps {
 
 function MetricCard({ label, value }: { label: string; value: string | number }): React.JSX.Element {
   return (
-    <article className="platform-admin-card min-h-0">
-      <p className="platform-admin-section-label">KPI</p>
-      <h3 className="text-3xl font-semibold tracking-tight text-slate-950">{value}</h3>
-      <p className="mt-2 text-sm text-slate-600">{label}</p>
+    <article className="platform-admin-card platform-admin-metric-card min-h-0">
+      <div className="platform-admin-metric-head">
+        <p className="platform-admin-section-label">KPI</p>
+        <span className="platform-admin-metric-dot" aria-hidden="true" />
+      </div>
+      <h3 className="platform-admin-metric-value">{value}</h3>
+      <p className="platform-admin-metric-label">{label}</p>
     </article>
   );
 }
@@ -38,26 +41,39 @@ export function AdminOverviewPage({
 }: AdminOverviewPageProps): React.JSX.Element {
   return (
     <div className="grid gap-4">
-      <article className="platform-admin-card min-h-0">
-        <p className="platform-admin-section-label">Overview</p>
-        <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
-          {copy.workspace.overviewTitle}
-        </h3>
-        <p className="mt-3 text-sm leading-6 text-slate-600">{copy.workspace.overviewDesc}</p>
-        <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-600">
-          <span className="rounded-full bg-slate-100 px-3 py-1.5">
-            {copy.workspace.selectedTenant}: {tenant ? `${tenant.name} (${tenant.code})` : copy.workspace.noTenantSelected}
+      <article className="platform-admin-card platform-admin-overview-hero min-h-0">
+        <div className="platform-admin-overview-head">
+          <div>
+            <p className="platform-admin-section-label">Overview</p>
+            <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+              {copy.workspace.overviewTitle}
+            </h3>
+          </div>
+        </div>
+        <p className="platform-admin-overview-description">{copy.workspace.overviewDesc}</p>
+        <div className="platform-admin-overview-actions">
+          <span className="platform-admin-overview-pill">
+            {copy.workspace.selectedTenant}:{" "}
+            {tenant ? `${tenant.name} (${tenant.code})` : copy.workspace.noTenantSelected}
           </span>
-          <button className="platform-admin-secondary-button" type="button" onClick={() => onNavigate("audit")}>
+          <button
+            className="platform-admin-secondary-button"
+            type="button"
+            onClick={() => onNavigate("audit")}
+          >
             {copy.workspace.audit}
           </button>
-          <button className="platform-admin-secondary-button" type="button" onClick={() => onNavigate("sessions")}>
+          <button
+            className="platform-admin-secondary-button"
+            type="button"
+            onClick={() => onNavigate("sessions")}
+          >
             {copy.workspace.sessions}
           </button>
         </div>
       </article>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="platform-admin-metric-grid">
         {canManageTenants ? (
           <MetricCard label={copy.workspace.totalTenants} value={tenantCount} />
         ) : null}
