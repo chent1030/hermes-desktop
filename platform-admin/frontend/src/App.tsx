@@ -1148,17 +1148,31 @@ export default function App(): React.JSX.Element {
   const renderAuditEvent = (item: AuditEventRecord): React.JSX.Element => {
     const summaryLines = buildAuditSummaryLines(item, copy);
     const eventFamily = resolveAuditEventFamily(item);
+    const payloadText = JSON.stringify(item.payload);
 
     return (
-      <div key={item.id} className="platform-admin-list-item is-static">
-        <span>{item.eventType}</span>
-        <small>{copy.audit.families[eventFamily]}</small>
-        <small>{item.account.displayName}</small>
-        <small>{item.occurredAt}</small>
-        {summaryLines.map((line) => (
-          <small key={`${item.id}-${line}`}>{line}</small>
-        ))}
-        <small>{JSON.stringify(item.payload)}</small>
+      <div key={item.id} className="platform-admin-list-item is-static platform-admin-record-card">
+        <div className="platform-admin-record-head">
+          <div className="platform-admin-record-title-block">
+            <span className="platform-admin-record-title">{item.eventType}</span>
+            <div className="platform-admin-record-pill-row">
+              <small>{copy.audit.families[eventFamily]}</small>
+              <small>{item.account.displayName}</small>
+            </div>
+          </div>
+          <small>{item.occurredAt}</small>
+        </div>
+        {summaryLines.length > 0 ? (
+          <div className="platform-admin-record-summary">
+            {summaryLines.map((line) => (
+              <small key={`${item.id}-${line}`}>{line}</small>
+            ))}
+          </div>
+        ) : null}
+        <div className="platform-admin-record-payload">
+          <small>Payload</small>
+          <code>{payloadText}</code>
+        </div>
       </div>
     );
   };
@@ -1182,22 +1196,38 @@ export default function App(): React.JSX.Element {
     }
 
     return (
-      <div key={item.sessionId} className="platform-admin-list-item is-static">
-        <span>{item.sessionId}</span>
-        <small>{item.lastEventType}</small>
-        <small>{item.lastAccount.displayName}</small>
-        <small>{item.lastOccurredAt}</small>
-        <small>{formatMessage(copy.sessions.events, { count: item.eventCount })}</small>
-        {toolParts.length > 0 ? <small>{toolParts.join(" • ")}</small> : null}
-        {item.hasFailure ? <small>{copy.sessions.failed}</small> : null}
-        {item.hasToolFailure ? <small>{copy.sessions.toolFailed}</small> : null}
-        <button
-          className="platform-admin-secondary-button"
-          type="button"
-          onClick={() => void handleOpenSessionAudit(item.sessionId)}
-        >
-          {copy.common.openInAudit}
-        </button>
+      <div key={item.sessionId} className="platform-admin-list-item is-static platform-admin-record-card">
+        <div className="platform-admin-record-head">
+          <div className="platform-admin-record-title-block">
+            <span className="platform-admin-record-title">{item.sessionId}</span>
+            <div className="platform-admin-record-pill-row">
+              <small>{item.lastEventType}</small>
+              <small>{item.lastAccount.displayName}</small>
+              <small>{formatMessage(copy.sessions.events, { count: item.eventCount })}</small>
+            </div>
+            <div className="platform-admin-record-actions">
+              <button
+                className="platform-admin-secondary-button"
+                type="button"
+                onClick={() => void handleOpenSessionAudit(item.sessionId)}
+              >
+                {copy.common.openInAudit}
+              </button>
+            </div>
+          </div>
+          <small>{item.lastOccurredAt}</small>
+        </div>
+        {toolParts.length > 0 ? (
+          <div className="platform-admin-record-summary">
+            <small>{toolParts.join(" • ")}</small>
+          </div>
+        ) : null}
+        {item.hasFailure || item.hasToolFailure ? (
+          <div className="platform-admin-record-pill-row">
+            {item.hasFailure ? <small>{copy.sessions.failed}</small> : null}
+            {item.hasToolFailure ? <small>{copy.sessions.toolFailed}</small> : null}
+          </div>
+        ) : null}
       </div>
     );
   };

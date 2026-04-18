@@ -823,6 +823,47 @@
     @apply mt-2 justify-self-start;
   }
 
+  .platform-admin-record-card {
+    @apply gap-3 rounded-[1.45rem] border-slate-200 bg-gradient-to-br from-white to-slate-50/70 p-5;
+  }
+
+  .platform-admin-record-head {
+    @apply flex flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-start lg:justify-between;
+  }
+
+  .platform-admin-record-title-block {
+    @apply grid gap-2;
+  }
+
+  .platform-admin-record-title {
+    @apply text-base font-semibold tracking-tight text-slate-950;
+  }
+
+  .platform-admin-record-pill-row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .platform-admin-record-summary {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .platform-admin-record-payload {
+    @apply grid gap-2 rounded-2xl border border-slate-200 bg-slate-950 px-4 py-3;
+  }
+
+  .platform-admin-record-payload small {
+    @apply bg-transparent px-0 py-0 text-[11px] uppercase tracking-[0.2em] text-cyan-200/75;
+  }
+
+  .platform-admin-record-payload code {
+    @apply break-all text-xs leading-6 text-slate-100;
+    font-family: var(--font-mono);
+  }
+
+  .platform-admin-record-actions {
+    @apply flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3;
+  }
+
   .platform-admin-audit-summary {
     @apply grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 p-5;
   }
