@@ -1,5 +1,9 @@
 import type { AuditStatus } from "../../shared/platform/audit";
 import type {
+  WorkspaceInitPhase,
+  WorkspaceInitStatus,
+} from "../../shared/platform/init";
+import type {
   TenantLoginInput,
   WorkspaceBootstrap,
 } from "../../shared/platform/contracts";
@@ -24,11 +28,36 @@ import {
   setWorkspaceBootstrap,
 } from "./session";
 
+let initStatus: WorkspaceInitStatus = {
+  phase: "idle",
+  lastError: null,
+  failedPhase: null,
+};
+
+function setInitStatus(
+  phase: WorkspaceInitPhase,
+  options: {
+    lastError?: string | null;
+    failedPhase?: WorkspaceInitStatus["failedPhase"];
+  } = {},
+): void {
+  initStatus = {
+    phase,
+    lastError: options.lastError ?? null,
+    failedPhase: options.failedPhase ?? null,
+  };
+}
+
+export function getWorkspaceInitStatus(): WorkspaceInitStatus {
+  return initStatus;
+}
+
 export async function loginWithPassword(
   input: TenantLoginInput,
 ): Promise<void> {
   const tokens = await loginRequest(input);
   setSessionTokens(tokens.accessToken, tokens.refreshToken);
+  setInitStatus("login-complete");
 }
 
 export async function initializeWorkspaceState(): Promise<WorkspaceBootstrap> {
@@ -37,19 +66,60 @@ export async function initializeWorkspaceState(): Promise<WorkspaceBootstrap> {
     throw new Error("platform login required");
   }
 
-  const [bootstrap, models, skills] = await Promise.all([
-    fetchBootstrap(session.accessToken),
-    fetchModels(session.accessToken),
-    fetchSkillCatalog(session.accessToken),
-  ]);
+  setInitStatus("bootstrap");
+  let bootstrap: Awaited<ReturnType<typeof fetchBootstrap>>;
+  try {
+    bootstrap = await fetchBootstrap(session.accessToken);
+  } catch (error) {
+    const message = (error as Error).message;
+    setInitStatus("failed", {
+      failedPhase: "bootstrap",
+      lastError: message,
+    });
+    throw error;
+  }
+
+  setInitStatus("models");
+  let models: Awaited<ReturnType<typeof fetchModels>>;
+  try {
+    models = await fetchModels(session.accessToken);
+  } catch (error) {
+    const message = (error as Error).message;
+    setInitStatus("failed", {
+      failedPhase: "models",
+      lastError: message,
+    });
+    throw error;
+  }
 
   if (models.items.length === 0) {
+    setInitStatus("failed", {
+      failedPhase: "models",
+      lastError: "platform models unavailable",
+    });
     throw new Error("platform models unavailable");
   }
 
   const defaultModel = models.items.find((item) => item.isDefault);
   if (!defaultModel) {
+    setInitStatus("failed", {
+      failedPhase: "models",
+      lastError: "platform default model missing",
+    });
     throw new Error("platform default model missing");
+  }
+
+  setInitStatus("skills");
+  let skills: Awaited<ReturnType<typeof fetchSkillCatalog>>;
+  try {
+    skills = await fetchSkillCatalog(session.accessToken);
+  } catch (error) {
+    const message = (error as Error).message;
+    setInitStatus("failed", {
+      failedPhase: "skills",
+      lastError: message,
+    });
+    throw error;
   }
 
   const workspace: WorkspaceBootstrap = {
@@ -60,6 +130,7 @@ export async function initializeWorkspaceState(): Promise<WorkspaceBootstrap> {
   };
 
   setWorkspaceBootstrap(workspace);
+  setInitStatus("completed");
   return workspace;
 }
 
@@ -105,6 +176,7 @@ export function getWorkspaceRuntime() {
 
 export function clearWorkspaceSession(): void {
   clearSessionState();
+  setInitStatus("idle");
 }
 
 function isReauthError(error: unknown): boolean {
@@ -129,20 +201,42 @@ export async function getWorkspaceAuditStatus(): Promise<AuditStatus> {
 
   try {
     await fetchAuditHealth(session.accessToken);
-    return localStatus;
+    return {
+      ...localStatus,
+      remoteHealth: "healthy",
+      health:
+        localStatus.localHealth === "reauth-required"
+          ? "reauth-required"
+          : localStatus.localHealth === "buffering"
+            ? "buffering"
+            : localStatus.localHealth === "degraded"
+              ? "degraded"
+              : "healthy",
+    };
   } catch (error) {
     const message = (error as Error)?.message || "audit health check failed";
     if (isReauthError(error)) {
       markAuditReauthRequired(message);
-      return getAuditStatus();
+      return {
+        ...getAuditStatus(),
+        remoteHealth: "reauth-required",
+        health: "reauth-required",
+      };
     }
 
     if (localStatus.health === "buffering") {
-      return localStatus;
+      return {
+        ...localStatus,
+        remoteHealth: "degraded",
+        health: "buffering",
+        lastError: message,
+      };
     }
 
     return {
       ...localStatus,
+      localHealth: localStatus.localHealth,
+      remoteHealth: "degraded",
       health: "degraded",
       lastError: message,
     };

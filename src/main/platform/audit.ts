@@ -10,6 +10,8 @@ export interface QueuedAuditEvent {
 
 let status: AuditStatus = {
   health: "healthy",
+  localHealth: "healthy",
+  remoteHealth: "healthy",
   queuedEvents: 0,
   droppedEvents: 0,
   lastError: null,
@@ -39,6 +41,7 @@ export function enqueueAuditEvent(event: {
     status = {
       ...status,
       health: "degraded",
+      localHealth: "degraded",
       droppedEvents: status.droppedEvents + 1,
       lastError: "audit queue capacity reached",
     };
@@ -59,6 +62,7 @@ export function markAuditFailure(message: string): void {
   status = {
     ...status,
     health: "buffering",
+    localHealth: "buffering",
     queuedEvents: queue.length,
     lastError: message,
   };
@@ -68,6 +72,8 @@ export function markAuditSuccess(): void {
   queue.length = 0;
   status = {
     health: "healthy",
+    localHealth: "healthy",
+    remoteHealth: "healthy",
     queuedEvents: 0,
     droppedEvents: status.droppedEvents,
     lastError: null,
@@ -78,6 +84,7 @@ export function markAuditReauthRequired(message?: string): void {
   status = {
     ...status,
     health: "reauth-required",
+    localHealth: "reauth-required",
     queuedEvents: queue.length,
     lastError: message || status.lastError,
   };
@@ -98,6 +105,7 @@ export async function flushAuditQueue(
     status = {
       ...status,
       health: "healthy",
+      localHealth: "healthy",
       queuedEvents: 0,
       lastError: null,
     };
@@ -110,6 +118,8 @@ export async function flushAuditQueue(
       queue.splice(0, batch.length);
       status = {
         health: "healthy",
+        localHealth: "healthy",
+        remoteHealth: "healthy",
         queuedEvents: queue.length,
         droppedEvents: status.droppedEvents,
         lastError: null,
@@ -137,6 +147,8 @@ export function resetAuditState(): void {
   flushInFlight = null;
   status = {
     health: "healthy",
+    localHealth: "healthy",
+    remoteHealth: "healthy",
     queuedEvents: 0,
     droppedEvents: 0,
     lastError: null,

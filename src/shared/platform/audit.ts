@@ -6,6 +6,8 @@ export type AuditHealth =
 
 export interface AuditStatus {
   health: AuditHealth;
+  localHealth: AuditHealth;
+  remoteHealth: AuditHealth;
   queuedEvents: number;
   droppedEvents: number;
   lastError: string | null;

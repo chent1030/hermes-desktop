@@ -4,6 +4,7 @@ import {
   clearWorkspaceSession,
   flushWorkspaceAuditEvents,
   getWorkspaceAuditStatus,
+  getWorkspaceInitStatus,
   getWorkspaceRuntime,
   initializeWorkspaceState,
   loginWithPassword,
@@ -225,6 +226,99 @@ describe("platform runtime", () => {
     });
   });
 
+  it("tracks init progress through bootstrap, models, skills, and completed", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+      )
+      .mockImplementationOnce(async () => {
+        expect(getWorkspaceInitStatus().phase).toBe("bootstrap");
+        return new Response(
+          JSON.stringify({
+            tenant: { id: "t1", code: "acme", name: "Acme" },
+            user: { id: "u1", username: "alice", displayName: "Alice" },
+            locale: "zh-CN",
+            features: { gatewayVisible: false },
+          }),
+        );
+      })
+      .mockImplementationOnce(async () => {
+        expect(getWorkspaceInitStatus().phase).toBe("models");
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "m-default",
+                provider: "openai",
+                model: "gpt-5.4",
+                label: "GPT-5.4",
+                baseUrl: "",
+                isDefault: true,
+              },
+            ],
+          }),
+        );
+      })
+      .mockImplementationOnce(async () => {
+        expect(getWorkspaceInitStatus().phase).toBe("skills");
+        return new Response(JSON.stringify({ items: [] }));
+      });
+
+    await loginWithPassword({
+      tenantCode: "acme",
+      username: "alice",
+      password: "secret",
+    });
+
+    const workspace = await initializeWorkspaceState();
+    expect(workspace.selectedModelId).toBe("m-default");
+    expect(getWorkspaceInitStatus()).toMatchObject({
+      phase: "completed",
+      failedPhase: null,
+      lastError: null,
+    });
+  });
+
+  it("keeps the failed init phase when model loading breaks", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              tenant: { id: "t1", code: "acme", name: "Acme" },
+              user: { id: "u1", username: "alice", displayName: "Alice" },
+              locale: "zh-CN",
+              features: { gatewayVisible: false },
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] })))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }))),
+    );
+
+    await loginWithPassword({
+      tenantCode: "acme",
+      username: "alice",
+      password: "secret",
+    });
+
+    await expect(initializeWorkspaceState()).rejects.toThrow(
+      "platform models unavailable",
+    );
+    expect(getWorkspaceInitStatus()).toMatchObject({
+      phase: "failed",
+      failedPhase: "models",
+      lastError: "platform models unavailable",
+    });
+  });
+
   it("degrades audit status when the remote audit health probe fails", async () => {
     vi.stubGlobal(
       "fetch",
@@ -251,6 +345,8 @@ describe("platform runtime", () => {
 
     await expect(getWorkspaceAuditStatus()).resolves.toMatchObject({
       health: "degraded",
+      localHealth: "healthy",
+      remoteHealth: "degraded",
       queuedEvents: 0,
       lastError: "audit service unavailable",
     });
@@ -282,6 +378,8 @@ describe("platform runtime", () => {
 
     await expect(getWorkspaceAuditStatus()).resolves.toMatchObject({
       health: "reauth-required",
+      localHealth: "reauth-required",
+      remoteHealth: "reauth-required",
       lastError: "session expired",
     });
   });
