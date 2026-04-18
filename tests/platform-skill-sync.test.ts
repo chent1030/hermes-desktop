@@ -6,12 +6,37 @@ vi.mock("electron", () => ({
   },
 }));
 
+vi.mock("../src/main/platform/audit", () => ({
+  enqueueAuditEvent: vi.fn(),
+  markAuditFailure: vi.fn(),
+  markAuditReauthRequired: vi.fn(),
+}));
+
+vi.mock("../src/main/platform/runtime", async () => {
+  const actual = await vi.importActual<typeof import("../src/main/platform/runtime")>(
+    "../src/main/platform/runtime",
+  );
+
+  return {
+    ...actual,
+    flushWorkspaceAuditEvents: vi.fn().mockResolvedValue({
+      health: "healthy",
+      localHealth: "healthy",
+      remoteHealth: "healthy",
+      queuedEvents: 0,
+      droppedEvents: 0,
+      lastError: null,
+    }),
+  };
+});
+
 vi.mock("../src/main/skills", () => ({
   listInstalledSkills: vi.fn(),
   findDownloadedSkillPackage: vi.fn(),
 }));
 
 import { platformSyncSkillInstallations } from "../src/main/platform/index";
+import { enqueueAuditEvent } from "../src/main/platform/audit";
 import {
   clearSessionState,
   setSessionTokens,
@@ -142,5 +167,23 @@ describe("platform skill sync", () => {
         path: "/tmp/broken",
       },
     ]);
+
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "skill.sync.completed",
+        payload: {
+          installedCount: 1,
+          downloadedCount: 1,
+          outdatedCount: 1,
+          brokenCount: 1,
+          notDownloadedCount: 0,
+          totalCount: 4,
+          scopeBreakdown: {
+            global: 2,
+            tenant: 2,
+          },
+        },
+      }),
+    );
   });
 });

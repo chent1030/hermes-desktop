@@ -272,6 +272,19 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
 - 审计事件写入：
   - `platform_audit_events`
 
+当前桌面端会写入的 Skill 探测聚合审计包括：
+
+- 事件名：`skill.sync.completed`
+- 聚合字段：
+  - `installedCount`
+  - `downloadedCount`
+  - `outdatedCount`
+  - `brokenCount`
+  - `notDownloadedCount`
+  - `totalCount`
+  - `scopeBreakdown.global`
+  - `scopeBreakdown.tenant`
+
 模型表最小字段包括：
 
 - `id`

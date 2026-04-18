@@ -178,6 +178,18 @@ export async function platformSyncSkillInstallations(): Promise<
 
     const installedSkills = listInstalledSkills();
 
+    const summary = {
+      installedCount: 0,
+      downloadedCount: 0,
+      outdatedCount: 0,
+      brokenCount: 0,
+      notDownloadedCount: 0,
+      scopeBreakdown: {
+        global: 0,
+        tenant: 0,
+      },
+    };
+
     const states: LocalSkillState[] = session.workspace.skills.map((skill) => {
       const platformKey = normalizeSkillKey(skill.name);
       const localSkill = installedSkills.find(
@@ -196,6 +208,20 @@ export async function platformSyncSkillInstallations(): Promise<
         status = "downloaded";
       }
 
+      summary.scopeBreakdown[skill.scope] += 1;
+
+      if (status === "installed") {
+        summary.installedCount += 1;
+      } else if (status === "downloaded") {
+        summary.downloadedCount += 1;
+      } else if (status === "outdated") {
+        summary.outdatedCount += 1;
+      } else if (status === "broken") {
+        summary.brokenCount += 1;
+      } else {
+        summary.notDownloadedCount += 1;
+      }
+
       return {
         skillId: skill.id,
         installed: Boolean(localSkill),
@@ -208,8 +234,13 @@ export async function platformSyncSkillInstallations(): Promise<
     enqueueAuditEvent({
       type: "skill.sync.completed",
       payload: {
-        installedCount: states.filter((item) => item.installed).length,
+        installedCount: summary.installedCount,
+        downloadedCount: summary.downloadedCount,
+        outdatedCount: summary.outdatedCount,
+        brokenCount: summary.brokenCount,
+        notDownloadedCount: summary.notDownloadedCount,
         totalCount: states.length,
+        scopeBreakdown: summary.scopeBreakdown,
       },
     });
     void flushWorkspaceAuditEvents();
