@@ -157,6 +157,55 @@ struct ErrorPayload<'a> {
     message: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct HttpResponse {
+    status_line: String,
+    headers: Vec<(String, String)>,
+    body: String,
+}
+
+impl HttpResponse {
+    fn raw_json(status_line: &str, body: impl Into<String>) -> Self {
+        Self::with_body(
+            status_line,
+            body.into(),
+            vec![("content-type".to_string(), "application/json".to_string())],
+        )
+    }
+
+    fn empty(status_line: &str) -> Self {
+        Self::with_body(status_line, String::new(), Vec::new())
+    }
+
+    fn with_body(
+        status_line: &str,
+        body: String,
+        mut headers: Vec<(String, String)>,
+    ) -> Self {
+        headers.push(("content-length".to_string(), body.len().to_string()));
+        headers.push(("connection".to_string(), "close".to_string()));
+        headers.extend(cors_headers());
+
+        Self {
+            status_line: status_line.to_string(),
+            headers,
+            body,
+        }
+    }
+
+    fn to_http_string(&self) -> String {
+        let headers = self
+            .headers
+            .iter()
+            .map(|(name, value)| format!("{name}: {value}\r\n"))
+            .collect::<String>();
+        format!(
+            "{}\r\n{}\r\n{}",
+            self.status_line, headers, self.body
+        )
+    }
+}
+
 pub fn health_payload_json() -> String {
     serde_json::to_string(&HealthPayload {
         status: "ok",
@@ -1241,12 +1290,7 @@ fn trailing_string_resource_id_from_skill_path(path: &str) -> Option<String> {
 }
 
 fn json_response(status_line: &str, body: &str) -> String {
-    format!(
-        "{status_line}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{body}",
-        body.len()
-        ,
-        cors_headers()
-    )
+    HttpResponse::raw_json(status_line, body).to_http_string()
 }
 
 fn serialize_json<T: Serialize>(value: &T) -> String {
@@ -1254,14 +1298,21 @@ fn serialize_json<T: Serialize>(value: &T) -> String {
 }
 
 fn empty_response(status_line: &str) -> String {
-    format!(
-        "{status_line}\r\ncontent-length: 0\r\nconnection: close\r\n{}\r\n",
-        cors_headers()
-    )
+    HttpResponse::empty(status_line).to_http_string()
 }
 
-fn cors_headers() -> &'static str {
-    "access-control-allow-origin: *\r\naccess-control-allow-methods: GET, POST, OPTIONS\r\naccess-control-allow-headers: content-type, authorization"
+fn cors_headers() -> Vec<(String, String)> {
+    vec![
+        ("access-control-allow-origin".to_string(), "*".to_string()),
+        (
+            "access-control-allow-methods".to_string(),
+            "GET, POST, OPTIONS".to_string(),
+        ),
+        (
+            "access-control-allow-headers".to_string(),
+            "content-type, authorization".to_string(),
+        ),
+    ]
 }
 
 #[cfg(test)]
@@ -1288,6 +1339,17 @@ mod tests {
         assert!(response.starts_with("HTTP/1.1 200 OK\r\n"));
         assert!(response.contains("content-type: application/json"));
         assert!(response.contains("\"status\":\"ok\""));
+        assert!(response.contains("\r\n\r\n{\"status\":\"ok\""));
+    }
+
+    #[test]
+    fn formats_empty_responses_with_header_body_separator() {
+        let response = handle_health_request(
+            "OPTIONS /api/auth/login HTTP/1.1\r\nHost: localhost\r\nOrigin: http://127.0.0.1:4173\r\nAccess-Control-Request-Method: POST\r\nAccess-Control-Request-Headers: content-type\r\n\r\n",
+        );
+        assert!(response.starts_with("HTTP/1.1 204 No Content\r\n"));
+        assert!(response.contains("\r\n\r\n"));
+        assert!(response.ends_with("\r\n\r\n"));
     }
 
     #[test]
