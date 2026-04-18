@@ -747,6 +747,275 @@ describe("platform admin frontend", () => {
     expect(await screen.findByText("session-188")).toBeInTheDocument();
   });
 
+  it("opens session audit from session center", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_root",
+        refreshToken: "rtk_root",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+      mockJsonResponse([
+        {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 11,
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          username: "alice",
+          displayName: "Alice",
+          roleCode: "tenant_user",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: "mdl_global_default",
+          scopeType: "global",
+          tenant: null,
+          provider: "openai",
+          model: "gpt-5.4",
+          label: "GPT-5.4",
+          baseUrl: "https://api.openai.com/v1",
+          isDefault: true,
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([]),
+      mockJsonResponse([
+        {
+          id: 201,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          eventType: "workspace.initialized",
+          payload: { modelCount: 1 },
+          occurredAt: "2026-04-18T12:00:00.000Z",
+          createdAt: "2026-04-18T12:00:01.000Z",
+        },
+      ]),
+      mockJsonResponse([
+        {
+          sessionId: "session-201",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          lastAccount: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          lastEventType: "chat.failed",
+          lastOccurredAt: "2026-04-18T12:00:00.000Z",
+          eventCount: 3,
+          hasFailure: true,
+          toolRunCount: 1,
+          lastToolLabel: "search_web",
+          lastToolSource: "api",
+          hasToolFailure: false,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 202,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          eventType: "chat.failed",
+          payload: { sessionId: "session-201", reason: "timeout" },
+          occurredAt: "2026-04-18T12:00:10.000Z",
+          createdAt: "2026-04-18T12:00:10.500Z",
+        },
+      ]),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tenant code"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "root" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "Secret123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Session center" }),
+    ).toBeInTheDocument();
+
+    const sessionCard = getCardForHeading("Session center");
+    const sessionRow = within(sessionCard).getByText("session-201").closest("div");
+    expect(sessionRow).not.toBeNull();
+
+    fireEvent.click(
+      within(sessionRow as HTMLElement).getByRole("button", { name: "Open in audit" }),
+    );
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/api/admin/audit/events?tenantId=7&limit=100&payloadQuery=session-201",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    const auditCard = getCardForHeading("Audit center");
+    expect(within(auditCard).getByLabelText("Payload contains")).toHaveValue("session-201");
+    expect(
+      await within(auditCard).findByText("{\"sessionId\":\"session-201\",\"reason\":\"timeout\"}"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders audit summary stats for the current audit list", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_demo",
+        refreshToken: "rtk_demo",
+        tenant: {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+        },
+        user: {
+          id: 42,
+          username: "admin",
+          displayName: "ACME Admin",
+          roleCode: "tenant_admin",
+          scopeType: "tenant",
+        },
+      }),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([
+        {
+          id: 301,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 42,
+            username: "admin",
+            displayName: "ACME Admin",
+            roleCode: "tenant_admin",
+          },
+          eventType: "run.tool.failed",
+          payload: {
+            sessionId: "session-1",
+          },
+          occurredAt: "2026-04-18T13:10:00.000Z",
+          createdAt: "2026-04-18T13:10:00.500Z",
+        },
+        {
+          id: 302,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 42,
+            username: "admin",
+            displayName: "ACME Admin",
+            roleCode: "tenant_admin",
+          },
+          eventType: "chat.completed",
+          payload: {
+            sessionId: "session-1",
+          },
+          occurredAt: "2026-04-18T13:11:00.000Z",
+          createdAt: "2026-04-18T13:11:00.500Z",
+        },
+        {
+          id: 303,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 42,
+            username: "admin",
+            displayName: "ACME Admin",
+            roleCode: "tenant_admin",
+          },
+          eventType: "workspace.initialized",
+          payload: {
+            modelCount: 1,
+          },
+          occurredAt: "2026-04-18T13:12:00.000Z",
+          createdAt: "2026-04-18T13:12:00.500Z",
+        },
+      ]),
+      mockJsonResponse([]),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tenant code"), {
+      target: { value: "acme" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "admin" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("Tenant workspace")).toBeInTheDocument();
+    const auditCard = getCardForHeading("Tenant audit center");
+    expect(await within(auditCard).findByText("Audit summary")).toBeInTheDocument();
+    expect(within(auditCard).getByText("3")).toBeInTheDocument();
+    expect(within(auditCard).getByText("1 failed")).toBeInTheDocument();
+    expect(within(auditCard).getByText("Run")).toBeInTheDocument();
+    expect(within(auditCard).getByText("Chat")).toBeInTheDocument();
+    expect(within(auditCard).getByText("Workspace")).toBeInTheDocument();
+  });
+
   it("applies event family filters and renders run audit summaries", async () => {
     setupFetch([
       mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),

@@ -318,6 +318,98 @@ button {
   color: var(--admin-muted);
 }
 
+.platform-admin-audit-summary {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(23, 34, 43, 0.1);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 235, 224, 0.7));
+}
+
+.platform-admin-audit-summary-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.platform-admin-audit-summary-header h4 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.platform-admin-audit-summary-header small {
+  color: var(--admin-muted);
+}
+
+.platform-admin-audit-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.platform-admin-audit-kpi {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(23, 34, 43, 0.08);
+}
+
+.platform-admin-audit-kpi span {
+  font-size: 13px;
+  color: var(--admin-muted);
+}
+
+.platform-admin-audit-kpi strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.platform-admin-audit-family-list {
+  display: grid;
+  gap: 10px;
+}
+
+.platform-admin-audit-family-row {
+  display: grid;
+  gap: 8px;
+}
+
+.platform-admin-audit-family-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.platform-admin-audit-family-meta span {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.platform-admin-audit-family-meta small {
+  color: var(--admin-muted);
+}
+
+.platform-admin-audit-family-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(23, 34, 43, 0.08);
+}
+
+.platform-admin-audit-family-bar span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c55432, #dd9f55);
+}
+
 .platform-admin-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -364,6 +456,10 @@ button {
   }
 
   .platform-admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-admin-audit-summary-grid {
     grid-template-columns: 1fr;
   }
 }

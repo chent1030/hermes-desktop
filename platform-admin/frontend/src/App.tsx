@@ -117,6 +117,12 @@ interface SessionFilters {
   limit: string;
 }
 
+interface AuditFamilySummary {
+  key: "run" | "chat" | "auth" | "workspace" | "other";
+  label: string;
+  count: number;
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   const body = (await response.json()) as Record<string, unknown>;
@@ -235,6 +241,24 @@ function buildAuditSummaryLines(item: AuditEventRecord): string[] {
   return [];
 }
 
+function auditFamilyKey(
+  eventType: string,
+): AuditFamilySummary["key"] {
+  if (eventType.startsWith("run.")) {
+    return "run";
+  }
+  if (eventType.startsWith("chat.")) {
+    return "chat";
+  }
+  if (eventType.startsWith("auth.")) {
+    return "auth";
+  }
+  if (eventType.startsWith("workspace.")) {
+    return "workspace";
+  }
+  return "other";
+}
+
 export default function App(): React.JSX.Element {
   const [tenantCode, setTenantCode] = useState("");
   const [username, setUsername] = useState("");
@@ -298,6 +322,34 @@ export default function App(): React.JSX.Element {
     description: "",
     downloadUrl: "",
   });
+
+  const auditSummary = useMemo(() => {
+    const counts: Record<AuditFamilySummary["key"], number> = {
+      run: 0,
+      chat: 0,
+      auth: 0,
+      workspace: 0,
+      other: 0,
+    };
+
+    for (const item of auditEvents) {
+      counts[auditFamilyKey(item.eventType)] += 1;
+    }
+
+    const families: AuditFamilySummary[] = [
+      { key: "run", label: "Run", count: counts.run },
+      { key: "chat", label: "Chat", count: counts.chat },
+      { key: "auth", label: "Auth", count: counts.auth },
+      { key: "workspace", label: "Workspace", count: counts.workspace },
+      { key: "other", label: "Other", count: counts.other },
+    ];
+
+    return {
+      total: auditEvents.length,
+      failures: auditEvents.filter((item) => item.eventType.endsWith(".failed")).length,
+      families,
+    };
+  }, [auditEvents]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1009,6 +1061,39 @@ export default function App(): React.JSX.Element {
     }
   };
 
+  const handleOpenSessionAudit = async (sessionId: string) => {
+    if (!session) {
+      return;
+    }
+
+    const nextFilters: AuditFilters = {
+      eventPrefix: "",
+      eventType: "",
+      occurredFrom: "",
+      occurredTo: "",
+      accountQuery: "",
+      payloadQuery: sessionId,
+      limit: auditFilters.limit || "100",
+    };
+
+    setAuditFilters(nextFilters);
+    setWorkspaceError(null);
+    setIsLoadingAudit(true);
+    try {
+      const items =
+        session.user.roleCode === "super_admin"
+          ? await fetchSuperAdminAuditEvents(session, selectedTenantId, nextFilters)
+          : await fetchTenantAuditEvents(session, nextFilters);
+      setAuditEvents(items);
+      setAuditHasMore(items.length >= Number(nextFilters.limit || "100"));
+      setSessionNotice(`Audit center filtered by session ${sessionId}`);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Load session audit failed");
+    } finally {
+      setIsLoadingAudit(false);
+    }
+  };
+
   const handleApplySessionFilters = async () => {
     if (!session) {
       return;
@@ -1094,6 +1179,13 @@ export default function App(): React.JSX.Element {
         {toolParts.length > 0 ? <small>{toolParts.join(" • ")}</small> : null}
         {item.hasFailure ? <small>Failed</small> : null}
         {item.hasToolFailure ? <small>Tool failed</small> : null}
+        <button
+          className="platform-admin-secondary-button"
+          type="button"
+          onClick={() => void handleOpenSessionAudit(item.sessionId)}
+        >
+          Open in audit
+        </button>
       </div>
     );
   };
@@ -1178,6 +1270,45 @@ export default function App(): React.JSX.Element {
         Apply filters
       </button>
     </div>
+  );
+
+  const renderAuditSummary = (): React.JSX.Element => (
+    <section className="platform-admin-audit-summary" aria-label="audit-summary">
+      <div className="platform-admin-audit-summary-header">
+        <div>
+          <p className="platform-admin-section-label">Audit summary</p>
+          <h4>Current result snapshot</h4>
+        </div>
+        <small>Based on loaded audit events</small>
+      </div>
+      <div className="platform-admin-audit-summary-grid">
+        <div className="platform-admin-audit-kpi">
+          <span>Total events</span>
+          <strong>{auditSummary.total}</strong>
+        </div>
+        <div className="platform-admin-audit-kpi">
+          <span>Failures</span>
+          <strong>{`${auditSummary.failures} failed`}</strong>
+        </div>
+      </div>
+      <div className="platform-admin-audit-family-list">
+        {auditSummary.families.map((family) => {
+          const percentage =
+            auditSummary.total > 0 ? Math.round((family.count / auditSummary.total) * 100) : 0;
+          return (
+            <div key={family.key} className="platform-admin-audit-family-row">
+              <div className="platform-admin-audit-family-meta">
+                <span>{family.label}</span>
+                <small>{`${family.count} events`}</small>
+              </div>
+              <div className="platform-admin-audit-family-bar">
+                <span style={{ width: `${percentage}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 
   const renderSessionFilters = (): React.JSX.Element => (
@@ -1707,6 +1838,7 @@ export default function App(): React.JSX.Element {
                 <p className="platform-admin-section-label">Audit center</p>
                 <h3>Audit center</h3>
                 {renderAuditFilters()}
+                {renderAuditSummary()}
                 {!selectedTenantId ? (
                   <p className="platform-admin-panel-note">
                     Select a tenant to inspect runtime audit events.
@@ -1965,6 +2097,7 @@ export default function App(): React.JSX.Element {
                 <p className="platform-admin-section-label">Tenant audit center</p>
                 <h3>Tenant audit center</h3>
                 {renderAuditFilters()}
+                {renderAuditSummary()}
                 <div className="platform-admin-list">
                   {auditEvents.map((item) => renderAuditEvent(item))}
                 </div>
