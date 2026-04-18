@@ -2154,6 +2154,20 @@ export default function App(): React.JSX.Element {
           ) : null}
         </section>
       </section>
+
+      <footer className="platform-admin-footer">
+        <p className="platform-admin-footer-note">
+          Hermes Platform Admin · Enterprise control plane for tenants, models, skills, and audit.
+        </p>
+        <a
+          href="http://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noreferrer"
+          className="transition-colors duration-200 hover:text-brand-700 hover:underline"
+        >
+          苏ICP备2026017592号-1
+        </a>
+      </footer>
     </main>
   );
 }

@@ -40,6 +40,18 @@ afterEach(() => {
 });
 
 describe("platform admin frontend", () => {
+  it("renders the ICP filing footer link on the login screen", async () => {
+    setupFetch([mockJsonResponse({ status: "ok", service: "platform-admin-backend" })]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    const filingLink = screen.getByRole("link", { name: "苏ICP备2026017592号-1" });
+    expect(filingLink).toHaveAttribute("href", "http://beian.miit.gov.cn/");
+    expect(filingLink).toHaveAttribute("target", "_blank");
+    expect(filingLink).toHaveAttribute("rel", "noreferrer");
+  });
+
   it("shows a clear login error when the login response body is empty", async () => {
     setupFetch([
       mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
