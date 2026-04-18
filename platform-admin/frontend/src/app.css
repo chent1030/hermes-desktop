@@ -50,6 +50,115 @@
     @apply min-h-screen px-4 py-6 sm:px-6 lg:px-8 lg:py-8;
   }
 
+  .platform-admin-app.is-login-screen {
+    @apply relative overflow-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(37, 99, 235, 0.22), transparent 22%),
+      radial-gradient(circle at 85% 18%, rgba(14, 165, 233, 0.18), transparent 20%),
+      radial-gradient(circle at 50% 88%, rgba(249, 115, 22, 0.12), transparent 18%),
+      linear-gradient(180deg, #030712 0%, #06101f 45%, #020617 100%);
+  }
+
+  .platform-admin-login-aurora {
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
+  }
+
+  .platform-admin-login-orb {
+    @apply absolute rounded-full blur-3xl;
+  }
+
+  .platform-admin-login-orb.is-primary {
+    top: 8%;
+    left: -8%;
+    width: 20rem;
+    height: 20rem;
+    background: rgba(37, 99, 235, 0.26);
+  }
+
+  .platform-admin-login-orb.is-secondary {
+    top: 12%;
+    right: -4%;
+    width: 22rem;
+    height: 22rem;
+    background: rgba(14, 165, 233, 0.16);
+  }
+
+  .platform-admin-login-orb.is-accent {
+    bottom: -8%;
+    left: 36%;
+    width: 16rem;
+    height: 16rem;
+    background: rgba(249, 115, 22, 0.12);
+  }
+
+  .platform-admin-login-gridline {
+    @apply absolute inset-x-0 top-0 h-full opacity-40;
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+    background-size: 100% 44px, 44px 100%;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent 92%);
+  }
+
+  .platform-admin-login-shell {
+    @apply relative z-10 mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl grid-rows-[auto_1fr] gap-8;
+  }
+
+  .platform-admin-login-topbar {
+    @apply flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center;
+  }
+
+  .platform-admin-login-grid {
+    @apply grid items-center gap-6 lg:grid-cols-[minmax(0,1.1fr)_440px];
+  }
+
+  .platform-admin-login-copy {
+    @apply relative max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.03] p-6 text-white shadow-[0_24px_80px_rgba(2,6,23,0.45)] backdrop-blur-sm sm:p-8 lg:p-10;
+  }
+
+  .platform-admin-login-copy::before {
+    content: "";
+    @apply absolute inset-0 rounded-[2rem];
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.55), rgba(255, 255, 255, 0.08));
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .platform-admin-login-kicker {
+    @apply relative mb-3 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-200;
+  }
+
+  .platform-admin-login-copy h1 {
+    @apply relative m-0 max-w-xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl;
+  }
+
+  .platform-admin-login-description {
+    @apply relative mt-5 max-w-xl text-base leading-7 text-slate-300 sm:text-lg;
+  }
+
+  .platform-admin-login-chip-list {
+    @apply relative mt-6 flex flex-wrap gap-3;
+  }
+
+  .platform-admin-login-chip {
+    @apply inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100 shadow-[0_0_30px_rgba(14,165,233,0.12)];
+  }
+
+  .platform-admin-login-panel {
+    @apply p-5 sm:p-6;
+    background:
+      linear-gradient(180deg, rgba(9, 17, 32, 0.92), rgba(7, 12, 24, 0.96)),
+      linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(15, 23, 42, 0));
+    border-color: rgba(148, 163, 184, 0.16);
+    box-shadow:
+      0 24px 80px rgba(2, 6, 23, 0.55),
+      0 0 0 1px rgba(96, 165, 250, 0.12);
+  }
+
   .platform-admin-hero,
   .platform-admin-layout,
   .platform-admin-footer {
@@ -285,5 +394,61 @@
 
   .platform-admin-footer-note {
     @apply text-center sm:text-left;
+  }
+
+  .platform-admin-footer.is-centered {
+    @apply relative z-10 mt-0 justify-center border-none pb-4 pt-0 text-center text-sm text-slate-400;
+  }
+
+  .is-login-screen .platform-admin-status {
+    @apply border-cyan-400/20 bg-slate-950/55 text-slate-200 shadow-[0_18px_40px_rgba(2,6,23,0.35)];
+  }
+
+  .is-login-screen .platform-admin-status.is-online {
+    @apply border-emerald-400/20 bg-emerald-400/10 text-emerald-100;
+  }
+
+  .is-login-screen .platform-admin-status.is-offline {
+    @apply border-rose-400/20 bg-rose-400/10 text-rose-100;
+  }
+
+  .is-login-screen .platform-admin-panel-header h2 {
+    @apply text-white;
+  }
+
+  .is-login-screen .platform-admin-section-label {
+    @apply text-cyan-200;
+  }
+
+  .is-login-screen .platform-admin-panel-note {
+    @apply max-w-none text-slate-400;
+  }
+
+  .is-login-screen .platform-admin-field {
+    @apply text-slate-200;
+  }
+
+  .is-login-screen .platform-admin-field input,
+  .is-login-screen .platform-admin-field select {
+    @apply border-slate-700 bg-slate-950/70 text-slate-100 placeholder:text-slate-500;
+    box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.04);
+  }
+
+  .is-login-screen .platform-admin-field input:focus,
+  .is-login-screen .platform-admin-field select:focus {
+    @apply border-cyan-400 bg-slate-950/90 ring-cyan-400/20;
+  }
+
+  .is-login-screen .platform-admin-submit {
+    background-image: linear-gradient(135deg, #2563eb 0%, #0ea5e9 68%, #38bdf8 100%);
+    box-shadow: 0 18px 50px rgba(37, 99, 235, 0.32);
+  }
+
+  .is-login-screen .platform-admin-submit:hover {
+    filter: brightness(1.05);
+  }
+
+  .is-login-screen .platform-admin-error {
+    @apply border-rose-400/20 bg-rose-500/10 text-rose-100;
   }
 }

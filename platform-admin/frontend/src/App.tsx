@@ -1593,6 +1593,145 @@ export default function App(): React.JSX.Element {
     return null;
   };
 
+  if (!session) {
+    return (
+      <main className="platform-admin-app is-login-screen">
+        <div className="platform-admin-login-aurora" aria-hidden="true">
+          <span className="platform-admin-login-orb is-primary" />
+          <span className="platform-admin-login-orb is-secondary" />
+          <span className="platform-admin-login-orb is-accent" />
+          <span className="platform-admin-login-gridline" />
+        </div>
+
+        <section className="platform-admin-login-shell">
+          <div className="platform-admin-login-topbar">
+            <div
+              className="inline-flex rounded-full border border-slate-200 bg-white/85 p-1 shadow-sm"
+              aria-label={copy.localeLabel}
+            >
+              <button
+                type="button"
+                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                  locale === "zh-CN"
+                    ? "bg-brand-600 text-white"
+                    : "text-slate-600 hover:text-brand-700"
+                }`}
+                onClick={() => setLocale("zh-CN")}
+                aria-pressed={locale === "zh-CN"}
+              >
+                {copy.localeChinese}
+              </button>
+              <button
+                type="button"
+                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                  locale === "en"
+                    ? "bg-brand-600 text-white"
+                    : "text-slate-600 hover:text-brand-700"
+                }`}
+                onClick={() => setLocale("en")}
+                aria-pressed={locale === "en"}
+              >
+                {copy.localeEnglish}
+              </button>
+            </div>
+            <p className={healthClassName}>
+              {healthStatus === "online" ? (
+                <>
+                  <span>{copy.health.online}</span>
+                  <span className="platform-admin-status-detail">
+                    · {healthService || "platform-admin-backend"}
+                  </span>
+                </>
+              ) : null}
+              {healthStatus === "offline" ? (
+                <>
+                  <span>{copy.health.offline}</span>
+                  <span className="platform-admin-status-detail">· {healthError}</span>
+                </>
+              ) : null}
+              {healthStatus === "checking" ? <span>{copy.health.checking}</span> : null}
+            </p>
+          </div>
+
+          <div className="platform-admin-login-grid">
+            <section className="platform-admin-login-copy">
+              <p className="platform-admin-login-kicker">{copy.login.heroEyebrow}</p>
+              <h1>{copy.title}</h1>
+              <p className="platform-admin-login-description">{copy.login.heroDescription}</p>
+              <div className="platform-admin-login-chip-list">
+                <span className="platform-admin-login-chip">{copy.login.heroFeatureModels}</span>
+                <span className="platform-admin-login-chip">{copy.login.heroFeatureSkills}</span>
+                <span className="platform-admin-login-chip">{copy.login.heroFeatureAudit}</span>
+              </div>
+            </section>
+
+            <article className="platform-admin-panel platform-admin-login-panel">
+              <div className="platform-admin-panel-header">
+                <div>
+                  <p className="platform-admin-section-label">{copy.login.section}</p>
+                  <h2>{copy.login.title}</h2>
+                </div>
+                <p className="platform-admin-panel-note">{copy.login.note}</p>
+              </div>
+
+              <form className="platform-admin-form" onSubmit={handleSubmit}>
+                <label className="platform-admin-field">
+                  <span>{copy.login.tenantCode}</span>
+                  <input
+                    value={tenantCode}
+                    onChange={(event) => setTenantCode(event.target.value)}
+                    placeholder="acme"
+                  />
+                </label>
+
+                <label className="platform-admin-field">
+                  <span>{copy.login.username}</span>
+                  <input
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder="admin"
+                  />
+                </label>
+
+                <label className="platform-admin-field">
+                  <span>{copy.login.password}</span>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="••••••••"
+                  />
+                </label>
+
+                <button
+                  className="platform-admin-submit"
+                  type="submit"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? copy.login.signingIn : copy.login.signIn}
+                </button>
+              </form>
+
+              {loginError ? <p className="platform-admin-error">{loginError}</p> : null}
+              {workspaceError ? <p className="platform-admin-error">{workspaceError}</p> : null}
+            </article>
+          </div>
+        </section>
+
+        <footer className="platform-admin-footer is-centered">
+          <a
+            href="http://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noreferrer"
+            className="transition-colors duration-200 hover:text-brand-200 hover:underline"
+          >
+            苏ICP备2026017592号-1
+          </a>
+        </footer>
+      </main>
+    );
+  }
+
   return (
     <main className="platform-admin-app">
       <section className="platform-admin-hero">
