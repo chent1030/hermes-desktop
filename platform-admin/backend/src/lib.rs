@@ -11,6 +11,7 @@ pub mod audit_center;
 pub mod auth;
 pub mod desktop;
 pub mod model_profiles;
+pub mod session_center;
 pub mod skill_catalog;
 
 use admin::{
@@ -34,6 +35,9 @@ use model_profiles::{
     CreateModelProfileInput, ModelProfileError, PgModelProfileStore,
     create_model_profile_for_actor, deactivate_model_profile_for_actor,
     list_model_profiles_for_actor,
+};
+use session_center::{
+    PgSessionCenterStore, SessionCenterError, list_sessions_for_actor,
 };
 use skill_catalog::{
     CreateSkillCatalogInput, PgSkillCatalogStore, SkillCatalogError,
@@ -206,6 +210,7 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         (Some("GET"), "/api/admin/tenants") => handle_list_tenants(request, config),
         (Some("POST"), "/api/admin/tenants") => handle_create_tenant(request, config),
         (Some("GET"), "/api/admin/audit/events") => handle_list_audit_events(request, config),
+        (Some("GET"), "/api/admin/sessions") => handle_list_sessions(request, config),
         (Some("GET"), "/api/admin/model-profiles") => handle_list_model_profiles(request, config),
         (Some("POST"), "/api/admin/model-profiles") => {
             handle_create_model_profile(request, config)
@@ -221,6 +226,9 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         }
         (Some("GET"), "/api/admin/tenant/audit/events") => {
             handle_list_tenant_audit_events(request, config)
+        }
+        (Some("GET"), "/api/admin/tenant/sessions") => {
+            handle_list_tenant_sessions(request, config)
         }
         (Some("POST"), "/api/admin/tenant/model-profiles") => {
             handle_create_tenant_model_profile(request, config)
@@ -568,6 +576,36 @@ fn handle_list_tenant_audit_events(request: &str, config: &ServerConfig) -> Stri
         let mut store = PgAuditCenterStore::new(&config.database_url);
         list_audit_events_for_actor(&mut store, &to_principal(actor), None, query)
             .map_err(map_audit_center_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_list_sessions(request: &str, config: &ServerConfig) -> String {
+    let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
+        .and_then(|value: String| value.parse::<i64>().ok());
+    let limit = query_param(request_path(request).unwrap_or_default(), "limit")
+        .and_then(|value: String| value.parse::<i64>().ok());
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgSessionCenterStore::new(&config.database_url);
+        list_sessions_for_actor(&mut store, &to_principal(actor), tenant_id, limit)
+            .map_err(map_session_center_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_list_tenant_sessions(request: &str, config: &ServerConfig) -> String {
+    let limit = query_param(request_path(request).unwrap_or_default(), "limit")
+        .and_then(|value: String| value.parse::<i64>().ok());
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgSessionCenterStore::new(&config.database_url);
+        list_sessions_for_actor(&mut store, &to_principal(actor), None, limit)
+            .map_err(map_session_center_to_admin_error)
     }) {
         Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
         Err(error) => admin_error_response(error),
@@ -982,6 +1020,14 @@ fn map_audit_center_to_admin_error(error: AuditCenterError) -> AdminError {
         AuditCenterError::Conflict(message) => AdminError::Conflict(message),
         AuditCenterError::NotFound(message) => AdminError::NotFound(message),
         AuditCenterError::Store(message) => AdminError::Store(message),
+    }
+}
+
+fn map_session_center_to_admin_error(error: SessionCenterError) -> AdminError {
+    match error {
+        SessionCenterError::InvalidRequest(message) => AdminError::InvalidRequest(message),
+        SessionCenterError::Forbidden(message) => AdminError::Forbidden(message),
+        SessionCenterError::Store(message) => AdminError::Store(message),
     }
 }
 
