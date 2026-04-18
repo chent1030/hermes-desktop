@@ -305,6 +305,15 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
 - `run.model.*`：展示 `modelId`、`error`
 - `run.skill.*`：展示 `skillId` 或关键同步统计
 
+管理端会话中心当前还会补一层最小工具执行摘要：
+
+- `toolRunCount`
+- `lastToolLabel`
+- `lastToolSource`
+- `hasToolFailure`
+
+这样平台就能从“会话视角”快速看到该会话是否用过工具、最后一个工具是什么、是否出现过工具失败。
+
 模型表最小字段包括：
 
 - `id`

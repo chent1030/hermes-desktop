@@ -622,6 +622,10 @@ describe("platform admin frontend", () => {
           lastOccurredAt: "2026-04-18T12:00:00.000Z",
           eventCount: 1,
           hasFailure: false,
+          toolRunCount: 1,
+          lastToolLabel: "search_web",
+          lastToolSource: "api",
+          hasToolFailure: false,
         },
       ]),
       mockJsonResponse([
@@ -642,6 +646,10 @@ describe("platform admin frontend", () => {
           lastOccurredAt: "2026-04-18T11:00:00.000Z",
           eventCount: 2,
           hasFailure: true,
+          toolRunCount: 2,
+          lastToolLabel: "apply_patch",
+          lastToolSource: "cli",
+          hasToolFailure: true,
         },
       ]),
       mockJsonResponse([
@@ -662,6 +670,10 @@ describe("platform admin frontend", () => {
           lastOccurredAt: "2026-04-18T10:00:00.000Z",
           eventCount: 1,
           hasFailure: true,
+          toolRunCount: 0,
+          lastToolLabel: null,
+          lastToolSource: null,
+          hasToolFailure: false,
         },
       ]),
     ]);
@@ -706,6 +718,8 @@ describe("platform admin frontend", () => {
     expect(await screen.findByText("session-199")).toBeInTheDocument();
     expect(screen.getByText("2 events")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("Tools: 2 • Last tool: apply_patch • Source: cli")).toBeInTheDocument();
+    expect(screen.getByText("Tool failed")).toBeInTheDocument();
 
     fireEvent.click(within(sessionCard).getByRole("button", { name: "Load older sessions" }));
 

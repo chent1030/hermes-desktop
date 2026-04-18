@@ -32,6 +32,10 @@ pub struct SessionSummaryRecord {
     pub last_occurred_at: String,
     pub event_count: i64,
     pub has_failure: bool,
+    pub tool_run_count: i64,
+    pub last_tool_label: Option<String>,
+    pub last_tool_source: Option<String>,
+    pub has_tool_failure: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -199,6 +203,35 @@ impl SessionCenterStore for PgSessionCenterStore {
                   AND e.event_type LIKE 'chat.%'
                   AND COALESCE(e.payload ->> 'sessionId', '') <> ''
             ),
+            tool_ranked AS (
+                SELECT
+                    e.payload ->> 'sessionId' AS session_id,
+                    e.event_type,
+                    e.occurred_at,
+                    COALESCE(
+                        NULLIF(e.payload ->> 'lastLabel', ''),
+                        NULLIF(e.payload ->> 'label', '')
+                    ) AS tool_label,
+                    NULLIF(e.payload ->> 'source', '') AS tool_source,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY e.payload ->> 'sessionId'
+                        ORDER BY e.occurred_at DESC, e.id DESC
+                    ) AS row_num
+                FROM platform_audit_events e
+                WHERE e.tenant_id = $1
+                  AND e.event_type LIKE 'run.tool.%'
+                  AND COALESCE(e.payload ->> 'sessionId', '') <> ''
+            ),
+            tool_summary AS (
+                SELECT
+                    session_id,
+                    COUNT(*) FILTER (WHERE event_type = 'run.tool.started') AS tool_run_count,
+                    BOOL_OR(event_type = 'run.tool.failed') AS has_tool_failure,
+                    MAX(CASE WHEN row_num = 1 THEN tool_label END) AS last_tool_label,
+                    MAX(CASE WHEN row_num = 1 THEN tool_source END) AS last_tool_source
+                FROM tool_ranked
+                GROUP BY session_id
+            ),
             summary AS (
                 SELECT
                     r.session_id,
@@ -212,10 +245,15 @@ impl SessionCenterStore for PgSessionCenterStore {
                     a.id AS account_id,
                     a.username,
                     a.display_name,
-                    a.role_code
+                    a.role_code,
+                    COALESCE(ts.tool_run_count, 0) AS tool_run_count,
+                    ts.last_tool_label,
+                    ts.last_tool_source,
+                    COALESCE(ts.has_tool_failure, FALSE) AS has_tool_failure
                 FROM ranked r
                 INNER JOIN platform_admin_tenants t ON t.id = r.tenant_id
                 INNER JOIN platform_admin_accounts a ON a.id = r.account_id
+                LEFT JOIN tool_summary ts ON ts.session_id = r.session_id
                 WHERE r.row_num = 1
             )
             SELECT
@@ -233,7 +271,11 @@ impl SessionCenterStore for PgSessionCenterStore {
                 summary.account_id,
                 summary.username,
                 summary.display_name,
-                summary.role_code
+                summary.role_code,
+                summary.tool_run_count,
+                summary.last_tool_label,
+                summary.last_tool_source,
+                summary.has_tool_failure
             FROM summary
             WHERE ($2::varchar IS NULL OR summary.last_event_type = $2)
               AND ($3::bool IS NULL OR summary.has_failure = $3)
@@ -405,6 +447,10 @@ fn row_to_session_summary(row: postgres::Row) -> SessionSummaryRecord {
         last_occurred_at: row.get("last_occurred_at"),
         event_count: row.get("event_count"),
         has_failure: row.get("has_failure"),
+        tool_run_count: row.get("tool_run_count"),
+        last_tool_label: row.get("last_tool_label"),
+        last_tool_source: row.get("last_tool_source"),
+        has_tool_failure: row.get("has_tool_failure"),
     }
 }
 
@@ -439,10 +485,21 @@ mod tests {
                     .and_modify(|current| {
                         current.event_count += event.event_count;
                         current.has_failure = current.has_failure || event.has_failure;
+                        current.tool_run_count += event.tool_run_count;
+                        current.has_tool_failure =
+                            current.has_tool_failure || event.has_tool_failure;
+                        if current.last_tool_label.is_none() {
+                            current.last_tool_label = event.last_tool_label.clone();
+                        }
+                        if current.last_tool_source.is_none() {
+                            current.last_tool_source = event.last_tool_source.clone();
+                        }
                         if event.last_occurred_at > current.last_occurred_at {
                             current.last_event_type = event.last_event_type.clone();
                             current.last_occurred_at = event.last_occurred_at.clone();
                             current.last_account = event.last_account.clone();
+                            current.last_tool_label = event.last_tool_label.clone();
+                            current.last_tool_source = event.last_tool_source.clone();
                         }
                     })
                     .or_insert_with(|| event.clone());
@@ -554,6 +611,10 @@ mod tests {
             },
             event_count: 1,
             has_failure: event_type == "chat.failed",
+            tool_run_count: 0,
+            last_tool_label: None,
+            last_tool_source: None,
+            has_tool_failure: false,
         }
     }
 
@@ -612,6 +673,32 @@ mod tests {
         assert!(items[0].has_failure);
         assert_eq!(items[0].event_count, 2);
         assert_eq!(items[0].last_event_type, "chat.failed");
+    }
+
+    #[test]
+    fn session_summary_keeps_tool_run_signals() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemorySessionCenterStore::default();
+        let mut item = sample_session_event_record("session-1", "chat.completed");
+        item.tool_run_count = 2;
+        item.last_tool_label = Some("search_web".to_string());
+        item.last_tool_source = Some("api".to_string());
+        item.has_tool_failure = true;
+        store.events = vec![item];
+
+        let items = list_sessions_for_actor(
+            &mut store,
+            &actor,
+            None,
+            build_session_query(None, None, None, None, None, None).expect("query"),
+        )
+        .expect("tenant admin should read session tool signals");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].tool_run_count, 2);
+        assert_eq!(items[0].last_tool_label.as_deref(), Some("search_web"));
+        assert_eq!(items[0].last_tool_source.as_deref(), Some("api"));
+        assert!(items[0].has_tool_failure);
     }
 
     #[test]

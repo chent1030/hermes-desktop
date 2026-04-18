@@ -93,6 +93,10 @@ interface SessionSummaryRecord {
   lastOccurredAt: string;
   eventCount: number;
   hasFailure: boolean;
+  toolRunCount?: number;
+  lastToolLabel?: string | null;
+  lastToolSource?: string | null;
+  hasToolFailure?: boolean;
 }
 
 interface AuditFilters {
@@ -1052,16 +1056,31 @@ export default function App(): React.JSX.Element {
     );
   };
 
-  const renderSessionSummary = (item: SessionSummaryRecord): React.JSX.Element => (
-    <div key={item.sessionId} className="platform-admin-list-item is-static">
-      <span>{item.sessionId}</span>
-      <small>{item.lastEventType}</small>
-      <small>{item.lastAccount.displayName}</small>
-      <small>{item.lastOccurredAt}</small>
-      <small>{`${item.eventCount} events`}</small>
-      {item.hasFailure ? <small>Failed</small> : null}
-    </div>
-  );
+  const renderSessionSummary = (item: SessionSummaryRecord): React.JSX.Element => {
+    const toolParts: string[] = [];
+    if ((item.toolRunCount ?? 0) > 0) {
+      toolParts.push(`Tools: ${item.toolRunCount}`);
+    }
+    if (item.lastToolLabel) {
+      toolParts.push(`Last tool: ${item.lastToolLabel}`);
+    }
+    if (item.lastToolSource) {
+      toolParts.push(`Source: ${item.lastToolSource}`);
+    }
+
+    return (
+      <div key={item.sessionId} className="platform-admin-list-item is-static">
+        <span>{item.sessionId}</span>
+        <small>{item.lastEventType}</small>
+        <small>{item.lastAccount.displayName}</small>
+        <small>{item.lastOccurredAt}</small>
+        <small>{`${item.eventCount} events`}</small>
+        {toolParts.length > 0 ? <small>{toolParts.join(" • ")}</small> : null}
+        {item.hasFailure ? <small>Failed</small> : null}
+        {item.hasToolFailure ? <small>Tool failed</small> : null}
+      </div>
+    );
+  };
 
   const renderAuditFilters = (): React.JSX.Element => (
     <div className="platform-admin-form">
