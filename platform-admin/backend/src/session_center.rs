@@ -35,6 +35,16 @@ pub struct SessionSummaryRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionQuery {
+    pub last_event_type: Option<String>,
+    pub has_failure: Option<bool>,
+    pub last_occurred_from: Option<String>,
+    pub last_occurred_to: Option<String>,
+    pub before_id: Option<String>,
+    pub limit: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionCenterError {
     InvalidRequest(String),
     Forbidden(String),
@@ -74,7 +84,7 @@ pub trait SessionCenterStore {
     fn list_sessions(
         &mut self,
         tenant_id: i64,
-        limit: i64,
+        query: &SessionQuery,
     ) -> Result<Vec<SessionSummaryRecord>, SessionCenterStoreError>;
 }
 
@@ -99,9 +109,72 @@ impl SessionCenterStore for PgSessionCenterStore {
     fn list_sessions(
         &mut self,
         tenant_id: i64,
-        limit: i64,
+        query: &SessionQuery,
     ) -> Result<Vec<SessionSummaryRecord>, SessionCenterStoreError> {
         let mut client = self.connect()?;
+        let anchor_last_occurred_at = if let Some(before_id) = query.before_id.as_ref() {
+            let row = client.query_opt(
+                r#"
+                WITH ranked AS (
+                    SELECT
+                        e.tenant_id,
+                        e.account_id,
+                        e.event_type,
+                        e.occurred_at,
+                        e.payload ->> 'sessionId' AS session_id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY e.payload ->> 'sessionId'
+                            ORDER BY e.occurred_at DESC, e.id DESC
+                        ) AS row_num,
+                        COUNT(*) OVER (
+                            PARTITION BY e.payload ->> 'sessionId'
+                        ) AS event_count,
+                        BOOL_OR(e.event_type = 'chat.failed') OVER (
+                            PARTITION BY e.payload ->> 'sessionId'
+                        ) AS has_failure
+                    FROM platform_audit_events e
+                    WHERE e.tenant_id = $1
+                      AND e.event_type LIKE 'chat.%'
+                      AND COALESCE(e.payload ->> 'sessionId', '') <> ''
+                ),
+                summary AS (
+                    SELECT
+                        r.session_id,
+                        r.event_type AS last_event_type,
+                        r.occurred_at AS last_occurred_at,
+                        r.has_failure
+                    FROM ranked r
+                    WHERE r.row_num = 1
+                )
+                SELECT
+                    to_char(
+                        summary.last_occurred_at AT TIME ZONE 'UTC',
+                        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                    ) AS last_occurred_at
+                FROM summary
+                WHERE ($2::varchar IS NULL OR summary.last_event_type = $2)
+                  AND ($3::bool IS NULL OR summary.has_failure = $3)
+                  AND ($4::timestamptz IS NULL OR summary.last_occurred_at >= $4::timestamptz)
+                  AND ($5::timestamptz IS NULL OR summary.last_occurred_at <= $5::timestamptz)
+                  AND summary.session_id = $6
+                "#,
+                &[
+                    &tenant_id,
+                    &query.last_event_type,
+                    &query.has_failure,
+                    &query.last_occurred_from,
+                    &query.last_occurred_to,
+                    &before_id,
+                ],
+            )?;
+            Some(
+                row.ok_or_else(|| SessionCenterStoreError("invalid beforeId".to_string()))?
+                    .get::<_, String>("last_occurred_at"),
+            )
+        } else {
+            None
+        };
+
         let rows = client.query(
             r#"
             WITH ranked AS (
@@ -125,28 +198,68 @@ impl SessionCenterStore for PgSessionCenterStore {
                 WHERE e.tenant_id = $1
                   AND e.event_type LIKE 'chat.%'
                   AND COALESCE(e.payload ->> 'sessionId', '') <> ''
+            ),
+            summary AS (
+                SELECT
+                    r.session_id,
+                    r.event_type AS last_event_type,
+                    r.occurred_at AS last_occurred_at,
+                    r.event_count,
+                    r.has_failure,
+                    t.id AS tenant_id,
+                    t.code AS tenant_code,
+                    t.name AS tenant_name,
+                    a.id AS account_id,
+                    a.username,
+                    a.display_name,
+                    a.role_code
+                FROM ranked r
+                INNER JOIN platform_admin_tenants t ON t.id = r.tenant_id
+                INNER JOIN platform_admin_accounts a ON a.id = r.account_id
+                WHERE r.row_num = 1
             )
             SELECT
-                r.session_id,
-                r.event_type,
-                to_char(r.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS occurred_at,
-                r.event_count,
-                r.has_failure,
-                t.id AS tenant_id,
-                t.code AS tenant_code,
-                t.name AS tenant_name,
-                a.id AS account_id,
-                a.username,
-                a.display_name,
-                a.role_code
-            FROM ranked r
-            INNER JOIN platform_admin_tenants t ON t.id = r.tenant_id
-            INNER JOIN platform_admin_accounts a ON a.id = r.account_id
-            WHERE r.row_num = 1
-            ORDER BY r.occurred_at DESC, r.session_id DESC
-            LIMIT $2
+                summary.session_id,
+                summary.last_event_type,
+                to_char(
+                    summary.last_occurred_at AT TIME ZONE 'UTC',
+                    'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                ) AS last_occurred_at,
+                summary.event_count,
+                summary.has_failure,
+                summary.tenant_id,
+                summary.tenant_code,
+                summary.tenant_name,
+                summary.account_id,
+                summary.username,
+                summary.display_name,
+                summary.role_code
+            FROM summary
+            WHERE ($2::varchar IS NULL OR summary.last_event_type = $2)
+              AND ($3::bool IS NULL OR summary.has_failure = $3)
+              AND ($4::timestamptz IS NULL OR summary.last_occurred_at >= $4::timestamptz)
+              AND ($5::timestamptz IS NULL OR summary.last_occurred_at <= $5::timestamptz)
+              AND (
+                  $6::timestamptz IS NULL
+                  OR summary.last_occurred_at < $6::timestamptz
+                  OR (
+                      summary.last_occurred_at = $6::timestamptz
+                      AND summary.session_id < $7
+                  )
+              )
+            ORDER BY summary.last_occurred_at DESC, summary.session_id DESC
+            LIMIT $8
             "#,
-            &[&tenant_id, &limit],
+            &[
+                &tenant_id,
+                &query.last_event_type,
+                &query.has_failure,
+                &query.last_occurred_from,
+                &query.last_occurred_to,
+                &anchor_last_occurred_at,
+                &query.before_id,
+                &query.limit,
+            ],
         )?;
 
         Ok(rows.into_iter().map(row_to_session_summary).collect())
@@ -157,18 +270,16 @@ pub fn list_sessions_for_actor<S: SessionCenterStore>(
     store: &mut S,
     actor: &AuthPrincipal,
     requested_tenant_id: Option<i64>,
-    requested_limit: Option<i64>,
+    query: SessionQuery,
 ) -> Result<Vec<SessionSummaryRecord>, SessionCenterError> {
-    let limit = normalize_limit(requested_limit);
-
     match actor.user.role_code.as_str() {
         "super_admin" => {
             let tenant_id = requested_tenant_id.ok_or(SessionCenterError::InvalidRequest(
                 "tenantId is required for session queries".to_string(),
             ))?;
             store
-                .list_sessions(tenant_id, limit)
-                .map_err(|error| SessionCenterError::Store(error.to_string()))
+                .list_sessions(tenant_id, &query)
+                .map_err(map_store_read_error)
         }
         "tenant_admin" => {
             let tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
@@ -184,11 +295,60 @@ pub fn list_sessions_for_actor<S: SessionCenterStore>(
                 }
             }
             store
-                .list_sessions(tenant_id, limit)
-                .map_err(|error| SessionCenterError::Store(error.to_string()))
+                .list_sessions(tenant_id, &query)
+                .map_err(map_store_read_error)
         }
         _ => Err(SessionCenterError::Forbidden(
             "actor is not allowed to list sessions".to_string(),
+        )),
+    }
+}
+
+pub fn build_session_query(
+    requested_last_event_type: Option<String>,
+    requested_has_failure: Option<bool>,
+    requested_last_occurred_from: Option<String>,
+    requested_last_occurred_to: Option<String>,
+    requested_before_id: Option<String>,
+    requested_limit: Option<i64>,
+) -> Result<SessionQuery, SessionCenterError> {
+    let last_occurred_from =
+        requested_last_occurred_from.filter(|value| !value.trim().is_empty());
+    let last_occurred_to = requested_last_occurred_to.filter(|value| !value.trim().is_empty());
+
+    if let Some(value) = last_occurred_from.as_ref() {
+        if !looks_like_iso_timestamp(value) {
+            return Err(SessionCenterError::InvalidRequest(
+                "lastOccurredFrom must be an ISO-8601 timestamp".to_string(),
+            ));
+        }
+    }
+
+    if let Some(value) = last_occurred_to.as_ref() {
+        if !looks_like_iso_timestamp(value) {
+            return Err(SessionCenterError::InvalidRequest(
+                "lastOccurredTo must be an ISO-8601 timestamp".to_string(),
+            ));
+        }
+    }
+
+    Ok(SessionQuery {
+        last_event_type: requested_last_event_type.filter(|value| !value.trim().is_empty()),
+        has_failure: requested_has_failure,
+        last_occurred_from,
+        last_occurred_to,
+        before_id: requested_before_id.filter(|value| !value.trim().is_empty()),
+        limit: normalize_limit(requested_limit),
+    })
+}
+
+pub fn parse_has_failure_query(raw: Option<String>) -> Result<Option<bool>, SessionCenterError> {
+    match raw.as_deref() {
+        None | Some("") => Ok(None),
+        Some("true") => Ok(Some(true)),
+        Some("false") => Ok(Some(false)),
+        Some(_) => Err(SessionCenterError::InvalidRequest(
+            "hasFailure must be true or false".to_string(),
         )),
     }
 }
@@ -197,6 +357,33 @@ fn normalize_limit(requested_limit: Option<i64>) -> i64 {
     match requested_limit {
         Some(limit) if limit > 0 => limit.min(200),
         _ => 100,
+    }
+}
+
+fn looks_like_iso_timestamp(value: &str) -> bool {
+    if value.len() < 20 {
+        return false;
+    }
+    let has_date = value.as_bytes().get(4) == Some(&b'-') && value.as_bytes().get(7) == Some(&b'-');
+    let has_time = value.contains('T') && value.contains(':');
+    let suffix_after_date = value.get(10..).unwrap_or_default();
+    let suffix_after_time = value.get(11..).unwrap_or_default();
+    let has_timezone = value.ends_with('Z')
+        || suffix_after_date.contains('+')
+        || suffix_after_time.contains('-');
+    has_date && has_time && has_timezone
+}
+
+fn map_store_read_error(error: SessionCenterStoreError) -> SessionCenterError {
+    let message = error.to_string();
+    if message == "invalid beforeId" {
+        SessionCenterError::InvalidRequest("beforeId does not match current session result set".to_string())
+    } else if message.contains("invalid input syntax")
+        && (message.contains("timestamp") || message.contains("date/time"))
+    {
+        SessionCenterError::InvalidRequest("invalid time range format".to_string())
+    } else {
+        SessionCenterError::Store(message)
     }
 }
 
@@ -214,8 +401,8 @@ fn row_to_session_summary(row: postgres::Row) -> SessionSummaryRecord {
             display_name: row.get("display_name"),
             role_code: row.get("role_code"),
         },
-        last_event_type: row.get("event_type"),
-        last_occurred_at: row.get("occurred_at"),
+        last_event_type: row.get("last_event_type"),
+        last_occurred_at: row.get("last_occurred_at"),
         event_count: row.get("event_count"),
         has_failure: row.get("has_failure"),
     }
@@ -237,7 +424,7 @@ mod tests {
         fn list_sessions(
             &mut self,
             tenant_id: i64,
-            limit: i64,
+            query: &SessionQuery,
         ) -> Result<Vec<SessionSummaryRecord>, SessionCenterStoreError> {
             let mut grouped = BTreeMap::<String, SessionSummaryRecord>::new();
 
@@ -257,13 +444,50 @@ mod tests {
             }
 
             let mut items = grouped.into_values().collect::<Vec<_>>();
+            items.retain(|item| {
+                query
+                    .last_event_type
+                    .as_ref()
+                    .is_none_or(|value| item.last_event_type == *value)
+            });
+            items.retain(|item| {
+                query
+                    .has_failure
+                    .is_none_or(|value| item.has_failure == value)
+            });
+            items.retain(|item| {
+                query
+                    .last_occurred_from
+                    .as_ref()
+                    .is_none_or(|value| item.last_occurred_at >= *value)
+            });
+            items.retain(|item| {
+                query
+                    .last_occurred_to
+                    .as_ref()
+                    .is_none_or(|value| item.last_occurred_at <= *value)
+            });
             items.sort_by(|left, right| {
                 right
                     .last_occurred_at
                     .cmp(&left.last_occurred_at)
                     .then_with(|| right.session_id.cmp(&left.session_id))
             });
-            items.truncate(limit as usize);
+
+            if let Some(before_id) = query.before_id.as_ref() {
+                let anchor = items
+                    .iter()
+                    .find(|item| item.session_id == *before_id)
+                    .cloned()
+                    .ok_or_else(|| SessionCenterStoreError("invalid beforeId".to_string()))?;
+                items.retain(|item| {
+                    item.last_occurred_at < anchor.last_occurred_at
+                        || (item.last_occurred_at == anchor.last_occurred_at
+                            && item.session_id < anchor.session_id)
+                });
+            }
+
+            items.truncate(query.limit as usize);
             Ok(items)
         }
     }
@@ -334,8 +558,13 @@ mod tests {
         let mut store = MemorySessionCenterStore::default();
         store.events = vec![sample_session_event_record("session-1", "chat.completed")];
 
-        let items = list_sessions_for_actor(&mut store, &actor, None, Some(50))
-            .expect("tenant admin should read own sessions");
+        let items = list_sessions_for_actor(
+            &mut store,
+            &actor,
+            None,
+            build_session_query(None, None, None, None, None, Some(50)).expect("query"),
+        )
+        .expect("tenant admin should read own sessions");
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].session_id, "session-1");
@@ -347,8 +576,13 @@ mod tests {
         let actor = sample_super_admin_principal();
         let mut store = MemorySessionCenterStore::default();
 
-        let error = list_sessions_for_actor(&mut store, &actor, None, None)
-            .expect_err("super admin must provide tenant scope");
+        let error = list_sessions_for_actor(
+            &mut store,
+            &actor,
+            None,
+            build_session_query(None, None, None, None, None, None).expect("query"),
+        )
+        .expect_err("super admin must provide tenant scope");
 
         assert!(matches!(error, SessionCenterError::InvalidRequest(_)));
     }
@@ -362,11 +596,108 @@ mod tests {
             sample_session_event_record("session-1", "chat.failed"),
         ];
 
-        let items = list_sessions_for_actor(&mut store, &actor, None, None)
-            .expect("tenant admin should read own sessions");
+        let items = list_sessions_for_actor(
+            &mut store,
+            &actor,
+            None,
+            build_session_query(None, None, None, None, None, None).expect("query"),
+        )
+        .expect("tenant admin should read own sessions");
 
         assert!(items[0].has_failure);
         assert_eq!(items[0].event_count, 2);
         assert_eq!(items[0].last_event_type, "chat.failed");
+    }
+
+    #[test]
+    fn filters_sessions_by_last_event_type() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemorySessionCenterStore::default();
+        let mut completed = sample_session_event_record("session-1", "chat.completed");
+        completed.last_occurred_at = "2026-04-18T12:00:00.000Z".to_string();
+        let mut failed = sample_session_event_record("session-2", "chat.failed");
+        failed.last_occurred_at = "2026-04-18T12:01:00.000Z".to_string();
+        store.events = vec![completed, failed];
+
+        let query = build_session_query(
+            Some("chat.failed".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("query");
+
+        let items = list_sessions_for_actor(&mut store, &actor, None, query)
+            .expect("tenant admin should filter sessions");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].session_id, "session-2");
+    }
+
+    #[test]
+    fn filters_sessions_by_has_failure() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemorySessionCenterStore::default();
+        let ok = sample_session_event_record("session-1", "chat.completed");
+        let failed = sample_session_event_record("session-2", "chat.failed");
+        store.events = vec![ok, failed];
+
+        let query = build_session_query(None, Some(true), None, None, None, None).expect("query");
+        let items = list_sessions_for_actor(&mut store, &actor, None, query)
+            .expect("tenant admin should filter failed sessions");
+
+        assert_eq!(items.len(), 1);
+        assert!(items[0].has_failure);
+    }
+
+    #[test]
+    fn paginates_sessions_by_before_id() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemorySessionCenterStore::default();
+        let mut newest = sample_session_event_record("session-2", "chat.completed");
+        newest.last_occurred_at = "2026-04-18T12:01:00.000Z".to_string();
+        let mut older = sample_session_event_record("session-1", "chat.completed");
+        older.last_occurred_at = "2026-04-18T12:00:00.000Z".to_string();
+        store.events = vec![newest, older];
+
+        let query = build_session_query(
+            None,
+            None,
+            None,
+            None,
+            Some("session-2".to_string()),
+            None,
+        )
+        .expect("query");
+        let items = list_sessions_for_actor(&mut store, &actor, None, query)
+            .expect("tenant admin should paginate sessions");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].session_id, "session-1");
+    }
+
+    #[test]
+    fn rejects_invalid_has_failure_format() {
+        let error = parse_has_failure_query(Some("maybe".to_string()))
+            .expect_err("invalid bool should be rejected");
+
+        assert!(matches!(error, SessionCenterError::InvalidRequest(_)));
+    }
+
+    #[test]
+    fn rejects_invalid_last_occurred_from_format() {
+        let error = build_session_query(
+            None,
+            None,
+            Some("not-a-time".to_string()),
+            None,
+            None,
+            None,
+        )
+        .expect_err("invalid time should be rejected");
+
+        assert!(matches!(error, SessionCenterError::InvalidRequest(_)));
     }
 }

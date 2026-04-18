@@ -37,7 +37,8 @@ use model_profiles::{
     list_model_profiles_for_actor,
 };
 use session_center::{
-    PgSessionCenterStore, SessionCenterError, list_sessions_for_actor,
+    PgSessionCenterStore, SessionCenterError, build_session_query, list_sessions_for_actor,
+    parse_has_failure_query,
 };
 use skill_catalog::{
     CreateSkillCatalogInput, PgSkillCatalogStore, SkillCatalogError,
@@ -585,12 +586,35 @@ fn handle_list_tenant_audit_events(request: &str, config: &ServerConfig) -> Stri
 fn handle_list_sessions(request: &str, config: &ServerConfig) -> String {
     let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
         .and_then(|value: String| value.parse::<i64>().ok());
+    let last_event_type = query_param(request_path(request).unwrap_or_default(), "lastEventType");
+    let has_failure = match parse_has_failure_query(
+        query_param(request_path(request).unwrap_or_default(), "hasFailure"),
+    ) {
+        Ok(value) => value,
+        Err(error) => return admin_error_response(map_session_center_to_admin_error(error)),
+    };
+    let last_occurred_from =
+        query_param(request_path(request).unwrap_or_default(), "lastOccurredFrom");
+    let last_occurred_to =
+        query_param(request_path(request).unwrap_or_default(), "lastOccurredTo");
+    let before_id = query_param(request_path(request).unwrap_or_default(), "beforeId");
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
         .and_then(|value: String| value.parse::<i64>().ok());
+    let query = match build_session_query(
+        last_event_type,
+        has_failure,
+        last_occurred_from,
+        last_occurred_to,
+        before_id,
+        limit,
+    ) {
+        Ok(query) => query,
+        Err(error) => return admin_error_response(map_session_center_to_admin_error(error)),
+    };
 
     match authenticate_request(request, config).and_then(|actor| {
         let mut store = PgSessionCenterStore::new(&config.database_url);
-        list_sessions_for_actor(&mut store, &to_principal(actor), tenant_id, limit)
+        list_sessions_for_actor(&mut store, &to_principal(actor), tenant_id, query)
             .map_err(map_session_center_to_admin_error)
     }) {
         Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
@@ -599,12 +623,35 @@ fn handle_list_sessions(request: &str, config: &ServerConfig) -> String {
 }
 
 fn handle_list_tenant_sessions(request: &str, config: &ServerConfig) -> String {
+    let last_event_type = query_param(request_path(request).unwrap_or_default(), "lastEventType");
+    let has_failure = match parse_has_failure_query(
+        query_param(request_path(request).unwrap_or_default(), "hasFailure"),
+    ) {
+        Ok(value) => value,
+        Err(error) => return admin_error_response(map_session_center_to_admin_error(error)),
+    };
+    let last_occurred_from =
+        query_param(request_path(request).unwrap_or_default(), "lastOccurredFrom");
+    let last_occurred_to =
+        query_param(request_path(request).unwrap_or_default(), "lastOccurredTo");
+    let before_id = query_param(request_path(request).unwrap_or_default(), "beforeId");
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
         .and_then(|value: String| value.parse::<i64>().ok());
+    let query = match build_session_query(
+        last_event_type,
+        has_failure,
+        last_occurred_from,
+        last_occurred_to,
+        before_id,
+        limit,
+    ) {
+        Ok(query) => query,
+        Err(error) => return admin_error_response(map_session_center_to_admin_error(error)),
+    };
 
     match authenticate_request(request, config).and_then(|actor| {
         let mut store = PgSessionCenterStore::new(&config.database_url);
-        list_sessions_for_actor(&mut store, &to_principal(actor), None, limit)
+        list_sessions_for_actor(&mut store, &to_principal(actor), None, query)
             .map_err(map_session_center_to_admin_error)
     }) {
         Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
