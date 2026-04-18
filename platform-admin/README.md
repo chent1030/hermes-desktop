@@ -135,7 +135,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `POST /api/admin/model-profiles`：超级管理员创建全局或指定租户模型
 - `POST /api/admin/model-profiles/:modelId/deactivate`：超级管理员停用模型
 - `GET /api/admin/audit/events?tenantId=:tenantId&limit=:limit&eventType=:eventType&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：超级管理员按基础条件读取指定租户审计事件
-- `GET /api/admin/sessions?tenantId=:tenantId&limit=:limit`：超级管理员读取指定租户最近会话
+- `GET /api/admin/sessions?tenantId=:tenantId&limit=:limit&lastEventType=:eventType&hasFailure=:bool&lastOccurredFrom=:iso&lastOccurredTo=:iso&beforeId=:sessionId`：超级管理员按基础条件读取指定租户最近会话
 - `GET /api/admin/tenant/model-profiles`：租户管理员读取本租户模型
 - `POST /api/admin/tenant/model-profiles`：租户管理员创建本租户模型
 - `POST /api/admin/tenant/model-profiles/:modelId/deactivate`：租户管理员停用本租户模型
@@ -146,7 +146,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `POST /api/admin/tenant/skills/catalog`：租户管理员创建本租户 Skill 清单项
 - `POST /api/admin/tenant/skills/catalog/:skillId/deactivate`：租户管理员停用本租户 Skill 清单项
 - `GET /api/admin/tenant/audit/events?limit=:limit&eventType=:eventType&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：租户管理员按基础条件读取本租户审计事件
-- `GET /api/admin/tenant/sessions?limit=:limit`：租户管理员读取本租户最近会话
+- `GET /api/admin/tenant/sessions?limit=:limit&lastEventType=:eventType&hasFailure=:bool&lastOccurredFrom=:iso&lastOccurredTo=:iso&beforeId=:sessionId`：租户管理员按基础条件读取本租户最近会话
 
 当前权限边界：
 
@@ -236,14 +236,20 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
 - 租户管理员只能读取自己租户的会话
 - 默认返回最近 `100` 条
 - 最大 `limit = 200`
+- 支持按 `lastEventType` 精确筛选最近事件类型
+- 支持按 `hasFailure=true|false` 筛选失败 / 非失败会话
+- 支持按 `lastOccurredFrom / lastOccurredTo` 做最近发生时间范围筛选
+- 支持按 `beforeId` 基于当前列表最后一个 `sessionId` 简单向后翻页
 - 返回字段包括 `sessionId`、租户、最后触发账号、最近事件类型、最近发生时间、事件数和失败标记
+- `beforeId` 的锚点规则为：先定位该 `sessionId` 当前聚合后的 `lastOccurredAt`，再按 `(lastOccurredAt DESC, sessionId DESC)` 继续向后取更老会话
+- 非法 `hasFailure` 或非法时间格式会返回 `400 Bad Request`
 
 当前不做：
 
 - 会话详情页
 - transcript 展示
 - 会话导出
-- 会话复杂筛选
+- 跨字段高级组合检索
 - 审计中心联动跳转
 
 ## 桌面执行端接口
