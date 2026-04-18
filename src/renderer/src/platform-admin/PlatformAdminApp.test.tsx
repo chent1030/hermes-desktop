@@ -365,7 +365,7 @@ describe("platform admin frontend", () => {
     expect(screen.getByText("Failed")).toBeInTheDocument();
   });
 
-  it("applies audit filters and loads older audit events", async () => {
+  it("applies audit filters with account and payload search, then loads older audit events", async () => {
     setupFetch([
       mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
       mockJsonResponse({
@@ -522,13 +522,34 @@ describe("platform admin frontend", () => {
     fireEvent.change(within(auditCard).getByLabelText("Event type"), {
       target: { value: "chat.started" },
     });
+    fireEvent.change(within(auditCard).getByLabelText("Account"), {
+      target: { value: "Alice" },
+    });
+    fireEvent.change(within(auditCard).getByLabelText("Payload contains"), {
+      target: { value: "s1" },
+    });
     fireEvent.change(within(auditCard).getByLabelText("Limit"), {
       target: { value: "1" },
     });
     fireEvent.click(within(auditCard).getByRole("button", { name: "Apply filters" }));
 
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/api/admin/audit/events?tenantId=7&limit=1&eventType=chat.started&accountQuery=Alice&payloadQuery=s1",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
     expect(await screen.findByText("chat.started")).toBeInTheDocument();
     fireEvent.click(within(auditCard).getByRole("button", { name: "Load older events" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/api/admin/audit/events?tenantId=7&limit=1&eventType=chat.started&accountQuery=Alice&payloadQuery=s1&beforeId=199",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
     expect(await screen.findByText("{\"sessionId\":\"s0\"}")).toBeInTheDocument();
   });
 

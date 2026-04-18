@@ -104,6 +104,8 @@ interface AuditFilters {
   eventType: string;
   occurredFrom: string;
   occurredTo: string;
+  accountQuery: string;
+  payloadQuery: string;
   limit: string;
 }
 
@@ -258,6 +260,8 @@ export default function App(): React.JSX.Element {
     eventType: "",
     occurredFrom: "",
     occurredTo: "",
+    accountQuery: "",
+    payloadQuery: "",
     limit: "100",
   });
   const [sessionFilters, setSessionFilters] = useState<SessionFilters>({
@@ -401,6 +405,12 @@ export default function App(): React.JSX.Element {
     if (filters.eventType.trim()) {
       params.set("eventType", filters.eventType.trim());
     }
+    if (filters.accountQuery.trim()) {
+      params.set("accountQuery", filters.accountQuery.trim());
+    }
+    if (filters.payloadQuery.trim()) {
+      params.set("payloadQuery", filters.payloadQuery.trim());
+    }
     if (filters.occurredFrom) {
       params.set("occurredFrom", new Date(filters.occurredFrom).toISOString());
     }
@@ -429,6 +439,12 @@ export default function App(): React.JSX.Element {
     }
     if (filters.eventType.trim()) {
       params.set("eventType", filters.eventType.trim());
+    }
+    if (filters.accountQuery.trim()) {
+      params.set("accountQuery", filters.accountQuery.trim());
+    }
+    if (filters.payloadQuery.trim()) {
+      params.set("payloadQuery", filters.payloadQuery.trim());
     }
     if (filters.occurredFrom) {
       params.set("occurredFrom", new Date(filters.occurredFrom).toISOString());
@@ -1105,6 +1121,24 @@ export default function App(): React.JSX.Element {
           value={auditFilters.eventType}
           onChange={(event) =>
             setAuditFilters((current) => ({ ...current, eventType: event.target.value }))
+          }
+        />
+      </label>
+      <label className="platform-admin-field">
+        <span>Account</span>
+        <input
+          value={auditFilters.accountQuery}
+          onChange={(event) =>
+            setAuditFilters((current) => ({ ...current, accountQuery: event.target.value }))
+          }
+        />
+      </label>
+      <label className="platform-admin-field">
+        <span>Payload contains</span>
+        <input
+          value={auditFilters.payloadQuery}
+          onChange={(event) =>
+            setAuditFilters((current) => ({ ...current, payloadQuery: event.target.value }))
           }
         />
       </label>

@@ -33,6 +33,8 @@ pub struct AuditEventQuery {
     pub event_prefix: Option<String>,
     pub occurred_from: Option<String>,
     pub occurred_to: Option<String>,
+    pub account_query: Option<String>,
+    pub payload_query: Option<String>,
     pub before_id: Option<i64>,
     pub limit: i64,
 }
@@ -152,9 +154,15 @@ impl AuditCenterStore for PgAuditCenterStore {
               AND ($3::varchar IS NULL OR e.event_type LIKE ($3 || '%'))
               AND ($4::text::timestamptz IS NULL OR e.occurred_at >= $4::text::timestamptz)
               AND ($5::text::timestamptz IS NULL OR e.occurred_at <= $5::text::timestamptz)
-              AND ($6::bigint IS NULL OR e.id < $6)
+              AND (
+                    $6::varchar IS NULL
+                    OR a.username ILIKE ('%' || $6 || '%')
+                    OR a.display_name ILIKE ('%' || $6 || '%')
+              )
+              AND ($7::varchar IS NULL OR e.payload::text ILIKE ('%' || $7 || '%'))
+              AND ($8::bigint IS NULL OR e.id < $8)
             ORDER BY e.occurred_at DESC, e.id DESC
-            LIMIT $7
+            LIMIT $9
             ",
             &[
                 &tenant_id,
@@ -162,6 +170,8 @@ impl AuditCenterStore for PgAuditCenterStore {
                 &query.event_prefix,
                 &query.occurred_from,
                 &query.occurred_to,
+                &query.account_query,
+                &query.payload_query,
                 &query.before_id,
                 &query.limit,
             ],
@@ -221,6 +231,8 @@ pub fn build_audit_event_query(
     requested_event_prefix: Option<String>,
     requested_occurred_from: Option<String>,
     requested_occurred_to: Option<String>,
+    requested_account_query: Option<String>,
+    requested_payload_query: Option<String>,
     requested_before_id: Option<i64>,
     requested_limit: Option<i64>,
 ) -> Result<AuditEventQuery, AuditCenterError> {
@@ -248,6 +260,8 @@ pub fn build_audit_event_query(
         event_prefix: requested_event_prefix.filter(|value| !value.trim().is_empty()),
         occurred_from,
         occurred_to,
+        account_query: requested_account_query.filter(|value| !value.trim().is_empty()),
+        payload_query: requested_payload_query.filter(|value| !value.trim().is_empty()),
         before_id: requested_before_id,
         limit: normalize_limit(requested_limit),
     })
@@ -285,6 +299,11 @@ fn map_store_read_error(error: AuditCenterStoreError) -> AuditCenterError {
     } else {
         AuditCenterError::Store(message)
     }
+}
+
+#[cfg(test)]
+fn contains_ignore_case(haystack: &str, needle: &str) -> bool {
+    haystack.to_lowercase().contains(&needle.to_lowercase())
 }
 
 fn row_to_audit_event(row: postgres::Row) -> AuditEventRecord {
@@ -378,6 +397,17 @@ mod tests {
                         .as_ref()
                         .is_none_or(|value| event.occurred_at <= *value)
                 })
+                .filter(|event| {
+                    query.account_query.as_ref().is_none_or(|value| {
+                        contains_ignore_case(&event.account.username, value)
+                            || contains_ignore_case(&event.account.display_name, value)
+                    })
+                })
+                .filter(|event| {
+                    query.payload_query.as_ref().is_none_or(|value| {
+                        contains_ignore_case(&event.payload.to_string(), value)
+                    })
+                })
                 .cloned()
                 .collect::<Vec<_>>();
             items.truncate(query.limit as usize);
@@ -452,7 +482,8 @@ mod tests {
             &mut store,
             &actor,
             Some(7),
-            build_audit_event_query(None, None, None, None, None, Some(50)).expect("query"),
+            build_audit_event_query(None, None, None, None, None, None, None, Some(50))
+                .expect("query"),
         )
         .expect("tenant admin should read own audit events");
 
@@ -469,7 +500,8 @@ mod tests {
             &mut store,
             &actor,
             None,
-            build_audit_event_query(None, None, None, None, None, None).expect("query"),
+            build_audit_event_query(None, None, None, None, None, None, None, None)
+                .expect("query"),
         )
         .expect_err("super admin must provide tenant scope");
 
@@ -491,6 +523,8 @@ mod tests {
             Some(7),
             build_audit_event_query(
                 Some("chat.started".to_string()),
+                None,
+                None,
                 None,
                 None,
                 None,
@@ -521,13 +555,76 @@ mod tests {
             &mut store,
             &actor,
             Some(7),
-            build_audit_event_query(None, Some("run.".to_string()), None, None, None, None)
+            build_audit_event_query(None, Some("run.".to_string()), None, None, None, None, None, None)
                 .expect("query"),
         )
         .expect("tenant admin should filter audit events by prefix");
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].event_type, "run.model.selected");
+    }
+
+    #[test]
+    fn filters_audit_events_by_account_query() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemoryAuditCenterStore::default();
+        let mut other = sample_audit_event_record();
+        other.id = 12;
+        other.account.username = "bob".to_string();
+        other.account.display_name = "Bob".to_string();
+        store.events = vec![sample_audit_event_record(), other];
+
+        let items = list_audit_events_for_actor(
+            &mut store,
+            &actor,
+            Some(7),
+            build_audit_event_query(
+                None,
+                None,
+                None,
+                None,
+                Some("acme".to_string()),
+                None,
+                None,
+                None,
+            )
+            .expect("query"),
+        )
+        .expect("tenant admin should filter audit events by account");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].account.username, "admin");
+    }
+
+    #[test]
+    fn filters_audit_events_by_payload_query() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemoryAuditCenterStore::default();
+        let mut other = sample_audit_event_record();
+        other.id = 12;
+        other.payload = serde_json::json!({ "marker": "needle" });
+        store.events = vec![sample_audit_event_record(), other];
+
+        let items = list_audit_events_for_actor(
+            &mut store,
+            &actor,
+            Some(7),
+            build_audit_event_query(
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some("needle".to_string()),
+                None,
+                None,
+            )
+            .expect("query"),
+        )
+        .expect("tenant admin should filter audit events by payload text");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, 12);
     }
 
     #[test]
@@ -546,7 +643,8 @@ mod tests {
             &mut store,
             &actor,
             Some(7),
-            build_audit_event_query(None, None, None, None, Some(11), None).expect("query"),
+            build_audit_event_query(None, None, None, None, None, None, Some(11), None)
+                .expect("query"),
         )
         .expect("tenant admin should paginate audit events");
 
@@ -560,6 +658,8 @@ mod tests {
             None,
             None,
             Some("not-a-time".to_string()),
+            None,
+            None,
             None,
             None,
             None,
@@ -605,6 +705,8 @@ mod tests {
             Some(tenant_id),
             build_audit_event_query(
                 Some("workspace.initialized".to_string()),
+                None,
+                None,
                 None,
                 None,
                 None,

@@ -134,7 +134,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `GET /api/admin/model-profiles?tenantId=:tenantId`：超级管理员读取全局或指定租户模型
 - `POST /api/admin/model-profiles`：超级管理员创建全局或指定租户模型
 - `POST /api/admin/model-profiles/:modelId/deactivate`：超级管理员停用模型
-- `GET /api/admin/audit/events?tenantId=:tenantId&limit=:limit&eventType=:eventType&eventPrefix=:prefix&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：超级管理员按基础条件读取指定租户审计事件
+- `GET /api/admin/audit/events?tenantId=:tenantId&limit=:limit&eventType=:eventType&eventPrefix=:prefix&accountQuery=:text&payloadQuery=:text&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：超级管理员按基础条件读取指定租户审计事件
 - `GET /api/admin/sessions?tenantId=:tenantId&limit=:limit&lastEventType=:eventType&hasFailure=:bool&lastOccurredFrom=:iso&lastOccurredTo=:iso&beforeId=:sessionId`：超级管理员按基础条件读取指定租户最近会话
 - `GET /api/admin/tenant/model-profiles`：租户管理员读取本租户模型
 - `POST /api/admin/tenant/model-profiles`：租户管理员创建本租户模型
@@ -145,7 +145,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `GET /api/admin/tenant/skills/catalog`：租户管理员读取本租户 Skill 清单
 - `POST /api/admin/tenant/skills/catalog`：租户管理员创建本租户 Skill 清单项
 - `POST /api/admin/tenant/skills/catalog/:skillId/deactivate`：租户管理员停用本租户 Skill 清单项
-- `GET /api/admin/tenant/audit/events?limit=:limit&eventType=:eventType&eventPrefix=:prefix&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：租户管理员按基础条件读取本租户审计事件
+- `GET /api/admin/tenant/audit/events?limit=:limit&eventType=:eventType&eventPrefix=:prefix&accountQuery=:text&payloadQuery=:text&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：租户管理员按基础条件读取本租户审计事件
 - `GET /api/admin/tenant/sessions?limit=:limit&lastEventType=:eventType&hasFailure=:bool&lastOccurredFrom=:iso&lastOccurredTo=:iso&beforeId=:sessionId`：租户管理员按基础条件读取本租户最近会话
 
 当前权限边界：

@@ -532,6 +532,8 @@ fn handle_list_audit_events(request: &str, config: &ServerConfig) -> String {
     let event_prefix = query_param(request_path(request).unwrap_or_default(), "eventPrefix");
     let occurred_from = query_param(request_path(request).unwrap_or_default(), "occurredFrom");
     let occurred_to = query_param(request_path(request).unwrap_or_default(), "occurredTo");
+    let account_query = query_param(request_path(request).unwrap_or_default(), "accountQuery");
+    let payload_query = query_param(request_path(request).unwrap_or_default(), "payloadQuery");
     let before_id = query_param(request_path(request).unwrap_or_default(), "beforeId")
         .and_then(|value: String| value.parse::<i64>().ok());
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
@@ -541,6 +543,8 @@ fn handle_list_audit_events(request: &str, config: &ServerConfig) -> String {
         event_prefix,
         occurred_from,
         occurred_to,
+        account_query,
+        payload_query,
         before_id,
         limit,
     ) {
@@ -563,6 +567,8 @@ fn handle_list_tenant_audit_events(request: &str, config: &ServerConfig) -> Stri
     let event_prefix = query_param(request_path(request).unwrap_or_default(), "eventPrefix");
     let occurred_from = query_param(request_path(request).unwrap_or_default(), "occurredFrom");
     let occurred_to = query_param(request_path(request).unwrap_or_default(), "occurredTo");
+    let account_query = query_param(request_path(request).unwrap_or_default(), "accountQuery");
+    let payload_query = query_param(request_path(request).unwrap_or_default(), "payloadQuery");
     let before_id = query_param(request_path(request).unwrap_or_default(), "beforeId")
         .and_then(|value: String| value.parse::<i64>().ok());
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
@@ -572,6 +578,8 @@ fn handle_list_tenant_audit_events(request: &str, config: &ServerConfig) -> Stri
         event_prefix,
         occurred_from,
         occurred_to,
+        account_query,
+        payload_query,
         before_id,
         limit,
     ) {
@@ -1015,11 +1023,52 @@ fn query_param(path: &str, key: &str) -> Option<String> {
     query.split('&').find_map(|segment| {
         let (segment_key, segment_value) = segment.split_once('=')?;
         if segment_key == key {
-            Some(segment_value.to_string())
+            Some(url_decode_query_value(segment_value))
         } else {
             None
         }
     })
+}
+
+fn url_decode_query_value(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut index = 0;
+    let mut decoded = Vec::with_capacity(value.len());
+
+    while index < bytes.len() {
+        match bytes[index] {
+            b'+' => {
+                decoded.push(b' ');
+                index += 1;
+            }
+            b'%' if index + 2 < bytes.len() => {
+                let high = from_hex_digit(bytes[index + 1]);
+                let low = from_hex_digit(bytes[index + 2]);
+                if let (Some(high), Some(low)) = (high, low) {
+                    decoded.push(high << 4 | low);
+                    index += 3;
+                } else {
+                    decoded.push(b'%');
+                    index += 1;
+                }
+            }
+            byte => {
+                decoded.push(byte);
+                index += 1;
+            }
+        }
+    }
+
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
+fn from_hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 fn bearer_token(request: &str) -> Option<&str> {
