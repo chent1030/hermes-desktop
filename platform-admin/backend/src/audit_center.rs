@@ -28,6 +28,15 @@ pub struct AuditActorRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditEventQuery {
+    pub event_type: Option<String>,
+    pub occurred_from: Option<String>,
+    pub occurred_to: Option<String>,
+    pub before_id: Option<i64>,
+    pub limit: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuditCenterError {
     InvalidRequest(String),
     Forbidden(String),
@@ -72,7 +81,7 @@ pub trait AuditCenterStore {
     fn list_audit_events(
         &mut self,
         tenant_id: i64,
-        limit: i64,
+        query: &AuditEventQuery,
     ) -> Result<Vec<AuditEventRecord>, AuditCenterStoreError>;
 }
 
@@ -115,7 +124,7 @@ impl AuditCenterStore for PgAuditCenterStore {
     fn list_audit_events(
         &mut self,
         tenant_id: i64,
-        limit: i64,
+        query: &AuditEventQuery,
     ) -> Result<Vec<AuditEventRecord>, AuditCenterStoreError> {
         let mut client = self.connect()?;
         let rows = client.query(
@@ -138,10 +147,21 @@ impl AuditCenterStore for PgAuditCenterStore {
             INNER JOIN platform_admin_tenants t ON t.id = e.tenant_id
             INNER JOIN platform_admin_accounts a ON a.id = e.account_id
             WHERE e.tenant_id = $1
+              AND ($2::varchar IS NULL OR e.event_type = $2)
+              AND ($3::timestamptz IS NULL OR e.occurred_at >= $3::timestamptz)
+              AND ($4::timestamptz IS NULL OR e.occurred_at <= $4::timestamptz)
+              AND ($5::bigint IS NULL OR e.id < $5)
             ORDER BY e.occurred_at DESC, e.id DESC
-            LIMIT $2
+            LIMIT $6
             ",
-            &[&tenant_id, &limit],
+            &[
+                &tenant_id,
+                &query.event_type,
+                &query.occurred_from,
+                &query.occurred_to,
+                &query.before_id,
+                &query.limit,
+            ],
         )?;
 
         Ok(rows.into_iter().map(row_to_audit_event).collect())
@@ -152,10 +172,8 @@ pub fn list_audit_events_for_actor<S: AuditCenterStore>(
     store: &mut S,
     actor: &AuthPrincipal,
     requested_tenant_id: Option<i64>,
-    requested_limit: Option<i64>,
+    query: AuditEventQuery,
 ) -> Result<Vec<AuditEventRecord>, AuditCenterError> {
-    let limit = normalize_limit(requested_limit);
-
     match actor.user.role_code.as_str() {
         "super_admin" => {
             let tenant_id = requested_tenant_id.ok_or(AuditCenterError::InvalidRequest(
@@ -169,8 +187,8 @@ pub fn list_audit_events_for_actor<S: AuditCenterStore>(
                 return Err(AuditCenterError::Conflict("tenant is inactive".to_string()));
             }
             store
-                .list_audit_events(tenant_id, limit)
-                .map_err(|error| AuditCenterError::Store(error.to_string()))
+                .list_audit_events(tenant_id, &query)
+                .map_err(map_store_read_error)
         }
         "tenant_admin" => {
             let tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
@@ -186,8 +204,8 @@ pub fn list_audit_events_for_actor<S: AuditCenterStore>(
                 }
             }
             store
-                .list_audit_events(tenant_id, limit)
-                .map_err(|error| AuditCenterError::Store(error.to_string()))
+                .list_audit_events(tenant_id, &query)
+                .map_err(map_store_read_error)
         }
         _ => Err(AuditCenterError::Forbidden(
             "actor is not allowed to list audit events".to_string(),
@@ -195,10 +213,72 @@ pub fn list_audit_events_for_actor<S: AuditCenterStore>(
     }
 }
 
+pub fn build_audit_event_query(
+    requested_event_type: Option<String>,
+    requested_occurred_from: Option<String>,
+    requested_occurred_to: Option<String>,
+    requested_before_id: Option<i64>,
+    requested_limit: Option<i64>,
+) -> Result<AuditEventQuery, AuditCenterError> {
+    let occurred_from = requested_occurred_from.filter(|value| !value.trim().is_empty());
+    let occurred_to = requested_occurred_to.filter(|value| !value.trim().is_empty());
+
+    if let Some(value) = occurred_from.as_ref() {
+        if !looks_like_iso_timestamp(value) {
+            return Err(AuditCenterError::InvalidRequest(
+                "occurredFrom must be an ISO-8601 timestamp".to_string(),
+            ));
+        }
+    }
+
+    if let Some(value) = occurred_to.as_ref() {
+        if !looks_like_iso_timestamp(value) {
+            return Err(AuditCenterError::InvalidRequest(
+                "occurredTo must be an ISO-8601 timestamp".to_string(),
+            ));
+        }
+    }
+
+    Ok(AuditEventQuery {
+        event_type: requested_event_type.filter(|value| !value.trim().is_empty()),
+        occurred_from,
+        occurred_to,
+        before_id: requested_before_id,
+        limit: normalize_limit(requested_limit),
+    })
+}
+
 fn normalize_limit(requested_limit: Option<i64>) -> i64 {
     match requested_limit {
         Some(limit) if limit > 0 => limit.min(200),
         _ => 100,
+    }
+}
+
+fn looks_like_iso_timestamp(value: &str) -> bool {
+    if value.len() < 20 {
+        return false;
+    }
+    let has_date = value.len() >= 20
+        && value.as_bytes().get(4) == Some(&b'-')
+        && value.as_bytes().get(7) == Some(&b'-');
+    let has_time = value.contains('T') && value.contains(':');
+    let suffix_after_date = value.get(10..).unwrap_or_default();
+    let suffix_after_time = value.get(11..).unwrap_or_default();
+    let has_timezone = value.ends_with('Z')
+        || suffix_after_date.contains('+')
+        || suffix_after_time.contains('-');
+    has_date && has_time && has_timezone
+}
+
+fn map_store_read_error(error: AuditCenterStoreError) -> AuditCenterError {
+    let message = error.to_string();
+    if message.contains("invalid input syntax")
+        && (message.contains("timestamp") || message.contains("date/time"))
+    {
+        AuditCenterError::InvalidRequest("invalid time range format".to_string())
+    } else {
+        AuditCenterError::Store(message)
     }
 }
 
@@ -253,15 +333,38 @@ mod tests {
         fn list_audit_events(
             &mut self,
             tenant_id: i64,
-            limit: i64,
+            query: &AuditEventQuery,
         ) -> Result<Vec<AuditEventRecord>, AuditCenterStoreError> {
             let mut items = self
                 .events
                 .iter()
                 .filter(|event| event.tenant.id == tenant_id)
+                .filter(|event| {
+                    query
+                        .event_type
+                        .as_ref()
+                        .is_none_or(|value| event.event_type == *value)
+                })
+                .filter(|event| {
+                    query
+                        .before_id
+                        .is_none_or(|value| event.id < value)
+                })
+                .filter(|event| {
+                    query
+                        .occurred_from
+                        .as_ref()
+                        .is_none_or(|value| event.occurred_at >= *value)
+                })
+                .filter(|event| {
+                    query
+                        .occurred_to
+                        .as_ref()
+                        .is_none_or(|value| event.occurred_at <= *value)
+                })
                 .cloned()
                 .collect::<Vec<_>>();
-            items.truncate(limit as usize);
+            items.truncate(query.limit as usize);
             Ok(items)
         }
     }
@@ -329,8 +432,13 @@ mod tests {
         let mut store = MemoryAuditCenterStore::default();
         store.events = vec![sample_audit_event_record()];
 
-        let items = list_audit_events_for_actor(&mut store, &actor, Some(7), Some(50))
-            .expect("tenant admin should read own audit events");
+        let items = list_audit_events_for_actor(
+            &mut store,
+            &actor,
+            Some(7),
+            build_audit_event_query(None, None, None, None, Some(50)).expect("query"),
+        )
+        .expect("tenant admin should read own audit events");
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].event_type, "workspace.initialized");
@@ -341,8 +449,79 @@ mod tests {
         let actor = sample_super_admin_principal();
         let mut store = MemoryAuditCenterStore::default();
 
-        let error = list_audit_events_for_actor(&mut store, &actor, None, None)
-            .expect_err("super admin must provide tenant scope");
+        let error = list_audit_events_for_actor(
+            &mut store,
+            &actor,
+            None,
+            build_audit_event_query(None, None, None, None, None).expect("query"),
+        )
+        .expect_err("super admin must provide tenant scope");
+
+        assert!(matches!(error, AuditCenterError::InvalidRequest(_)));
+    }
+
+    #[test]
+    fn filters_audit_events_by_event_type() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemoryAuditCenterStore::default();
+        let mut other = sample_audit_event_record();
+        other.id = 12;
+        other.event_type = "chat.started".to_string();
+        store.events = vec![sample_audit_event_record(), other];
+
+        let items = list_audit_events_for_actor(
+            &mut store,
+            &actor,
+            Some(7),
+            build_audit_event_query(
+                Some("chat.started".to_string()),
+                None,
+                None,
+                None,
+                None,
+            )
+            .expect("query"),
+        )
+        .expect("tenant admin should filter audit events");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].event_type, "chat.started");
+    }
+
+    #[test]
+    fn paginates_audit_events_by_before_id() {
+        let actor = sample_tenant_admin_principal();
+        let mut store = MemoryAuditCenterStore::default();
+        let mut older = sample_audit_event_record();
+        older.id = 9;
+        older.occurred_at = "2026-04-18T11:00:00.000Z".to_string();
+        let mut newest = sample_audit_event_record();
+        newest.id = 11;
+        newest.occurred_at = "2026-04-18T12:00:00.000Z".to_string();
+        store.events = vec![newest, older];
+
+        let items = list_audit_events_for_actor(
+            &mut store,
+            &actor,
+            Some(7),
+            build_audit_event_query(None, None, None, Some(11), None).expect("query"),
+        )
+        .expect("tenant admin should paginate audit events");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, 9);
+    }
+
+    #[test]
+    fn rejects_invalid_occurred_from_format() {
+        let error = build_audit_event_query(
+            None,
+            Some("not-a-time".to_string()),
+            None,
+            None,
+            None,
+        )
+        .expect_err("invalid time should be rejected");
 
         assert!(matches!(error, AuditCenterError::InvalidRequest(_)));
     }

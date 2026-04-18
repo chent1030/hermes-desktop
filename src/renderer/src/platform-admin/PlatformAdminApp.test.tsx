@@ -302,4 +302,149 @@ describe("platform admin frontend", () => {
     expect(screen.getByText("Acme CRM")).toBeInTheDocument();
     expect(screen.getByText("chat.started")).toBeInTheDocument();
   });
+
+  it("applies audit filters and loads older audit events", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_root",
+        refreshToken: "rtk_root",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+      mockJsonResponse([
+        {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 11,
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          username: "alice",
+          displayName: "Alice",
+          roleCode: "tenant_user",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: "mdl_global_default",
+          scopeType: "global",
+          tenant: null,
+          provider: "openai",
+          model: "gpt-5.4",
+          label: "GPT-5.4",
+          baseUrl: "https://api.openai.com/v1",
+          isDefault: true,
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([]),
+      mockJsonResponse([
+        {
+          id: 201,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          eventType: "workspace.initialized",
+          payload: { modelCount: 1 },
+          occurredAt: "2026-04-18T12:00:00.000Z",
+          createdAt: "2026-04-18T12:00:01.000Z",
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 199,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          eventType: "chat.started",
+          payload: { sessionId: "s1" },
+          occurredAt: "2026-04-18T11:00:00.000Z",
+          createdAt: "2026-04-18T11:00:00.500Z",
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 188,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          eventType: "chat.started",
+          payload: { sessionId: "s0" },
+          occurredAt: "2026-04-18T10:00:00.000Z",
+          createdAt: "2026-04-18T10:00:00.500Z",
+        },
+      ]),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tenant code"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "root" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "Secret123!" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Audit center" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Event type"), {
+      target: { value: "chat.started" },
+    });
+    fireEvent.change(screen.getByLabelText("Limit"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+
+    expect(await screen.findByText("chat.started")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Load older events" }));
+    expect(await screen.findByText("{\"sessionId\":\"s0\"}")).toBeInTheDocument();
+  });
 });

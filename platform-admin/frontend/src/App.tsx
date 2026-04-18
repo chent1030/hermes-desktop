@@ -85,6 +85,13 @@ interface AuditEventRecord {
   createdAt: string;
 }
 
+interface AuditFilters {
+  eventType: string;
+  occurredFrom: string;
+  occurredTo: string;
+  limit: string;
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   const body = (await response.json()) as Record<string, unknown>;
@@ -126,6 +133,14 @@ export default function App(): React.JSX.Element {
   const [modelProfiles, setModelProfiles] = useState<ModelProfileRecord[]>([]);
   const [skillCatalog, setSkillCatalog] = useState<SkillCatalogRecord[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
+  const [auditFilters, setAuditFilters] = useState<AuditFilters>({
+    eventType: "",
+    occurredFrom: "",
+    occurredTo: "",
+    limit: "100",
+  });
+  const [auditHasMore, setAuditHasMore] = useState(false);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
   const [modelScope, setModelScope] = useState<"global" | "tenant">("global");
   const [skillScope, setSkillScope] = useState<"global" | "tenant">("global");
@@ -240,12 +255,56 @@ export default function App(): React.JSX.Element {
   const fetchSuperAdminAuditEvents = async (
     nextSession: LoginResponse,
     tenantId: number | null,
+    filters: AuditFilters,
+    beforeId?: number,
   ): Promise<AuditEventRecord[]> => {
     if (!tenantId) {
       return [];
     }
+    const params = new URLSearchParams({
+      tenantId: String(tenantId),
+      limit: filters.limit || "100",
+    });
+    if (filters.eventType.trim()) {
+      params.set("eventType", filters.eventType.trim());
+    }
+    if (filters.occurredFrom) {
+      params.set("occurredFrom", new Date(filters.occurredFrom).toISOString());
+    }
+    if (filters.occurredTo) {
+      params.set("occurredTo", new Date(filters.occurredTo).toISOString());
+    }
+    if (typeof beforeId === "number") {
+      params.set("beforeId", String(beforeId));
+    }
+    return requestJson<AuditEventRecord[]>(`/api/admin/audit/events?${params.toString()}`, {
+      method: "GET",
+      headers: authHeaders(nextSession),
+    });
+  };
+
+  const fetchTenantAuditEvents = async (
+    nextSession: LoginResponse,
+    filters: AuditFilters,
+    beforeId?: number,
+  ): Promise<AuditEventRecord[]> => {
+    const params = new URLSearchParams({
+      limit: filters.limit || "100",
+    });
+    if (filters.eventType.trim()) {
+      params.set("eventType", filters.eventType.trim());
+    }
+    if (filters.occurredFrom) {
+      params.set("occurredFrom", new Date(filters.occurredFrom).toISOString());
+    }
+    if (filters.occurredTo) {
+      params.set("occurredTo", new Date(filters.occurredTo).toISOString());
+    }
+    if (typeof beforeId === "number") {
+      params.set("beforeId", String(beforeId));
+    }
     return requestJson<AuditEventRecord[]>(
-      `/api/admin/audit/events?tenantId=${tenantId}&limit=100`,
+      `/api/admin/tenant/audit/events?${params.toString()}`,
       {
         method: "GET",
         headers: authHeaders(nextSession),
@@ -291,11 +350,12 @@ export default function App(): React.JSX.Element {
         const [nextModels, nextSkills, nextAuditEvents] = await Promise.all([
           fetchSuperAdminModelProfiles(nextSession, nextModelScope, nextSelectedTenantId),
           fetchSuperAdminSkillCatalog(nextSession, nextSkillScope, nextSelectedTenantId),
-          fetchSuperAdminAuditEvents(nextSession, nextSelectedTenantId),
+          fetchSuperAdminAuditEvents(nextSession, nextSelectedTenantId, auditFilters),
         ]);
         setModelProfiles(nextModels);
         setSkillCatalog(nextSkills);
         setAuditEvents(nextAuditEvents);
+        setAuditHasMore(nextAuditEvents.length >= Number(auditFilters.limit || "100"));
         return;
       }
 
@@ -318,14 +378,12 @@ export default function App(): React.JSX.Element {
           method: "GET",
           headers: authHeaders(nextSession),
         }),
-        requestJson<AuditEventRecord[]>("/api/admin/tenant/audit/events?limit=100", {
-          method: "GET",
-          headers: authHeaders(nextSession),
-        }),
+        fetchTenantAuditEvents(nextSession, auditFilters),
       ]);
       setModelProfiles(tenantModels);
       setSkillCatalog(tenantSkills);
       setAuditEvents(tenantAuditEvents);
+      setAuditHasMore(tenantAuditEvents.length >= Number(auditFilters.limit || "100"));
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Workspace load failed");
     } finally {
@@ -361,6 +419,7 @@ export default function App(): React.JSX.Element {
       setModelProfiles([]);
       setSkillCatalog([]);
       setAuditEvents([]);
+      setAuditHasMore(false);
       setLoginError(error instanceof Error ? error.message : "Unknown login error");
     } finally {
       setIsSubmitting(false);
@@ -674,12 +733,108 @@ export default function App(): React.JSX.Element {
     }
   };
 
+  const handleApplyAuditFilters = async () => {
+    if (!session) {
+      return;
+    }
+
+    setWorkspaceError(null);
+    setIsLoadingAudit(true);
+    try {
+      const items =
+        session.user.roleCode === "super_admin"
+          ? await fetchSuperAdminAuditEvents(session, selectedTenantId, auditFilters)
+          : await fetchTenantAuditEvents(session, auditFilters);
+      setAuditEvents(items);
+      setAuditHasMore(items.length >= Number(auditFilters.limit || "100"));
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Load audit events failed");
+    } finally {
+      setIsLoadingAudit(false);
+    }
+  };
+
+  const handleLoadOlderAuditEvents = async () => {
+    if (!session || auditEvents.length === 0) {
+      return;
+    }
+
+    const beforeId = auditEvents[auditEvents.length - 1]?.id;
+    if (!beforeId) {
+      return;
+    }
+
+    setWorkspaceError(null);
+    setIsLoadingAudit(true);
+    try {
+      const olderItems =
+        session.user.roleCode === "super_admin"
+          ? await fetchSuperAdminAuditEvents(session, selectedTenantId, auditFilters, beforeId)
+          : await fetchTenantAuditEvents(session, auditFilters, beforeId);
+      setAuditEvents((current) => [...current, ...olderItems]);
+      setAuditHasMore(olderItems.length >= Number(auditFilters.limit || "100"));
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Load older audit events failed");
+    } finally {
+      setIsLoadingAudit(false);
+    }
+  };
+
   const renderAuditEvent = (item: AuditEventRecord): React.JSX.Element => (
     <div key={item.id} className="platform-admin-list-item is-static">
       <span>{item.eventType}</span>
       <small>{item.account.displayName}</small>
       <small>{item.occurredAt}</small>
       <small>{JSON.stringify(item.payload)}</small>
+    </div>
+  );
+
+  const renderAuditFilters = (): React.JSX.Element => (
+    <div className="platform-admin-form">
+      <label className="platform-admin-field">
+        <span>Event type</span>
+        <input
+          value={auditFilters.eventType}
+          onChange={(event) =>
+            setAuditFilters((current) => ({ ...current, eventType: event.target.value }))
+          }
+        />
+      </label>
+      <label className="platform-admin-field">
+        <span>Occurred from</span>
+        <input
+          type="datetime-local"
+          value={auditFilters.occurredFrom}
+          onChange={(event) =>
+            setAuditFilters((current) => ({ ...current, occurredFrom: event.target.value }))
+          }
+        />
+      </label>
+      <label className="platform-admin-field">
+        <span>Occurred to</span>
+        <input
+          type="datetime-local"
+          value={auditFilters.occurredTo}
+          onChange={(event) =>
+            setAuditFilters((current) => ({ ...current, occurredTo: event.target.value }))
+          }
+        />
+      </label>
+      <label className="platform-admin-field">
+        <span>Limit</span>
+        <input
+          type="number"
+          min="1"
+          max="200"
+          value={auditFilters.limit}
+          onChange={(event) =>
+            setAuditFilters((current) => ({ ...current, limit: event.target.value || "100" }))
+          }
+        />
+      </label>
+      <button className="platform-admin-submit" type="button" onClick={() => void handleApplyAuditFilters()}>
+        Apply filters
+      </button>
     </div>
   );
 
@@ -1131,6 +1286,7 @@ export default function App(): React.JSX.Element {
               <article className="platform-admin-card platform-admin-stack-card">
                 <p className="platform-admin-section-label">Audit center</p>
                 <h3>Audit center</h3>
+                {renderAuditFilters()}
                 {!selectedTenantId ? (
                   <p className="platform-admin-panel-note">
                     Select a tenant to inspect runtime audit events.
@@ -1139,6 +1295,16 @@ export default function App(): React.JSX.Element {
                 <div className="platform-admin-list">
                   {auditEvents.map((item) => renderAuditEvent(item))}
                 </div>
+                {auditHasMore && selectedTenantId ? (
+                  <button
+                    className="platform-admin-secondary-button"
+                    type="button"
+                    onClick={() => void handleLoadOlderAuditEvents()}
+                    disabled={isLoadingAudit}
+                  >
+                    {isLoadingAudit ? "Loading..." : "Load older events"}
+                  </button>
+                ) : null}
               </article>
             </div>
           ) : null}
@@ -1354,9 +1520,20 @@ export default function App(): React.JSX.Element {
               <article className="platform-admin-card platform-admin-stack-card">
                 <p className="platform-admin-section-label">Tenant audit center</p>
                 <h3>Tenant audit center</h3>
+                {renderAuditFilters()}
                 <div className="platform-admin-list">
                   {auditEvents.map((item) => renderAuditEvent(item))}
                 </div>
+                {auditHasMore ? (
+                  <button
+                    className="platform-admin-secondary-button"
+                    type="button"
+                    onClick={() => void handleLoadOlderAuditEvents()}
+                    disabled={isLoadingAudit}
+                  >
+                    {isLoadingAudit ? "Loading..." : "Load older events"}
+                  </button>
+                ) : null}
               </article>
             </div>
           ) : null}

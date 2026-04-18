@@ -134,7 +134,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `GET /api/admin/model-profiles?tenantId=:tenantId`：超级管理员读取全局或指定租户模型
 - `POST /api/admin/model-profiles`：超级管理员创建全局或指定租户模型
 - `POST /api/admin/model-profiles/:modelId/deactivate`：超级管理员停用模型
-- `GET /api/admin/audit/events?tenantId=:tenantId&limit=:limit`：超级管理员读取指定租户最近审计事件
+- `GET /api/admin/audit/events?tenantId=:tenantId&limit=:limit&eventType=:eventType&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：超级管理员按基础条件读取指定租户审计事件
 - `GET /api/admin/tenant/model-profiles`：租户管理员读取本租户模型
 - `POST /api/admin/tenant/model-profiles`：租户管理员创建本租户模型
 - `POST /api/admin/tenant/model-profiles/:modelId/deactivate`：租户管理员停用本租户模型
@@ -144,7 +144,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `GET /api/admin/tenant/skills/catalog`：租户管理员读取本租户 Skill 清单
 - `POST /api/admin/tenant/skills/catalog`：租户管理员创建本租户 Skill 清单项
 - `POST /api/admin/tenant/skills/catalog/:skillId/deactivate`：租户管理员停用本租户 Skill 清单项
-- `GET /api/admin/tenant/audit/events?limit=:limit`：租户管理员读取本租户最近审计事件
+- `GET /api/admin/tenant/audit/events?limit=:limit&eventType=:eventType&occurredFrom=:iso&occurredTo=:iso&beforeId=:id`：租户管理员按基础条件读取本租户审计事件
 
 当前权限边界：
 
@@ -209,6 +209,9 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
 - 租户管理员只能读取自己租户的审计
 - 默认返回最近 `100` 条
 - 最大 `limit = 200`
+- 支持按 `eventType` 精确筛选
+- 支持按 `occurredFrom / occurredTo` 做时间范围筛选
+- 支持按 `beforeId` 简单向后翻页
 - 返回字段包括租户、账号、事件类型、payload、发生时间、入库时间
 
 当前不做：

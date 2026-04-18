@@ -23,7 +23,8 @@ use audit::{
     write_audit_events_for_actor,
 };
 use audit_center::{
-    AuditCenterError, PgAuditCenterStore, list_audit_events_for_actor,
+    AuditCenterError, PgAuditCenterStore, build_audit_event_query,
+    list_audit_events_for_actor,
 };
 use desktop::{
     DesktopError, PgDesktopStore, desktop_bootstrap_for_actor, desktop_model_profiles_for_actor,
@@ -516,12 +517,27 @@ fn handle_create_tenant(request: &str, config: &ServerConfig) -> String {
 fn handle_list_audit_events(request: &str, config: &ServerConfig) -> String {
     let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
         .and_then(|value: String| value.parse::<i64>().ok());
+    let event_type = query_param(request_path(request).unwrap_or_default(), "eventType");
+    let occurred_from = query_param(request_path(request).unwrap_or_default(), "occurredFrom");
+    let occurred_to = query_param(request_path(request).unwrap_or_default(), "occurredTo");
+    let before_id = query_param(request_path(request).unwrap_or_default(), "beforeId")
+        .and_then(|value: String| value.parse::<i64>().ok());
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
         .and_then(|value: String| value.parse::<i64>().ok());
+    let query = match build_audit_event_query(
+        event_type,
+        occurred_from,
+        occurred_to,
+        before_id,
+        limit,
+    ) {
+        Ok(query) => query,
+        Err(error) => return admin_error_response(map_audit_center_to_admin_error(error)),
+    };
 
     match authenticate_request(request, config).and_then(|actor| {
         let mut store = PgAuditCenterStore::new(&config.database_url);
-        list_audit_events_for_actor(&mut store, &to_principal(actor), tenant_id, limit)
+        list_audit_events_for_actor(&mut store, &to_principal(actor), tenant_id, query)
             .map_err(map_audit_center_to_admin_error)
     }) {
         Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
@@ -530,12 +546,27 @@ fn handle_list_audit_events(request: &str, config: &ServerConfig) -> String {
 }
 
 fn handle_list_tenant_audit_events(request: &str, config: &ServerConfig) -> String {
+    let event_type = query_param(request_path(request).unwrap_or_default(), "eventType");
+    let occurred_from = query_param(request_path(request).unwrap_or_default(), "occurredFrom");
+    let occurred_to = query_param(request_path(request).unwrap_or_default(), "occurredTo");
+    let before_id = query_param(request_path(request).unwrap_or_default(), "beforeId")
+        .and_then(|value: String| value.parse::<i64>().ok());
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
         .and_then(|value: String| value.parse::<i64>().ok());
+    let query = match build_audit_event_query(
+        event_type,
+        occurred_from,
+        occurred_to,
+        before_id,
+        limit,
+    ) {
+        Ok(query) => query,
+        Err(error) => return admin_error_response(map_audit_center_to_admin_error(error)),
+    };
 
     match authenticate_request(request, config).and_then(|actor| {
         let mut store = PgAuditCenterStore::new(&config.database_url);
-        list_audit_events_for_actor(&mut store, &to_principal(actor), None, limit)
+        list_audit_events_for_actor(&mut store, &to_principal(actor), None, query)
             .map_err(map_audit_center_to_admin_error)
     }) {
         Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
