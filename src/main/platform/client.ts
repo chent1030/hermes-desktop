@@ -17,6 +17,26 @@ export class PlatformRequestError extends Error {
   }
 }
 
+async function extractErrorMessage(response: Response): Promise<string> {
+  const fallback = `${response.status} ${response.statusText}`.trim();
+  const text = await response.text();
+
+  if (!text) {
+    return fallback;
+  }
+
+  try {
+    const body = JSON.parse(text) as { message?: unknown };
+    if (typeof body.message === "string" && body.message.trim()) {
+      return body.message;
+    }
+  } catch {
+    // Fall back to raw text when the response is not JSON.
+  }
+
+  return text.trim() || fallback;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${PLATFORM_BASE_URL}${path}`, {
     ...init,
@@ -27,7 +47,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!response.ok) {
-    const message = `${response.status} ${response.statusText}`.trim();
+    const message = await extractErrorMessage(response);
     throw new PlatformRequestError(response.status, message);
   }
 

@@ -166,6 +166,64 @@ describe("platform runtime", () => {
     expect(getWorkspaceRuntime()).toBeNull();
   });
 
+  it("surfaces backend message when tenant login fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "invalid credentials" }), {
+          status: 401,
+          statusText: "Unauthorized",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      loginWithPassword({
+        tenantCode: "acme",
+        username: "alice",
+        password: "bad-secret",
+      }),
+    ).rejects.toMatchObject({
+      message: "invalid credentials",
+      status: 401,
+    });
+  });
+
+  it("surfaces backend message when bootstrap initialization fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ message: "workspace bootstrap disabled" }), {
+            status: 503,
+            statusText: "Service Unavailable",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }),
+        )
+        .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] })))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }))),
+    );
+
+    await loginWithPassword({
+      tenantCode: "acme",
+      username: "alice",
+      password: "secret",
+    });
+
+    await expect(initializeWorkspaceState()).rejects.toMatchObject({
+      message: "workspace bootstrap disabled",
+      status: 503,
+    });
+  });
+
   it("preserves the initialized workspace when refresh succeeds", async () => {
     vi.stubGlobal(
       "fetch",
