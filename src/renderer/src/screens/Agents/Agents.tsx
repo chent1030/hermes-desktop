@@ -13,7 +13,6 @@ interface ProfileInfo {
   hasEnv: boolean;
   hasSoul: boolean;
   skillCount: number;
-  gatewayRunning: boolean;
 }
 
 interface AgentsProps {
@@ -196,14 +195,6 @@ function Agents({
             </div>
             <div className="agents-card-stats">
               <span>{t("agents.skillsCount", { count: p.skillCount })}</span>
-              <span className="agents-card-dot" />
-              {p.gatewayRunning ? (
-                <span className="agents-card-gateway-on">
-                  {t("agents.gatewayRunning")}
-                </span>
-              ) : (
-                <span>{t("agents.gatewayOff")}</span>
-              )}
             </div>
             <div className="agents-card-footer">
               <button

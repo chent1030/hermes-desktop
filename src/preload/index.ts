@@ -186,21 +186,6 @@ const hermesAPI = {
     return () => ipcRenderer.removeListener("chat-error", handler);
   },
 
-  // Gateway
-  startGateway: (): Promise<boolean> => ipcRenderer.invoke("start-gateway"),
-  stopGateway: (): Promise<boolean> => ipcRenderer.invoke("stop-gateway"),
-  gatewayStatus: (): Promise<boolean> => ipcRenderer.invoke("gateway-status"),
-
-  // Platform toggles
-  getPlatformEnabled: (profile?: string): Promise<Record<string, boolean>> =>
-    ipcRenderer.invoke("get-platform-enabled", profile),
-  setPlatformEnabled: (
-    platform: string,
-    enabled: boolean,
-    profile?: string,
-  ): Promise<boolean> =>
-    ipcRenderer.invoke("set-platform-enabled", platform, enabled, profile),
-
   // Sessions
   listSessions: (
     limit?: number,

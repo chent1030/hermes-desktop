@@ -7,7 +7,6 @@ import Skills from "../Skills/Skills";
 import Soul from "../Soul/Soul";
 import Memory from "../Memory/Memory";
 import Tools from "../Tools/Tools";
-import Gateway from "../Gateway/Gateway";
 import Office from "../Office/Office";
 import Models from "../Models/Models";
 import Schedules from "../Schedules/Schedules";
@@ -23,7 +22,6 @@ import {
   Sparkles,
   Brain,
   Wrench,
-  Signal,
   Building,
   Layers,
   Timer,
@@ -42,7 +40,6 @@ type View =
   | "memory"
   | "tools"
   | "schedules"
-  | "gateway"
   | "settings";
 
 const NAV_ITEMS: { view: View; icon: LucideIcon; labelKey: string }[] = [
@@ -56,12 +53,11 @@ const NAV_ITEMS: { view: View; icon: LucideIcon; labelKey: string }[] = [
   { view: "memory", icon: Brain, labelKey: "navigation.memory" },
   { view: "tools", icon: Wrench, labelKey: "navigation.tools" },
   { view: "schedules", icon: Timer, labelKey: "navigation.schedules" },
-  { view: "gateway", icon: Signal, labelKey: "navigation.gateway" },
   { view: "settings", icon: SettingsIcon, labelKey: "navigation.settings" },
 ];
 
 function Layout({
-  gatewayVisible = true,
+  gatewayVisible: _gatewayVisible = false,
 }: {
   gatewayVisible?: boolean;
 }): React.JSX.Element {
@@ -150,9 +146,6 @@ function Layout({
     setView("chat");
   }, []);
 
-  const navItems = gatewayVisible
-    ? NAV_ITEMS
-    : NAV_ITEMS.filter((item) => item.view !== "gateway");
   const platformModels = workspace?.models || [];
   const platformSelectedModelId = workspace?.selectedModelId || "";
 
@@ -164,7 +157,7 @@ function Layout({
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map(({ view: v, icon: Icon, labelKey }) => (
+          {NAV_ITEMS.map(({ view: v, icon: Icon, labelKey }) => (
             <button
               key={v}
               className={`sidebar-nav-item ${view === v ? "active" : ""}`}
@@ -263,7 +256,6 @@ function Layout({
         {view === "memory" && <Memory profile={activeProfile} />}
         {view === "tools" && <Tools profile={activeProfile} />}
         {view === "schedules" && <Schedules profile={activeProfile} />}
-        {view === "gateway" && <Gateway profile={activeProfile} />}
         <div
           style={{
             display: view === "settings" ? "flex" : "none",

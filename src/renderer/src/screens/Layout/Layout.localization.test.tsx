@@ -84,7 +84,7 @@ describe("Layout localization", () => {
     expect(screen.queryByRole("button", { name: /网关/i })).not.toBeInTheDocument();
   });
 
-  it("renders localized update states in Chinese", () => {
+  it("keeps gateway navigation hidden even when gatewayVisible is true", () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: {
@@ -145,7 +145,7 @@ describe("Layout localization", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByRole("button", { name: /网关/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /网关/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /重启以更新/i })).toBeInTheDocument();
   });
 });

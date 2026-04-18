@@ -45,7 +45,7 @@ describe("Agents localization", () => {
     expect(screen.getByRole("button", { name: "取消" })).toBeInTheDocument();
   });
 
-  it("renders localized card state copy in Chinese", async () => {
+  it("renders localized card state copy in Chinese without gateway status", async () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: {
@@ -94,9 +94,9 @@ describe("Agents localization", () => {
     expect(await screen.findByText("活跃")).toBeInTheDocument();
     expect(screen.getByText("未设置模型")).toBeInTheDocument();
     expect(screen.getByText("2 个技能")).toBeInTheDocument();
-    expect(screen.getByText("网关关闭")).toBeInTheDocument();
     expect(screen.getByText("本地")).toBeInTheDocument();
-    expect(screen.getByText("网关运行中")).toBeInTheDocument();
+    expect(screen.queryByText("网关关闭")).not.toBeInTheDocument();
+    expect(screen.queryByText("网关运行中")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTitle("删除配置"));
     expect(screen.getByText("删除？")).toBeInTheDocument();
