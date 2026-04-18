@@ -1,6 +1,7 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import { setLocale as setSharedLocale } from "../../../shared/i18n";
 import type { AuditStatus } from "../../../shared/platform/audit";
+import type { WorkspaceInitStatus } from "../../../shared/platform/init";
 import type { WorkspaceBootstrap } from "../../../shared/platform/contracts";
 
 type PlatformStage = "login" | "initializing" | "workspace";
@@ -16,6 +17,7 @@ interface PlatformContextValue {
   workspace: WorkspaceBootstrap | null;
   audit: AuditStatus | null;
   initError: string | null;
+  initStatus?: WorkspaceInitStatus;
   login: (payload: LoginPayload) => Promise<void>;
   retryInitialization: () => Promise<void>;
   logout: () => Promise<void>;
@@ -48,6 +50,11 @@ export function PlatformProvider({
   const [workspace, setWorkspace] = useState<WorkspaceBootstrap | null>(null);
   const [audit, setAudit] = useState<AuditStatus | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+  const [initStatus, setInitStatus] = useState<WorkspaceInitStatus>({
+    phase: "idle",
+    failedPhase: null,
+    lastError: null,
+  });
 
   const runInitialization = useCallback(async (): Promise<void> => {
     setStage("initializing");
@@ -79,6 +86,11 @@ export function PlatformProvider({
     setAudit(null);
     setWorkspace(null);
     setInitError(null);
+    setInitStatus({
+      phase: "idle",
+      failedPhase: null,
+      lastError: null,
+    });
     setStage("login");
   }, []);
 
@@ -86,6 +98,32 @@ export function PlatformProvider({
     const nextWorkspace = await window.hermesAPI.selectWorkspaceModel(modelId);
     setWorkspace(nextWorkspace);
   }, []);
+
+  useEffect(() => {
+    if (
+      stage !== "initializing" ||
+      typeof window.hermesAPI.getWorkspaceInitStatus !== "function"
+    ) {
+      return;
+    }
+
+    let active = true;
+    const syncInitStatus = async (): Promise<void> => {
+      const nextInitStatus = await window.hermesAPI.getWorkspaceInitStatus();
+      if (!active) return;
+      setInitStatus(nextInitStatus);
+    };
+
+    void syncInitStatus();
+    const timer = window.setInterval(() => {
+      void syncInitStatus();
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [stage]);
 
   useEffect(() => {
     if (stage !== "workspace" || typeof window.hermesAPI.getAuditStatus !== "function") {
@@ -138,12 +176,23 @@ export function PlatformProvider({
       workspace,
       audit,
       initError,
+      initStatus,
       login,
       retryInitialization: runInitialization,
       logout,
       setSelectedModel,
     }),
-    [stage, workspace, audit, initError, login, runInitialization, logout, setSelectedModel],
+    [
+      stage,
+      workspace,
+      audit,
+      initError,
+      initStatus,
+      login,
+      runInitialization,
+      logout,
+      setSelectedModel,
+    ],
   );
 
   return (

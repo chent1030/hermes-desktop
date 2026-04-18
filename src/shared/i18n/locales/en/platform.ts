@@ -12,6 +12,14 @@ export default {
   initStageModels: "Model configuration",
   initStageSkills: "Skill catalog",
   initStageGeneric: "Workspace initialization",
+  initStepLoginComplete: "Login complete",
+  initStepBootstrap: "Platform context",
+  initStepModels: "Model configuration",
+  initStepSkills: "Skill catalog",
+  initStepPending: "Pending",
+  initStepActive: "In progress",
+  initStepCompleted: "Completed",
+  initStepFailed: "Failed",
   initBootstrapHint:
     "Platform bootstrap data could not be loaded. Check connectivity and tenant authorization, then retry.",
   initModelsHint:

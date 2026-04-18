@@ -112,6 +112,8 @@ describe("Settings localization", () => {
             },
             audit: {
               health: "degraded",
+              localHealth: "healthy",
+              remoteHealth: "degraded",
               queuedEvents: 3,
               droppedEvents: 1,
               lastError: "审计服务不可用",
@@ -141,6 +143,10 @@ describe("Settings localization", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("审计状态")).toBeInTheDocument();
     expect(screen.getByText("已降级")).toBeInTheDocument();
+    expect(screen.getByText("本地缓冲状态")).toBeInTheDocument();
+    expect(screen.getByText("正常")).toBeInTheDocument();
+    expect(screen.getByText("平台审计服务状态")).toBeInTheDocument();
+    expect(screen.getByText("不可达")).toBeInTheDocument();
     expect(screen.getByText("待补传：3")).toBeInTheDocument();
     expect(screen.getByText("已丢弃：1")).toBeInTheDocument();
     expect(screen.getByText("审计服务不可用")).toBeInTheDocument();

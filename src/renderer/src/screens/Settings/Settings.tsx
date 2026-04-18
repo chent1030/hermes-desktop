@@ -1,5 +1,25 @@
 import { useI18n } from "../../components/useI18n";
 import { usePlatform } from "../../platform/usePlatform";
+import type { AuditHealth } from "../../../../shared/platform/audit";
+
+function getAuditLabel(
+  health: AuditHealth | undefined,
+  t: (key: string) => string,
+  options: { degradedKey?: string } = {},
+): string {
+  if (health === "degraded") {
+    return options.degradedKey
+      ? t(options.degradedKey)
+      : t("settings.status.degraded");
+  }
+  if (health === "buffering") {
+    return t("settings.status.buffering");
+  }
+  if (health === "reauth-required") {
+    return t("settings.status.reauthRequired");
+  }
+  return t("settings.status.healthy");
+}
 
 export default function Settings(_props: {
   profile?: string;
@@ -11,14 +31,11 @@ export default function Settings(_props: {
     workspace?.models.find((model) => model.id === workspace.selectedModelId)
       ?.label ?? "-";
 
-  const auditLabel =
-    audit?.health === "degraded"
-      ? t("settings.status.degraded")
-      : audit?.health === "buffering"
-        ? t("settings.status.buffering")
-        : audit?.health === "reauth-required"
-          ? t("settings.status.reauthRequired")
-          : t("settings.status.healthy");
+  const auditLabel = getAuditLabel(audit?.health, t);
+  const auditLocalLabel = getAuditLabel(audit?.localHealth, t);
+  const auditRemoteLabel = getAuditLabel(audit?.remoteHealth, t, {
+    degradedKey: "settings.status.remoteDegraded",
+  });
 
   return (
     <div className="settings-container">
@@ -84,6 +101,18 @@ export default function Settings(_props: {
           <div className="settings-detail-item">
             <div className="settings-detail-label">{t("settings.status.audit")}</div>
             <div className="settings-detail-value">{auditLabel}</div>
+          </div>
+          <div className="settings-detail-item">
+            <div className="settings-detail-label">
+              {t("settings.status.auditLocal")}
+            </div>
+            <div className="settings-detail-value">{auditLocalLabel}</div>
+          </div>
+          <div className="settings-detail-item">
+            <div className="settings-detail-label">
+              {t("settings.status.auditRemote")}
+            </div>
+            <div className="settings-detail-value">{auditRemoteLabel}</div>
           </div>
         </div>
         {audit && (

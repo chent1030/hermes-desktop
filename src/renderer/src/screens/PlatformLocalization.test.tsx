@@ -87,6 +87,38 @@ describe("platform screen localization", () => {
     expect(screen.getByText(/platform default model missing/i)).toBeInTheDocument();
   });
 
+  it("renders localized init progress labels in Chinese", () => {
+    render(
+      <I18nProvider>
+        <PlatformContext.Provider
+          value={{
+            stage: "initializing",
+            workspace: null,
+            audit: null,
+            initError: null,
+            initStatus: {
+              phase: "skills",
+              failedPhase: null,
+              lastError: null,
+            },
+            login: vi.fn(),
+            retryInitialization: vi.fn(),
+            logout: vi.fn(),
+            setSelectedModel: vi.fn(),
+          }}
+        >
+          <Initializing />
+        </PlatformContext.Provider>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText("登录完成")).toBeInTheDocument();
+    expect(screen.getByText("平台上下文")).toBeInTheDocument();
+    expect(screen.getByText("模型配置")).toBeInTheDocument();
+    expect(screen.getByText("Skill 清单")).toBeInTheDocument();
+    expect(screen.getByText("进行中")).toBeInTheDocument();
+  });
+
   it("renders localized skill statuses and audit banner copy in Chinese", () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
@@ -138,6 +170,8 @@ describe("platform screen localization", () => {
           <WorkspaceBanner
             audit={{
               health: "degraded",
+              localHealth: "healthy",
+              remoteHealth: "degraded",
               queuedEvents: 2,
               droppedEvents: 1,
               lastError: "服务不可用",

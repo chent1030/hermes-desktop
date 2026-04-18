@@ -17,6 +17,8 @@ describe("WorkspaceBanner", () => {
         <WorkspaceBanner
           audit={{
             health: "degraded",
+            localHealth: "healthy",
+            remoteHealth: "degraded",
             queuedEvents: 42,
             droppedEvents: 3,
             lastError: "503 service unavailable",
@@ -40,6 +42,8 @@ describe("WorkspaceBanner", () => {
         <WorkspaceBanner
           audit={{
             health: "reauth-required",
+            localHealth: "reauth-required",
+            remoteHealth: "reauth-required",
             queuedEvents: 4,
             droppedEvents: 0,
             lastError: "refresh token expired",

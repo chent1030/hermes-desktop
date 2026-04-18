@@ -280,6 +280,50 @@ describe("PlatformProvider", () => {
     expect(screen.getByText(/workspace bootstrap disabled/i)).toBeInTheDocument();
   });
 
+  it("shows four-step init progress and reflects the current init phase", async () => {
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        loginTenant: vi.fn().mockResolvedValue(undefined),
+        initializeWorkspace: vi.fn(() => new Promise(() => undefined)),
+        getWorkspaceInitStatus: vi.fn().mockResolvedValue({
+          phase: "models",
+          failedPhase: null,
+          lastError: null,
+        }),
+        logoutTenant: vi.fn().mockResolvedValue(undefined),
+        selectWorkspaceModel: vi.fn(),
+      },
+    });
+
+    render(
+      <I18nProvider>
+        <PlatformProvider>
+          <DesktopRoot />
+        </PlatformProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Tenant"), {
+      target: { value: "acme" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "alice" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("Login complete")).toBeInTheDocument();
+    expect(screen.getByText("Platform context")).toBeInTheDocument();
+    expect(screen.getByText("Model configuration")).toBeInTheDocument();
+    expect(screen.getByText("Skill catalog")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("In progress")).toBeInTheDocument();
+    });
+  });
+
   it("returns to the tenant login path after the desktop app remounts", async () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,

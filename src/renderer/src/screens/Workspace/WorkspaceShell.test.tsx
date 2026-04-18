@@ -43,6 +43,8 @@ describe("WorkspaceShell", () => {
           }}
           audit={{
             health: "degraded",
+            localHealth: "healthy",
+            remoteHealth: "degraded",
             queuedEvents: 2,
             droppedEvents: 0,
             lastError: "审计上传失败",
