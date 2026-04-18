@@ -71,6 +71,18 @@ describe("platform admin frontend", () => {
           isActive: true,
         },
       ]),
+      mockJsonResponse([
+        {
+          id: "skill_global_review",
+          scopeType: "global",
+          tenant: null,
+          name: "Code Review",
+          version: "1.0.0",
+          description: "Review code",
+          downloadUrl: "https://example.com/skills/code-review.zip",
+          isActive: true,
+        },
+      ]),
       mockJsonResponse({
         accessToken: "atk_root_rotated",
         refreshToken: "rtk_root_rotated",
@@ -110,7 +122,13 @@ describe("platform admin frontend", () => {
         name: "Model profile control",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Skill catalog control",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
+    expect(screen.getByText("Code Review")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Refresh session" }));
     expect(await screen.findByText("Session refreshed")).toBeInTheDocument();
 
@@ -173,6 +191,22 @@ describe("platform admin frontend", () => {
           isActive: true,
         },
       ]),
+      mockJsonResponse([
+        {
+          id: "skill_tenant_crm",
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          name: "Acme CRM",
+          version: "2.1.0",
+          description: "CRM sync",
+          downloadUrl: "https://example.com/skills/acme-crm.zip",
+          isActive: true,
+        },
+      ]),
     ]);
 
     render(<App />);
@@ -200,9 +234,16 @@ describe("platform admin frontend", () => {
         name: "Tenant model profiles",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Tenant skill catalog",
+      }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Create tenant admin")).not.toBeInTheDocument();
     expect(screen.queryByText("Global models")).not.toBeInTheDocument();
+    expect(screen.queryByText("Global skills")).not.toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("GPT-4.1 Tenant")).toBeInTheDocument();
+    expect(screen.getByText("Acme CRM")).toBeInTheDocument();
   });
 });

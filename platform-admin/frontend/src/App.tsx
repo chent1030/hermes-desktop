@@ -57,6 +57,17 @@ interface ModelProfileRecord {
   isActive: boolean;
 }
 
+interface SkillCatalogRecord {
+  id: string;
+  scopeType: "global" | "tenant";
+  tenant: SessionTenant | null;
+  name: string;
+  version: string;
+  description: string;
+  downloadUrl: string;
+  isActive: boolean;
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   const body = (await response.json()) as Record<string, unknown>;
@@ -96,8 +107,10 @@ export default function App(): React.JSX.Element {
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
   const [accounts, setAccounts] = useState<AdminAccountRecord[]>([]);
   const [modelProfiles, setModelProfiles] = useState<ModelProfileRecord[]>([]);
+  const [skillCatalog, setSkillCatalog] = useState<SkillCatalogRecord[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
   const [modelScope, setModelScope] = useState<"global" | "tenant">("global");
+  const [skillScope, setSkillScope] = useState<"global" | "tenant">("global");
   const [tenantForm, setTenantForm] = useState({ code: "", name: "" });
   const [accountForm, setAccountForm] = useState({
     username: "",
@@ -111,6 +124,12 @@ export default function App(): React.JSX.Element {
     label: "",
     baseUrl: "",
     isDefault: true,
+  });
+  const [skillForm, setSkillForm] = useState({
+    name: "",
+    version: "",
+    description: "",
+    downloadUrl: "",
   });
 
   useEffect(() => {
@@ -180,6 +199,26 @@ export default function App(): React.JSX.Element {
     });
   };
 
+  const fetchSuperAdminSkillCatalog = async (
+    nextSession: LoginResponse,
+    scope: "global" | "tenant",
+    tenantId: number | null,
+  ): Promise<SkillCatalogRecord[]> => {
+    if (scope === "tenant" && tenantId) {
+      return requestJson<SkillCatalogRecord[]>(
+        `/api/admin/skills/catalog?tenantId=${tenantId}`,
+        {
+          method: "GET",
+          headers: authHeaders(nextSession),
+        },
+      );
+    }
+    return requestJson<SkillCatalogRecord[]>("/api/admin/skills/catalog", {
+      method: "GET",
+      headers: authHeaders(nextSession),
+    });
+  };
+
   const loadWorkspace = async (nextSession: LoginResponse, preferredTenantId?: number | null) => {
     setIsLoadingWorkspace(true);
     setWorkspaceError(null);
@@ -211,13 +250,16 @@ export default function App(): React.JSX.Element {
 
         const nextModelScope =
           modelScope === "tenant" && nextSelectedTenantId ? "tenant" : "global";
+        const nextSkillScope =
+          skillScope === "tenant" && nextSelectedTenantId ? "tenant" : "global";
         setModelScope(nextModelScope);
-        const nextModels = await fetchSuperAdminModelProfiles(
-          nextSession,
-          nextModelScope,
-          nextSelectedTenantId,
-        );
+        setSkillScope(nextSkillScope);
+        const [nextModels, nextSkills] = await Promise.all([
+          fetchSuperAdminModelProfiles(nextSession, nextModelScope, nextSelectedTenantId),
+          fetchSuperAdminSkillCatalog(nextSession, nextSkillScope, nextSelectedTenantId),
+        ]);
         setModelProfiles(nextModels);
+        setSkillCatalog(nextSkills);
         return;
       }
 
@@ -231,14 +273,18 @@ export default function App(): React.JSX.Element {
       setTenants([]);
       setSelectedTenantId(nextSession.tenant?.id ?? null);
       setAccounts(tenantAccounts);
-      const tenantModels = await requestJson<ModelProfileRecord[]>(
-        "/api/admin/tenant/model-profiles",
-        {
+      const [tenantModels, tenantSkills] = await Promise.all([
+        requestJson<ModelProfileRecord[]>("/api/admin/tenant/model-profiles", {
           method: "GET",
           headers: authHeaders(nextSession),
-        },
-      );
+        }),
+        requestJson<SkillCatalogRecord[]>("/api/admin/tenant/skills/catalog", {
+          method: "GET",
+          headers: authHeaders(nextSession),
+        }),
+      ]);
       setModelProfiles(tenantModels);
+      setSkillCatalog(tenantSkills);
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Workspace load failed");
     } finally {
@@ -272,6 +318,7 @@ export default function App(): React.JSX.Element {
       setAccounts([]);
       setTenants([]);
       setModelProfiles([]);
+      setSkillCatalog([]);
       setLoginError(error instanceof Error ? error.message : "Unknown login error");
     } finally {
       setIsSubmitting(false);
@@ -329,6 +376,24 @@ export default function App(): React.JSX.Element {
       setModelProfiles(nextModels);
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Load model profiles failed");
+    }
+  };
+
+  const handleSelectSkillScope = async (scope: "global" | "tenant") => {
+    if (!session || session.user.roleCode !== "super_admin") {
+      return;
+    }
+    const nextScope = scope === "tenant" && !selectedTenantId ? "global" : scope;
+    setSkillScope(nextScope);
+    try {
+      const nextSkills = await fetchSuperAdminSkillCatalog(
+        session,
+        nextScope,
+        selectedTenantId,
+      );
+      setSkillCatalog(nextSkills);
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Load skill catalog failed");
     }
   };
 
@@ -504,6 +569,66 @@ export default function App(): React.JSX.Element {
       setSessionNotice("Model profile deactivated");
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Deactivate model profile failed");
+    }
+  };
+
+  const handleCreateSkillCatalog = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!session) {
+      return;
+    }
+
+    setWorkspaceError(null);
+    try {
+      const isSuperAdmin = session.user.roleCode === "super_admin";
+      const path = isSuperAdmin ? "/api/admin/skills/catalog" : "/api/admin/tenant/skills/catalog";
+      const payload = isSuperAdmin
+        ? {
+            ...skillForm,
+            tenantId: skillScope === "tenant" ? selectedTenantId : null,
+          }
+        : skillForm;
+      const created = await requestJson<SkillCatalogRecord>(path, {
+        method: "POST",
+        headers: authHeaders(session, true),
+        body: JSON.stringify(payload),
+      });
+      setSkillCatalog((current) => [created, ...current]);
+      setSkillForm({
+        name: "",
+        version: "",
+        description: "",
+        downloadUrl: "",
+      });
+      setSessionNotice("Skill catalog item created");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Create skill catalog failed");
+    }
+  };
+
+  const handleDeactivateSkillCatalog = async (skillId: string) => {
+    if (!session) {
+      return;
+    }
+
+    setWorkspaceError(null);
+    try {
+      const path =
+        session.user.roleCode === "super_admin"
+          ? `/api/admin/skills/catalog/${skillId}/deactivate`
+          : `/api/admin/tenant/skills/catalog/${skillId}/deactivate`;
+      await requestJson<{ status: string }>(path, {
+        method: "POST",
+        headers: authHeaders(session),
+      });
+      setSkillCatalog((current) =>
+        current.map((item) =>
+          item.id === skillId ? { ...item, isActive: false } : item,
+        ),
+      );
+      setSessionNotice("Skill catalog item deactivated");
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Deactivate skill failed");
     }
   };
 
@@ -867,6 +992,90 @@ export default function App(): React.JSX.Element {
                   ))}
                 </div>
               </article>
+
+              <article className="platform-admin-card platform-admin-stack-card">
+                <p className="platform-admin-section-label">Skill hub</p>
+                <h3>Skill catalog control</h3>
+                <label className="platform-admin-field">
+                  <span>Skill scope</span>
+                  <select
+                    value={skillScope}
+                    onChange={(event) =>
+                      void handleSelectSkillScope(event.target.value as "global" | "tenant")
+                    }
+                  >
+                    <option value="global">Global skills</option>
+                    {selectedTenantId ? (
+                      <option value="tenant">Selected tenant skills</option>
+                    ) : null}
+                  </select>
+                </label>
+                <form className="platform-admin-form" onSubmit={handleCreateSkillCatalog}>
+                  <label className="platform-admin-field">
+                    <span>Name</span>
+                    <input
+                      value={skillForm.name}
+                      onChange={(event) =>
+                        setSkillForm((current) => ({ ...current, name: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Version</span>
+                    <input
+                      value={skillForm.version}
+                      onChange={(event) =>
+                        setSkillForm((current) => ({ ...current, version: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Description</span>
+                    <input
+                      value={skillForm.description}
+                      onChange={(event) =>
+                        setSkillForm((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Download URL</span>
+                    <input
+                      value={skillForm.downloadUrl}
+                      onChange={(event) =>
+                        setSkillForm((current) => ({
+                          ...current,
+                          downloadUrl: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <button className="platform-admin-submit" type="submit">
+                    Create skill
+                  </button>
+                </form>
+
+                <div className="platform-admin-list">
+                  {skillCatalog.map((item) => (
+                    <div key={item.id} className="platform-admin-list-item is-static">
+                      <span>{item.name}</span>
+                      <small>{item.version}</small>
+                      <small>{item.scopeType}</small>
+                      <small>{item.isActive ? "active" : "inactive"}</small>
+                      <button
+                        className="platform-admin-secondary-button"
+                        type="button"
+                        onClick={() => handleDeactivateSkillCatalog(item.id)}
+                      >
+                        Deactivate skill
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </article>
             </div>
           ) : null}
 
@@ -1002,6 +1211,76 @@ export default function App(): React.JSX.Element {
                         onClick={() => handleDeactivateModelProfile(item.id)}
                       >
                         Deactivate model
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="platform-admin-card platform-admin-stack-card">
+                <p className="platform-admin-section-label">Tenant skill hub</p>
+                <h3>Tenant skill catalog</h3>
+                <form className="platform-admin-form" onSubmit={handleCreateSkillCatalog}>
+                  <label className="platform-admin-field">
+                    <span>Name</span>
+                    <input
+                      value={skillForm.name}
+                      onChange={(event) =>
+                        setSkillForm((current) => ({ ...current, name: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Version</span>
+                    <input
+                      value={skillForm.version}
+                      onChange={(event) =>
+                        setSkillForm((current) => ({ ...current, version: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Description</span>
+                    <input
+                      value={skillForm.description}
+                      onChange={(event) =>
+                        setSkillForm((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="platform-admin-field">
+                    <span>Download URL</span>
+                    <input
+                      value={skillForm.downloadUrl}
+                      onChange={(event) =>
+                        setSkillForm((current) => ({
+                          ...current,
+                          downloadUrl: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <button className="platform-admin-submit" type="submit">
+                    Create skill
+                  </button>
+                </form>
+
+                <div className="platform-admin-list">
+                  {skillCatalog.map((item) => (
+                    <div key={item.id} className="platform-admin-list-item is-static">
+                      <span>{item.name}</span>
+                      <small>{item.version}</small>
+                      <small>{item.scopeType}</small>
+                      <small>{item.isActive ? "active" : "inactive"}</small>
+                      <button
+                        className="platform-admin-secondary-button"
+                        type="button"
+                        onClick={() => handleDeactivateSkillCatalog(item.id)}
+                      >
+                        Deactivate skill
                       </button>
                     </div>
                   ))}

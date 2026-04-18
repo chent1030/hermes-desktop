@@ -137,6 +137,12 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `GET /api/admin/tenant/model-profiles`：租户管理员读取本租户模型
 - `POST /api/admin/tenant/model-profiles`：租户管理员创建本租户模型
 - `POST /api/admin/tenant/model-profiles/:modelId/deactivate`：租户管理员停用本租户模型
+- `GET /api/admin/skills/catalog?tenantId=:tenantId`：超级管理员读取全局或指定租户 Skill 清单
+- `POST /api/admin/skills/catalog`：超级管理员创建全局或指定租户 Skill 清单项
+- `POST /api/admin/skills/catalog/:skillId/deactivate`：超级管理员停用 Skill 清单项
+- `GET /api/admin/tenant/skills/catalog`：租户管理员读取本租户 Skill 清单
+- `POST /api/admin/tenant/skills/catalog`：租户管理员创建本租户 Skill 清单项
+- `POST /api/admin/tenant/skills/catalog/:skillId/deactivate`：租户管理员停用本租户 Skill 清单项
 
 当前权限边界：
 
@@ -144,6 +150,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - 租户管理员只能看到并管理自己租户下的数据
 - 租户管理员不能创建租户管理员
 - 租户管理员不能管理全局模型
+- 租户管理员不能管理全局 Skill 清单
 - 删除策略当前统一为“停用/禁用”，不做物理删除
 
 ## 模型配置管理规则
@@ -167,6 +174,27 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
   - 优先使用租户默认模型
   - 若租户没有默认模型，则回落到全局默认模型
   - 返回给桌面端的列表里最多只有一个 `isDefault = true`
+
+## Skill 清单管理规则
+
+Skill 管理当前只做“只读目录控制面”，继续复用 `platform_desktop_skill_catalog` 表。
+
+本期规则如下：
+
+- 只管理目录元数据，不处理 Skill 包上传 / 发布
+- 下载地址继续由后台人工录入到 `download_url`
+- 超级管理员可管理全局 Skill 与指定租户 Skill
+- 租户管理员只能管理自己租户 Skill
+- 停用只修改 `is_active = false`
+- 后台列表保留已停用项，方便运营核对
+
+当前不做：
+
+- Skill 编辑
+- Skill 物理删除
+- 同名唯一治理
+- 多版本发布流
+- 京东云对象存储上传对接
 
 ## 桌面执行端接口
 

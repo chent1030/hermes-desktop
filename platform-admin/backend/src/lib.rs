@@ -10,6 +10,7 @@ pub mod audit;
 pub mod auth;
 pub mod desktop;
 pub mod model_profiles;
+pub mod skill_catalog;
 
 use admin::{
     AdminError, CreateAccountInput, CreateTenantInput, PgAdminStore, create_account_for_actor,
@@ -28,6 +29,11 @@ use model_profiles::{
     CreateModelProfileInput, ModelProfileError, PgModelProfileStore,
     create_model_profile_for_actor, deactivate_model_profile_for_actor,
     list_model_profiles_for_actor,
+};
+use skill_catalog::{
+    CreateSkillCatalogInput, PgSkillCatalogStore, SkillCatalogError,
+    create_skill_catalog_item_for_actor, deactivate_skill_catalog_item_for_actor,
+    list_skill_catalog_for_actor,
 };
 use auth::{
     AuthError, BootstrapConfig, PgAuthStore, authenticate_access_token, authenticate_login,
@@ -198,6 +204,10 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         (Some("POST"), "/api/admin/model-profiles") => {
             handle_create_model_profile(request, config)
         }
+        (Some("GET"), "/api/admin/skills/catalog") => handle_list_skill_catalog(request, config),
+        (Some("POST"), "/api/admin/skills/catalog") => {
+            handle_create_skill_catalog(request, config)
+        }
         (Some("GET"), "/api/admin/accounts") => handle_list_accounts(request, config),
         (Some("POST"), "/api/admin/accounts") => handle_create_account(request, config),
         (Some("GET"), "/api/admin/tenant/model-profiles") => {
@@ -205,6 +215,12 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         }
         (Some("POST"), "/api/admin/tenant/model-profiles") => {
             handle_create_tenant_model_profile(request, config)
+        }
+        (Some("GET"), "/api/admin/tenant/skills/catalog") => {
+            handle_list_tenant_skill_catalog(request, config)
+        }
+        (Some("POST"), "/api/admin/tenant/skills/catalog") => {
+            handle_create_tenant_skill_catalog(request, config)
         }
         (Some("GET"), "/api/admin/tenant/accounts") => handle_list_tenant_accounts(request, config),
         (Some("POST"), "/api/admin/tenant/accounts") => {
@@ -215,6 +231,12 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         }
         (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenant/model-profiles/") && normalized_path.ends_with("/deactivate") => {
             handle_deactivate_model_profile(request, config, &normalized_path)
+        }
+        (Some("POST"), _) if normalized_path.starts_with("/api/admin/skills/catalog/") && normalized_path.ends_with("/deactivate") => {
+            handle_deactivate_skill_catalog(request, config, &normalized_path)
+        }
+        (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenant/skills/catalog/") && normalized_path.ends_with("/deactivate") => {
+            handle_deactivate_skill_catalog(request, config, &normalized_path)
         }
         (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenants/") && normalized_path.ends_with("/deactivate") => {
             handle_deactivate_tenant(request, config, &normalized_path)
@@ -483,6 +505,31 @@ fn handle_create_tenant(request: &str, config: &ServerConfig) -> String {
     }
 }
 
+fn handle_list_skill_catalog(request: &str, config: &ServerConfig) -> String {
+    let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
+        .and_then(|value: String| value.parse::<i64>().ok());
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgSkillCatalogStore::new(&config.database_url);
+        list_skill_catalog_for_actor(&mut store, &to_principal(actor), tenant_id)
+            .map_err(map_skill_catalog_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_list_tenant_skill_catalog(request: &str, config: &ServerConfig) -> String {
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgSkillCatalogStore::new(&config.database_url);
+        list_skill_catalog_for_actor(&mut store, &to_principal(actor), None)
+            .map_err(map_skill_catalog_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
 fn handle_list_model_profiles(request: &str, config: &ServerConfig) -> String {
     let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
         .and_then(|value: String| value.parse::<i64>().ok());
@@ -508,6 +555,31 @@ fn handle_list_tenant_model_profiles(request: &str, config: &ServerConfig) -> St
     }
 }
 
+fn handle_create_skill_catalog(request: &str, config: &ServerConfig) -> String {
+    let body = request_body(request);
+    let input = match serde_json::from_str::<CreateSkillCatalogInput>(body) {
+        Ok(payload) => payload,
+        Err(_) => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "request body must be valid JSON".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgSkillCatalogStore::new(&config.database_url);
+        create_skill_catalog_item_for_actor(&mut store, &to_principal(actor), input)
+            .map_err(map_skill_catalog_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
 fn handle_create_model_profile(request: &str, config: &ServerConfig) -> String {
     let body = request_body(request);
     let input = match serde_json::from_str::<CreateModelProfileInput>(body) {
@@ -527,6 +599,45 @@ fn handle_create_model_profile(request: &str, config: &ServerConfig) -> String {
         let mut store = PgModelProfileStore::new(&config.database_url);
         create_model_profile_for_actor(&mut store, &to_principal(actor), input)
             .map_err(map_model_profile_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_create_tenant_skill_catalog(request: &str, config: &ServerConfig) -> String {
+    let body = request_body(request);
+    let input = match serde_json::from_str::<CreateSkillCatalogInput>(body) {
+        Ok(payload) => payload,
+        Err(_) => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "request body must be valid JSON".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let tenant_id = actor
+            .tenant
+            .as_ref()
+            .map(|tenant| tenant.id)
+            .ok_or(AdminError::Forbidden(
+                "tenant admin must belong to a tenant".to_string(),
+            ))?;
+        let mut store = PgSkillCatalogStore::new(&config.database_url);
+        create_skill_catalog_item_for_actor(
+            &mut store,
+            &to_principal(actor),
+            CreateSkillCatalogInput {
+                tenant_id: Some(tenant_id),
+                ..input
+            },
+        )
+        .map_err(map_skill_catalog_to_admin_error)
     }) {
         Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
         Err(error) => admin_error_response(error),
@@ -568,6 +679,31 @@ fn handle_create_tenant_model_profile(request: &str, config: &ServerConfig) -> S
         .map_err(map_model_profile_to_admin_error)
     }) {
         Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_deactivate_skill_catalog(request: &str, config: &ServerConfig, path: &str) -> String {
+    let skill_id = trailing_string_resource_id_from_skill_path(path);
+    let skill_id = match skill_id {
+        Some(value) => value,
+        None => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "skill id is invalid".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgSkillCatalogStore::new(&config.database_url);
+        deactivate_skill_catalog_item_for_actor(&mut store, &to_principal(actor), &skill_id)
+            .map_err(map_skill_catalog_to_admin_error)
+    }) {
+        Ok(()) => json_response("HTTP/1.1 200 OK", r#"{"status":"ok"}"#),
         Err(error) => admin_error_response(error),
     }
 }
@@ -780,6 +916,16 @@ fn map_model_profile_to_admin_error(error: ModelProfileError) -> AdminError {
     }
 }
 
+fn map_skill_catalog_to_admin_error(error: SkillCatalogError) -> AdminError {
+    match error {
+        SkillCatalogError::InvalidRequest(message) => AdminError::InvalidRequest(message),
+        SkillCatalogError::Forbidden(message) => AdminError::Forbidden(message),
+        SkillCatalogError::Conflict(message) => AdminError::Conflict(message),
+        SkillCatalogError::NotFound(message) => AdminError::NotFound(message),
+        SkillCatalogError::Store(message) => AdminError::Store(message),
+    }
+}
+
 fn map_audit_to_admin_error(error: AuditError) -> AdminError {
     match error {
         AuditError::InvalidRequest(message) => AdminError::InvalidRequest(message),
@@ -859,6 +1005,12 @@ fn trailing_string_resource_id_from_model_path(path: &str) -> Option<String> {
     trailing_string_resource_id(path, "/api/admin/model-profiles/", "/deactivate").or_else(|| {
         trailing_string_resource_id(path, "/api/admin/tenant/model-profiles/", "/deactivate")
     })
+}
+
+fn trailing_string_resource_id_from_skill_path(path: &str) -> Option<String> {
+    trailing_string_resource_id(path, "/api/admin/skills/catalog/", "/deactivate").or_else(
+        || trailing_string_resource_id(path, "/api/admin/tenant/skills/catalog/", "/deactivate"),
+    )
 }
 
 fn json_response(status_line: &str, body: &str) -> String {
