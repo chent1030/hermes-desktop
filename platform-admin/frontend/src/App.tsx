@@ -68,6 +68,23 @@ interface SkillCatalogRecord {
   isActive: boolean;
 }
 
+interface AuditActorRecord {
+  id: number;
+  username: string;
+  displayName: string;
+  roleCode: RoleCode;
+}
+
+interface AuditEventRecord {
+  id: number;
+  tenant: SessionTenant;
+  account: AuditActorRecord;
+  eventType: string;
+  payload: Record<string, unknown>;
+  occurredAt: string;
+  createdAt: string;
+}
+
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   const body = (await response.json()) as Record<string, unknown>;
@@ -108,6 +125,7 @@ export default function App(): React.JSX.Element {
   const [accounts, setAccounts] = useState<AdminAccountRecord[]>([]);
   const [modelProfiles, setModelProfiles] = useState<ModelProfileRecord[]>([]);
   const [skillCatalog, setSkillCatalog] = useState<SkillCatalogRecord[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEventRecord[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
   const [modelScope, setModelScope] = useState<"global" | "tenant">("global");
   const [skillScope, setSkillScope] = useState<"global" | "tenant">("global");
@@ -219,6 +237,22 @@ export default function App(): React.JSX.Element {
     });
   };
 
+  const fetchSuperAdminAuditEvents = async (
+    nextSession: LoginResponse,
+    tenantId: number | null,
+  ): Promise<AuditEventRecord[]> => {
+    if (!tenantId) {
+      return [];
+    }
+    return requestJson<AuditEventRecord[]>(
+      `/api/admin/audit/events?tenantId=${tenantId}&limit=100`,
+      {
+        method: "GET",
+        headers: authHeaders(nextSession),
+      },
+    );
+  };
+
   const loadWorkspace = async (nextSession: LoginResponse, preferredTenantId?: number | null) => {
     setIsLoadingWorkspace(true);
     setWorkspaceError(null);
@@ -254,12 +288,14 @@ export default function App(): React.JSX.Element {
           skillScope === "tenant" && nextSelectedTenantId ? "tenant" : "global";
         setModelScope(nextModelScope);
         setSkillScope(nextSkillScope);
-        const [nextModels, nextSkills] = await Promise.all([
+        const [nextModels, nextSkills, nextAuditEvents] = await Promise.all([
           fetchSuperAdminModelProfiles(nextSession, nextModelScope, nextSelectedTenantId),
           fetchSuperAdminSkillCatalog(nextSession, nextSkillScope, nextSelectedTenantId),
+          fetchSuperAdminAuditEvents(nextSession, nextSelectedTenantId),
         ]);
         setModelProfiles(nextModels);
         setSkillCatalog(nextSkills);
+        setAuditEvents(nextAuditEvents);
         return;
       }
 
@@ -273,7 +309,7 @@ export default function App(): React.JSX.Element {
       setTenants([]);
       setSelectedTenantId(nextSession.tenant?.id ?? null);
       setAccounts(tenantAccounts);
-      const [tenantModels, tenantSkills] = await Promise.all([
+      const [tenantModels, tenantSkills, tenantAuditEvents] = await Promise.all([
         requestJson<ModelProfileRecord[]>("/api/admin/tenant/model-profiles", {
           method: "GET",
           headers: authHeaders(nextSession),
@@ -282,9 +318,14 @@ export default function App(): React.JSX.Element {
           method: "GET",
           headers: authHeaders(nextSession),
         }),
+        requestJson<AuditEventRecord[]>("/api/admin/tenant/audit/events?limit=100", {
+          method: "GET",
+          headers: authHeaders(nextSession),
+        }),
       ]);
       setModelProfiles(tenantModels);
       setSkillCatalog(tenantSkills);
+      setAuditEvents(tenantAuditEvents);
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Workspace load failed");
     } finally {
@@ -319,6 +360,7 @@ export default function App(): React.JSX.Element {
       setTenants([]);
       setModelProfiles([]);
       setSkillCatalog([]);
+      setAuditEvents([]);
       setLoginError(error instanceof Error ? error.message : "Unknown login error");
     } finally {
       setIsSubmitting(false);
@@ -631,6 +673,15 @@ export default function App(): React.JSX.Element {
       setWorkspaceError(error instanceof Error ? error.message : "Deactivate skill failed");
     }
   };
+
+  const renderAuditEvent = (item: AuditEventRecord): React.JSX.Element => (
+    <div key={item.id} className="platform-admin-list-item is-static">
+      <span>{item.eventType}</span>
+      <small>{item.account.displayName}</small>
+      <small>{item.occurredAt}</small>
+      <small>{JSON.stringify(item.payload)}</small>
+    </div>
+  );
 
   return (
     <main className="platform-admin-app">
@@ -1076,6 +1127,19 @@ export default function App(): React.JSX.Element {
                   ))}
                 </div>
               </article>
+
+              <article className="platform-admin-card platform-admin-stack-card">
+                <p className="platform-admin-section-label">Audit center</p>
+                <h3>Audit center</h3>
+                {!selectedTenantId ? (
+                  <p className="platform-admin-panel-note">
+                    Select a tenant to inspect runtime audit events.
+                  </p>
+                ) : null}
+                <div className="platform-admin-list">
+                  {auditEvents.map((item) => renderAuditEvent(item))}
+                </div>
+              </article>
             </div>
           ) : null}
 
@@ -1284,6 +1348,14 @@ export default function App(): React.JSX.Element {
                       </button>
                     </div>
                   ))}
+                </div>
+              </article>
+
+              <article className="platform-admin-card platform-admin-stack-card">
+                <p className="platform-admin-section-label">Tenant audit center</p>
+                <h3>Tenant audit center</h3>
+                <div className="platform-admin-list">
+                  {auditEvents.map((item) => renderAuditEvent(item))}
                 </div>
               </article>
             </div>

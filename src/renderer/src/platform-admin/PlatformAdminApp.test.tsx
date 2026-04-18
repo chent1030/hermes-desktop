@@ -83,6 +83,28 @@ describe("platform admin frontend", () => {
           isActive: true,
         },
       ]),
+      mockJsonResponse([
+        {
+          id: 91,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          eventType: "workspace.initialized",
+          payload: {
+            modelCount: 1,
+          },
+          occurredAt: "2026-04-18T12:00:00.000Z",
+          createdAt: "2026-04-18T12:00:01.000Z",
+        },
+      ]),
       mockJsonResponse({
         accessToken: "atk_root_rotated",
         refreshToken: "rtk_root_rotated",
@@ -127,8 +149,14 @@ describe("platform admin frontend", () => {
         name: "Skill catalog control",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Audit center",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
     expect(screen.getByText("Code Review")).toBeInTheDocument();
+    expect(screen.getByText("workspace.initialized")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Refresh session" }));
     expect(await screen.findByText("Session refreshed")).toBeInTheDocument();
 
@@ -207,6 +235,28 @@ describe("platform admin frontend", () => {
           isActive: true,
         },
       ]),
+      mockJsonResponse([
+        {
+          id: 101,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 42,
+            username: "admin",
+            displayName: "ACME Admin",
+            roleCode: "tenant_admin",
+          },
+          eventType: "chat.started",
+          payload: {
+            sessionId: "s1",
+          },
+          occurredAt: "2026-04-18T13:00:00.000Z",
+          createdAt: "2026-04-18T13:00:00.500Z",
+        },
+      ]),
     ]);
 
     render(<App />);
@@ -239,11 +289,17 @@ describe("platform admin frontend", () => {
         name: "Tenant skill catalog",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Tenant audit center",
+      }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Create tenant admin")).not.toBeInTheDocument();
     expect(screen.queryByText("Global models")).not.toBeInTheDocument();
     expect(screen.queryByText("Global skills")).not.toBeInTheDocument();
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("GPT-4.1 Tenant")).toBeInTheDocument();
     expect(screen.getByText("Acme CRM")).toBeInTheDocument();
+    expect(screen.getByText("chat.started")).toBeInTheDocument();
   });
 });

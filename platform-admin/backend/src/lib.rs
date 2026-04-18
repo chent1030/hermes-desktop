@@ -7,6 +7,7 @@ use serde::Serialize;
 
 pub mod admin;
 pub mod audit;
+pub mod audit_center;
 pub mod auth;
 pub mod desktop;
 pub mod model_profiles;
@@ -20,6 +21,9 @@ use admin::{
 use audit::{
     AuditBatchInput, AuditError, PgAuditStore, audit_health_for_actor,
     write_audit_events_for_actor,
+};
+use audit_center::{
+    AuditCenterError, PgAuditCenterStore, list_audit_events_for_actor,
 };
 use desktop::{
     DesktopError, PgDesktopStore, desktop_bootstrap_for_actor, desktop_model_profiles_for_actor,
@@ -200,6 +204,7 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         (Some("GET"), "/api/admin/me") => handle_admin_me(request, config),
         (Some("GET"), "/api/admin/tenants") => handle_list_tenants(request, config),
         (Some("POST"), "/api/admin/tenants") => handle_create_tenant(request, config),
+        (Some("GET"), "/api/admin/audit/events") => handle_list_audit_events(request, config),
         (Some("GET"), "/api/admin/model-profiles") => handle_list_model_profiles(request, config),
         (Some("POST"), "/api/admin/model-profiles") => {
             handle_create_model_profile(request, config)
@@ -212,6 +217,9 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         (Some("POST"), "/api/admin/accounts") => handle_create_account(request, config),
         (Some("GET"), "/api/admin/tenant/model-profiles") => {
             handle_list_tenant_model_profiles(request, config)
+        }
+        (Some("GET"), "/api/admin/tenant/audit/events") => {
+            handle_list_tenant_audit_events(request, config)
         }
         (Some("POST"), "/api/admin/tenant/model-profiles") => {
             handle_create_tenant_model_profile(request, config)
@@ -499,6 +507,36 @@ fn handle_create_tenant(request: &str, config: &ServerConfig) -> String {
     match authenticate_request(request, config).and_then(|actor| {
         let mut store = PgAdminStore::new(&config.database_url);
         create_tenant_for_actor(&mut store, &to_principal(actor), input)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_list_audit_events(request: &str, config: &ServerConfig) -> String {
+    let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
+        .and_then(|value: String| value.parse::<i64>().ok());
+    let limit = query_param(request_path(request).unwrap_or_default(), "limit")
+        .and_then(|value: String| value.parse::<i64>().ok());
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAuditCenterStore::new(&config.database_url);
+        list_audit_events_for_actor(&mut store, &to_principal(actor), tenant_id, limit)
+            .map_err(map_audit_center_to_admin_error)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_list_tenant_audit_events(request: &str, config: &ServerConfig) -> String {
+    let limit = query_param(request_path(request).unwrap_or_default(), "limit")
+        .and_then(|value: String| value.parse::<i64>().ok());
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAuditCenterStore::new(&config.database_url);
+        list_audit_events_for_actor(&mut store, &to_principal(actor), None, limit)
+            .map_err(map_audit_center_to_admin_error)
     }) {
         Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
         Err(error) => admin_error_response(error),
@@ -903,6 +941,16 @@ fn map_desktop_to_admin_error(error: DesktopError) -> AdminError {
     match error {
         DesktopError::Forbidden(message) => AdminError::Forbidden(message),
         DesktopError::Store(message) => AdminError::Store(message),
+    }
+}
+
+fn map_audit_center_to_admin_error(error: AuditCenterError) -> AdminError {
+    match error {
+        AuditCenterError::InvalidRequest(message) => AdminError::InvalidRequest(message),
+        AuditCenterError::Forbidden(message) => AdminError::Forbidden(message),
+        AuditCenterError::Conflict(message) => AdminError::Conflict(message),
+        AuditCenterError::NotFound(message) => AdminError::NotFound(message),
+        AuditCenterError::Store(message) => AdminError::Store(message),
     }
 }
 

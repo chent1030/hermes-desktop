@@ -134,6 +134,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `GET /api/admin/model-profiles?tenantId=:tenantId`：超级管理员读取全局或指定租户模型
 - `POST /api/admin/model-profiles`：超级管理员创建全局或指定租户模型
 - `POST /api/admin/model-profiles/:modelId/deactivate`：超级管理员停用模型
+- `GET /api/admin/audit/events?tenantId=:tenantId&limit=:limit`：超级管理员读取指定租户最近审计事件
 - `GET /api/admin/tenant/model-profiles`：租户管理员读取本租户模型
 - `POST /api/admin/tenant/model-profiles`：租户管理员创建本租户模型
 - `POST /api/admin/tenant/model-profiles/:modelId/deactivate`：租户管理员停用本租户模型
@@ -143,6 +144,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `GET /api/admin/tenant/skills/catalog`：租户管理员读取本租户 Skill 清单
 - `POST /api/admin/tenant/skills/catalog`：租户管理员创建本租户 Skill 清单项
 - `POST /api/admin/tenant/skills/catalog/:skillId/deactivate`：租户管理员停用本租户 Skill 清单项
+- `GET /api/admin/tenant/audit/events?limit=:limit`：租户管理员读取本租户最近审计事件
 
 当前权限边界：
 
@@ -195,6 +197,27 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
 - 同名唯一治理
 - 多版本发布流
 - 京东云对象存储上传对接
+
+## 审计中心最小规则
+
+审计中心当前只做“最近事件可查视图”，用于接住桌面端已经上报到平台的运行审计。
+
+本期规则如下：
+
+- 超级管理员必须带 `tenantId` 查询某个租户的审计
+- 首版不开放无约束的全平台审计扫表
+- 租户管理员只能读取自己租户的审计
+- 默认返回最近 `100` 条
+- 最大 `limit = 200`
+- 返回字段包括租户、账号、事件类型、payload、发生时间、入库时间
+
+当前不做：
+
+- 审计导出
+- 高级筛选
+- 图表看板
+- 会话中心联动
+- 防篡改增强
 
 ## 桌面执行端接口
 
