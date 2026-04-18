@@ -202,7 +202,19 @@
   }
 
   .platform-admin-login-grid {
-    @apply grid items-center gap-6 lg:grid-cols-[minmax(0,1.1fr)_440px];
+    @apply flex min-h-0 flex-1 items-center justify-center;
+  }
+
+  .platform-admin-login-stage {
+    @apply grid w-full max-w-[34rem] gap-5 sm:gap-6;
+  }
+
+  .platform-admin-login-brand {
+    @apply relative text-center text-white;
+  }
+
+  .platform-admin-login-brand h1 {
+    @apply m-0 text-3xl font-semibold tracking-tight text-white sm:text-4xl;
   }
 
   .platform-admin-login-copy {
@@ -256,6 +268,18 @@
     animation: platform-admin-chip-pulse 4.2s ease-in-out infinite;
   }
 
+  .platform-admin-login-brand .platform-admin-login-description {
+    @apply mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base;
+  }
+
+  .platform-admin-login-brand .platform-admin-login-chip-list {
+    @apply mt-4 justify-center gap-2.5;
+  }
+
+  .platform-admin-login-brand .platform-admin-login-chip {
+    @apply px-3.5 py-1.5 text-xs sm:text-sm;
+  }
+
   .platform-admin-login-panel {
     @apply relative isolate overflow-hidden p-5 sm:p-6;
     background:
@@ -289,6 +313,10 @@
   .platform-admin-login-panel-code {
     @apply text-[10px] font-medium tracking-[0.28em] text-slate-500;
     font-family: var(--font-mono);
+  }
+
+  .platform-admin-login-panel .platform-admin-panel-note {
+    @apply max-w-sm;
   }
 
   .platform-admin-login-panel-scan {
@@ -570,7 +598,7 @@
   }
 
   .platform-admin-footer.is-centered {
-    @apply relative z-10 mt-0 justify-center border-none pb-4 pt-0 text-center text-sm text-slate-400;
+    @apply relative z-10 mt-0 justify-center border-none pb-4 pt-1 text-center text-sm text-slate-400;
   }
 
   .is-login-screen .platform-admin-status {

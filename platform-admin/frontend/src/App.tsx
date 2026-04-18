@@ -1654,118 +1654,119 @@ export default function App(): React.JSX.Element {
           </div>
 
           <div className="platform-admin-login-grid">
-            <section className="platform-admin-login-copy">
-              <span className="platform-admin-login-copy-scan" aria-hidden="true" />
-              <p className="platform-admin-login-kicker">{copy.login.heroEyebrow}</p>
-              <h1>{copy.title}</h1>
-              <p className="platform-admin-login-description">{copy.login.heroDescription}</p>
-              <div className="platform-admin-login-chip-list">
-                <span className="platform-admin-login-chip">{copy.login.heroFeatureModels}</span>
-                <span className="platform-admin-login-chip">{copy.login.heroFeatureSkills}</span>
-                <span className="platform-admin-login-chip">{copy.login.heroFeatureAudit}</span>
+            <section className="platform-admin-login-stage">
+              <div className="platform-admin-login-brand">
+                <p className="platform-admin-login-kicker">{copy.login.heroEyebrow}</p>
+                <h1>{copy.title}</h1>
+                <p className="platform-admin-login-description">{copy.login.heroDescription}</p>
+                <div className="platform-admin-login-chip-list">
+                  <span className="platform-admin-login-chip">{copy.login.heroFeatureModels}</span>
+                  <span className="platform-admin-login-chip">{copy.login.heroFeatureSkills}</span>
+                  <span className="platform-admin-login-chip">{copy.login.heroFeatureAudit}</span>
+                </div>
               </div>
+
+              <article className="platform-admin-panel platform-admin-login-panel">
+                <span className="platform-admin-login-panel-scan" aria-hidden="true" />
+                <span className="platform-admin-login-panel-glow" aria-hidden="true" />
+                <span
+                  className="platform-admin-login-panel-corner is-top-left"
+                  aria-hidden="true"
+                />
+                <span
+                  className="platform-admin-login-panel-corner is-top-right"
+                  aria-hidden="true"
+                />
+                <span
+                  className="platform-admin-login-panel-corner is-bottom-left"
+                  aria-hidden="true"
+                />
+                <span
+                  className="platform-admin-login-panel-corner is-bottom-right"
+                  aria-hidden="true"
+                />
+                <div className="platform-admin-login-panel-topline" aria-hidden="true">
+                  <div className="platform-admin-login-panel-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <span className="platform-admin-login-panel-code">AUTH://PANEL-01</span>
+                </div>
+                <div className="platform-admin-panel-header">
+                  <div>
+                    <p className="platform-admin-section-label">{copy.login.section}</p>
+                    <h2>{copy.login.title}</h2>
+                  </div>
+                  <p className="platform-admin-panel-note">{copy.login.note}</p>
+                </div>
+
+                <form className="platform-admin-form" onSubmit={handleSubmit}>
+                  <label className="platform-admin-field platform-admin-login-field">
+                    <span>{copy.login.tenantCode}</span>
+                    <div className="platform-admin-login-input-shell">
+                      <span className="platform-admin-login-input-prefix" aria-hidden="true">
+                        [01]
+                      </span>
+                      <input
+                        aria-label={copy.login.tenantCode}
+                        value={tenantCode}
+                        onChange={(event) => setTenantCode(event.target.value)}
+                        placeholder="acme"
+                      />
+                      <span className="platform-admin-login-input-signal" aria-hidden="true" />
+                    </div>
+                  </label>
+
+                  <label className="platform-admin-field platform-admin-login-field">
+                    <span>{copy.login.username}</span>
+                    <div className="platform-admin-login-input-shell">
+                      <span className="platform-admin-login-input-prefix" aria-hidden="true">
+                        [02]
+                      </span>
+                      <input
+                        aria-label={copy.login.username}
+                        value={username}
+                        onChange={(event) => setUsername(event.target.value)}
+                        placeholder="admin"
+                      />
+                      <span className="platform-admin-login-input-signal" aria-hidden="true" />
+                    </div>
+                  </label>
+
+                  <label className="platform-admin-field platform-admin-login-field">
+                    <span>{copy.login.password}</span>
+                    <div className="platform-admin-login-input-shell">
+                      <span className="platform-admin-login-input-prefix" aria-hidden="true">
+                        [03]
+                      </span>
+                      <input
+                        aria-label={copy.login.password}
+                        type="password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        placeholder="••••••••"
+                      />
+                      <span className="platform-admin-login-input-signal" aria-hidden="true" />
+                    </div>
+                  </label>
+
+                  <button
+                    className="platform-admin-submit platform-admin-login-submit"
+                    type="submit"
+                    disabled={isSubmitting}
+                  >
+                    <span>{isSubmitting ? copy.login.signingIn : copy.login.signIn}</span>
+                    <span className="platform-admin-login-submit-code" aria-hidden="true">
+                      /RUN
+                    </span>
+                  </button>
+                </form>
+
+                {loginError ? <p className="platform-admin-error">{loginError}</p> : null}
+                {workspaceError ? <p className="platform-admin-error">{workspaceError}</p> : null}
+              </article>
             </section>
-
-            <article className="platform-admin-panel platform-admin-login-panel">
-              <span className="platform-admin-login-panel-scan" aria-hidden="true" />
-              <span className="platform-admin-login-panel-glow" aria-hidden="true" />
-              <span
-                className="platform-admin-login-panel-corner is-top-left"
-                aria-hidden="true"
-              />
-              <span
-                className="platform-admin-login-panel-corner is-top-right"
-                aria-hidden="true"
-              />
-              <span
-                className="platform-admin-login-panel-corner is-bottom-left"
-                aria-hidden="true"
-              />
-              <span
-                className="platform-admin-login-panel-corner is-bottom-right"
-                aria-hidden="true"
-              />
-              <div className="platform-admin-login-panel-topline" aria-hidden="true">
-                <div className="platform-admin-login-panel-dots">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <span className="platform-admin-login-panel-code">AUTH://PANEL-01</span>
-              </div>
-              <div className="platform-admin-panel-header">
-                <div>
-                  <p className="platform-admin-section-label">{copy.login.section}</p>
-                  <h2>{copy.login.title}</h2>
-                </div>
-                <p className="platform-admin-panel-note">{copy.login.note}</p>
-              </div>
-
-              <form className="platform-admin-form" onSubmit={handleSubmit}>
-                <label className="platform-admin-field platform-admin-login-field">
-                  <span>{copy.login.tenantCode}</span>
-                  <div className="platform-admin-login-input-shell">
-                    <span className="platform-admin-login-input-prefix" aria-hidden="true">
-                      [01]
-                    </span>
-                    <input
-                      aria-label={copy.login.tenantCode}
-                      value={tenantCode}
-                      onChange={(event) => setTenantCode(event.target.value)}
-                      placeholder="acme"
-                    />
-                    <span className="platform-admin-login-input-signal" aria-hidden="true" />
-                  </div>
-                </label>
-
-                <label className="platform-admin-field platform-admin-login-field">
-                  <span>{copy.login.username}</span>
-                  <div className="platform-admin-login-input-shell">
-                    <span className="platform-admin-login-input-prefix" aria-hidden="true">
-                      [02]
-                    </span>
-                    <input
-                      aria-label={copy.login.username}
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
-                      placeholder="admin"
-                    />
-                    <span className="platform-admin-login-input-signal" aria-hidden="true" />
-                  </div>
-                </label>
-
-                <label className="platform-admin-field platform-admin-login-field">
-                  <span>{copy.login.password}</span>
-                  <div className="platform-admin-login-input-shell">
-                    <span className="platform-admin-login-input-prefix" aria-hidden="true">
-                      [03]
-                    </span>
-                    <input
-                      aria-label={copy.login.password}
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      placeholder="••••••••"
-                    />
-                    <span className="platform-admin-login-input-signal" aria-hidden="true" />
-                  </div>
-                </label>
-
-                <button
-                  className="platform-admin-submit platform-admin-login-submit"
-                  type="submit"
-                  disabled={isSubmitting}
-                >
-                  <span>{isSubmitting ? copy.login.signingIn : copy.login.signIn}</span>
-                  <span className="platform-admin-login-submit-code" aria-hidden="true">
-                    /RUN
-                  </span>
-                </button>
-              </form>
-
-              {loginError ? <p className="platform-admin-error">{loginError}</p> : null}
-              {workspaceError ? <p className="platform-admin-error">{workspaceError}</p> : null}
-            </article>
           </div>
         </section>
 
