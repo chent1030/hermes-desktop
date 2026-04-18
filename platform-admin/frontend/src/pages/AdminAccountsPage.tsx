@@ -89,31 +89,33 @@ export function AdminAccountsPage({
         </section>
 
         <section className="platform-admin-resource-list-panel">
-          <div className="platform-admin-list">
-            {accounts.map((account) => (
-              <div
-                key={account.id}
-                className="platform-admin-list-item is-static platform-admin-resource-record"
-              >
-                <div className="platform-admin-resource-record-head">
-                  <span className="platform-admin-resource-record-title">{account.displayName}</span>
-                  <small>{account.isActive ? copy.common.active : copy.common.inactive}</small>
+          <div className="platform-admin-list-scroll">
+            <div className="platform-admin-list">
+              {accounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="platform-admin-list-item is-static platform-admin-resource-record"
+                >
+                  <div className="platform-admin-resource-record-head">
+                    <span className="platform-admin-resource-record-title">{account.displayName}</span>
+                    <small>{account.isActive ? copy.common.active : copy.common.inactive}</small>
+                  </div>
+                  <div className="platform-admin-resource-record-meta">
+                    <small>{account.username}</small>
+                    <small>{roleLabel(account.roleCode)}</small>
+                  </div>
+                  <div className="platform-admin-resource-record-actions">
+                    <button
+                      className="platform-admin-secondary-button"
+                      type="button"
+                      onClick={() => onDeactivate(account.id)}
+                    >
+                      {copy.accountControl.deactivateButton}
+                    </button>
+                  </div>
                 </div>
-                <div className="platform-admin-resource-record-meta">
-                  <small>{account.username}</small>
-                  <small>{roleLabel(account.roleCode)}</small>
-                </div>
-                <div className="platform-admin-resource-record-actions">
-                  <button
-                    className="platform-admin-secondary-button"
-                    type="button"
-                    onClick={() => onDeactivate(account.id)}
-                  >
-                    {copy.accountControl.deactivateButton}
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
       </div>

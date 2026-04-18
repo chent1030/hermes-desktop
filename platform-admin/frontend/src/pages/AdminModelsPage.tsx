@@ -112,32 +112,34 @@ export function AdminModelsPage({
         </section>
 
         <section className="platform-admin-resource-list-panel">
-          <div className="platform-admin-list">
-            {modelProfiles.map((item) => (
-              <div
-                key={item.id}
-                className="platform-admin-list-item is-static platform-admin-resource-record"
-              >
-                <div className="platform-admin-resource-record-head">
-                  <span className="platform-admin-resource-record-title">{item.label}</span>
-                  <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
+          <div className="platform-admin-list-scroll">
+            <div className="platform-admin-list">
+              {modelProfiles.map((item) => (
+                <div
+                  key={item.id}
+                  className="platform-admin-list-item is-static platform-admin-resource-record"
+                >
+                  <div className="platform-admin-resource-record-head">
+                    <span className="platform-admin-resource-record-title">{item.label}</span>
+                    <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
+                  </div>
+                  <div className="platform-admin-resource-record-meta">
+                    <small>{item.provider}</small>
+                    <small>{item.model}</small>
+                    <small>{item.isDefault ? copy.common.default : copy.common.optional}</small>
+                  </div>
+                  <div className="platform-admin-resource-record-actions">
+                    <button
+                      className="platform-admin-secondary-button"
+                      type="button"
+                      onClick={() => onDeactivate(item.id)}
+                    >
+                      {copy.modelControl.deactivateButton}
+                    </button>
+                  </div>
                 </div>
-                <div className="platform-admin-resource-record-meta">
-                  <small>{item.provider}</small>
-                  <small>{item.model}</small>
-                  <small>{item.isDefault ? copy.common.default : copy.common.optional}</small>
-                </div>
-                <div className="platform-admin-resource-record-actions">
-                  <button
-                    className="platform-admin-secondary-button"
-                    type="button"
-                    onClick={() => onDeactivate(item.id)}
-                  >
-                    {copy.modelControl.deactivateButton}
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
       </div>

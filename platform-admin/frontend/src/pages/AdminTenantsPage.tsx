@@ -56,24 +56,26 @@ export function AdminTenantsPage({
         </section>
 
         <section className="platform-admin-resource-list-panel">
-          <div className="platform-admin-list">
-            {tenants.map((tenant) => (
-              <button
-                key={tenant.id}
-                type="button"
-                className={`platform-admin-list-item platform-admin-resource-record${selectedTenantId === tenant.id ? " is-selected" : ""}`}
-                onClick={() => onSelectTenant(tenant.id)}
-              >
-                <div className="platform-admin-resource-record-head">
-                  <span className="platform-admin-resource-record-title">{tenant.name}</span>
-                  <small>{tenant.isActive ? copy.common.active : copy.common.inactive}</small>
-                </div>
-                <div className="platform-admin-resource-record-meta">
-                  <small>{tenant.code}</small>
-                  {selectedTenantId === tenant.id ? <small>{copy.workspace.selectedTenant}</small> : null}
-                </div>
-              </button>
-            ))}
+          <div className="platform-admin-list-scroll">
+            <div className="platform-admin-list">
+              {tenants.map((tenant) => (
+                <button
+                  key={tenant.id}
+                  type="button"
+                  className={`platform-admin-list-item platform-admin-resource-record${selectedTenantId === tenant.id ? " is-selected" : ""}`}
+                  onClick={() => onSelectTenant(tenant.id)}
+                >
+                  <div className="platform-admin-resource-record-head">
+                    <span className="platform-admin-resource-record-title">{tenant.name}</span>
+                    <small>{tenant.isActive ? copy.common.active : copy.common.inactive}</small>
+                  </div>
+                  <div className="platform-admin-resource-record-meta">
+                    <small>{tenant.code}</small>
+                    {selectedTenantId === tenant.id ? <small>{copy.workspace.selectedTenant}</small> : null}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
           {selectedTenantId ? (
             <div className="platform-admin-resource-actions">

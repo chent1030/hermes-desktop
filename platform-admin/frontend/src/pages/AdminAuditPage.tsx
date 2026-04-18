@@ -45,7 +45,9 @@ export function AdminAuditPage({
               <p className="platform-admin-section-label">{titleLabel}</p>
               <span className="platform-admin-resource-count">#{events.length}</span>
             </div>
-            <div className="platform-admin-list">{events}</div>
+            <div className="platform-admin-list-scroll">
+              <div className="platform-admin-list">{events}</div>
+            </div>
             {loadMoreVisible ? (
               <div className="platform-admin-data-actions">
                 <button

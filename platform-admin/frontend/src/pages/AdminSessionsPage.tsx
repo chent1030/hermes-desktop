@@ -42,7 +42,9 @@ export function AdminSessionsPage({
               <p className="platform-admin-section-label">{titleLabel}</p>
               <span className="platform-admin-resource-count">#{sessions.length}</span>
             </div>
-            <div className="platform-admin-list">{sessions}</div>
+            <div className="platform-admin-list-scroll">
+              <div className="platform-admin-list">{sessions}</div>
+            </div>
             {loadMoreVisible ? (
               <div className="platform-admin-data-actions">
                 <button
