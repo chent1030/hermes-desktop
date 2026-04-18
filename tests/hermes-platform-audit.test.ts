@@ -253,4 +253,72 @@ describe("hermes platform audit", () => {
     expect(markAuditFailure).not.toHaveBeenCalled();
     expect(flushWorkspaceAuditEvents).toHaveBeenCalledTimes(2);
   });
+
+  it("adds sessionId to chat lifecycle audit events when resuming an existing session", async () => {
+    httpGet.mockImplementation((_url, _options, callback) => {
+      const response = new EventEmitter() as EventEmitter & {
+        resume: () => void;
+        statusCode: number;
+      };
+      response.statusCode = 200;
+      response.resume = vi.fn();
+      callback(response);
+
+      return createRequestHandle();
+    });
+
+    httpRequest.mockImplementation((_url, _options, callback) => {
+      const request = createRequestHandle();
+      request.end.mockImplementation(() => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          statusCode: number;
+        };
+        response.statusCode = 500;
+        response.headers = {};
+        callback(response);
+        response.emit(
+          "data",
+          Buffer.from(JSON.stringify({ error: { message: "resume failed" } })),
+        );
+        response.emit("end");
+      });
+      return request;
+    });
+
+    const hermes = await import("../src/main/hermes");
+    const errorPromise = new Promise<string>((resolve) => {
+      void hermes.sendMessage(
+        "resume failed",
+        {
+          onChunk: vi.fn(),
+          onDone: vi.fn(),
+          onError: resolve,
+        },
+        "default",
+        "session-existing",
+      );
+    });
+
+    await expect(errorPromise).resolves.toBe("resume failed");
+
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "chat.started",
+        payload: expect.objectContaining({
+          sessionId: "session-existing",
+          resumeSessionId: "session-existing",
+        }),
+      }),
+    );
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "chat.failed",
+        payload: expect.objectContaining({
+          sessionId: "session-existing",
+          resumeSessionId: "session-existing",
+        }),
+      }),
+    );
+  });
 });

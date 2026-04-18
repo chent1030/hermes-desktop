@@ -131,6 +131,7 @@ interface ChatAuditContext {
   messageLength: number;
   profile?: string;
   resumeSessionId?: string;
+  sessionId?: string;
 }
 
 function flushChatAuditEvent(
@@ -144,6 +145,7 @@ function flushChatAuditEvent(
 function recordChatStarted(context: ChatAuditContext): void {
   flushChatAuditEvent("chat.started", {
     messageLength: context.messageLength,
+    sessionId: context.sessionId || context.resumeSessionId || null,
     profile: context.profile || null,
     resumeSessionId: context.resumeSessionId || null,
   });
@@ -153,7 +155,7 @@ function recordChatCompleted(
   context: ChatAuditContext & { sessionId?: string },
 ): void {
   flushChatAuditEvent("chat.completed", {
-    sessionId: context.sessionId || null,
+    sessionId: context.sessionId || context.resumeSessionId || null,
     profile: context.profile || null,
     resumeSessionId: context.resumeSessionId || null,
   });
@@ -167,7 +169,7 @@ function recordChatFailed(
 ): void {
   flushChatAuditEvent("chat.failed", {
     error: context.error,
-    sessionId: context.sessionId || null,
+    sessionId: context.sessionId || context.resumeSessionId || null,
     profile: context.profile || null,
     resumeSessionId: context.resumeSessionId || null,
   });
