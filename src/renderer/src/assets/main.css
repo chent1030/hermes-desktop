@@ -1837,6 +1837,62 @@ body {
   flex: 1;
 }
 
+.settings-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.settings-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.settings-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-detail-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.settings-detail-value {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.settings-status-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .settings-select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -2910,6 +2966,45 @@ body {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+/* ========================================================================
+   WORKSPACE
+   ======================================================================== */
+.workspace-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.workspace-shell-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 12px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.workspace-shell-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+}
+
+.workspace-shell-meta-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.workspace-shell-meta-value {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.4;
 }
 
 .skills-empty-hint {

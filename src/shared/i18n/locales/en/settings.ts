@@ -21,10 +21,15 @@ export default {
     en: "English",
     zhCN: "Simplified Chinese",
   },
+  account: {
+    tenantCode: "Tenant code",
+  },
   status: {
     initialization: "Initialization status",
+    feedback: "Initialization feedback",
     audit: "Audit status",
     completed: "Completed",
+    readyHint: "Tenant context, models, and skill catalog are synchronized.",
     healthy: "Healthy",
     degraded: "Degraded",
     buffering: "Buffering",

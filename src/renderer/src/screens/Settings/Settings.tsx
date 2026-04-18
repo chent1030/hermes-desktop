@@ -7,6 +7,9 @@ export default function Settings(_props: {
 }): React.JSX.Element {
   const { locale, setLocale, t } = useI18n();
   const { audit, logout, retryInitialization, workspace } = usePlatform();
+  const selectedModel =
+    workspace?.models.find((model) => model.id === workspace.selectedModelId)
+      ?.label ?? "-";
 
   const auditLabel =
     audit?.health === "degraded"
@@ -22,8 +25,32 @@ export default function Settings(_props: {
       <h1 className="settings-header">{t("platform.accountTitle")}</h1>
 
       <div className="settings-card">
-        <div>{workspace?.tenant.name}</div>
-        <div>{workspace?.user.displayName}</div>
+        <div className="settings-detail-grid">
+          <div className="settings-detail-item">
+            <div className="settings-detail-label">{t("platform.tenant")}</div>
+            <div className="settings-detail-value">{workspace?.tenant.name ?? "-"}</div>
+          </div>
+          <div className="settings-detail-item">
+            <div className="settings-detail-label">
+              {t("settings.account.tenantCode")}
+            </div>
+            <div className="settings-detail-value">{workspace?.tenant.code ?? "-"}</div>
+          </div>
+          <div className="settings-detail-item">
+            <div className="settings-detail-label">{t("platform.account")}</div>
+            <div className="settings-detail-value">
+              {workspace
+                ? `${workspace.user.displayName} (${workspace.user.username})`
+                : "-"}
+            </div>
+          </div>
+          <div className="settings-detail-item">
+            <div className="settings-detail-label">
+              {t("platform.currentModel")}
+            </div>
+            <div className="settings-detail-value">{selectedModel}</div>
+          </div>
+        </div>
       </div>
 
       <label className="settings-label">
@@ -41,16 +68,30 @@ export default function Settings(_props: {
       </label>
 
       <div className="settings-card">
-        <div>{t("settings.status.initialization")}</div>
-        <div>{t("settings.status.completed")}</div>
-        <div>{t("settings.status.audit")}</div>
-        <div>{auditLabel}</div>
+        <div className="settings-detail-grid">
+          <div className="settings-detail-item">
+            <div className="settings-detail-label">
+              {t("settings.status.initialization")}
+            </div>
+            <div className="settings-detail-value">{t("settings.status.completed")}</div>
+          </div>
+          <div className="settings-detail-item">
+            <div className="settings-detail-label">
+              {t("settings.status.feedback")}
+            </div>
+            <div className="settings-detail-value">{t("settings.status.readyHint")}</div>
+          </div>
+          <div className="settings-detail-item">
+            <div className="settings-detail-label">{t("settings.status.audit")}</div>
+            <div className="settings-detail-value">{auditLabel}</div>
+          </div>
+        </div>
         {audit && (
-          <>
+          <div className="settings-status-list">
             <div>{t("settings.status.queued", { count: audit.queuedEvents })}</div>
             <div>{t("settings.status.dropped", { count: audit.droppedEvents })}</div>
             {audit.lastError && <div>{audit.lastError}</div>}
-          </>
+          </div>
         )}
       </div>
 

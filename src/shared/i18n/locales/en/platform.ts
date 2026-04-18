@@ -1,6 +1,7 @@
 export default {
   loginTitle: "Tenant Login",
   tenant: "Tenant",
+  account: "Account",
   username: "Username",
   password: "Password",
   signIn: "Sign in",
@@ -19,6 +20,12 @@ export default {
   updateDownloading: "Downloading {{percent}}%",
   updateReady: "Restart to update",
   accountTitle: "Account",
+  currentModel: "Current model",
+  auditStatus: "Audit status",
+  auditHealthy: "Healthy",
+  auditDegraded: "Degraded",
+  auditBuffering: "Buffering",
+  auditReauthRequired: "Reauth required",
   reinitialize: "Reinitialize",
   signOut: "Sign out",
 } as const;

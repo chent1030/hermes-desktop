@@ -1,6 +1,5 @@
 export default {
   title: "设置",
-  account: "账户",
   language: "语言",
   reinitialize: "重新初始化",
   signOut: "退出登录",
@@ -8,10 +7,15 @@ export default {
     en: "英文",
     zhCN: "简体中文",
   },
+  account: {
+    tenantCode: "租户编码",
+  },
   status: {
     initialization: "初始化状态",
+    feedback: "初始化反馈",
     audit: "审计状态",
     completed: "已完成",
+    readyHint: "租户上下文、模型与 Skill 清单已同步完成。",
     healthy: "正常",
     degraded: "已降级",
     buffering: "缓冲中",

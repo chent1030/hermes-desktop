@@ -1,6 +1,7 @@
 export default {
   loginTitle: "租户登录",
   tenant: "租户",
+  account: "账号",
   username: "账号",
   password: "密码",
   signIn: "登录",
@@ -19,6 +20,12 @@ export default {
   updateDownloading: "下载中 {{percent}}%",
   updateReady: "重启以更新",
   accountTitle: "账户",
+  currentModel: "当前模型",
+  auditStatus: "审计状态",
+  auditHealthy: "正常",
+  auditDegraded: "已降级",
+  auditBuffering: "缓冲中",
+  auditReauthRequired: "需要重新登录",
   reinitialize: "重新初始化",
   signOut: "退出登录",
 } as const;

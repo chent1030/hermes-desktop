@@ -128,8 +128,17 @@ describe("Settings localization", () => {
       </I18nProvider>,
     );
 
+    expect(screen.getByText("租户编码")).toBeInTheDocument();
+    expect(screen.getByText("acme")).toBeInTheDocument();
+    expect(screen.getByText("Alice (alice)")).toBeInTheDocument();
+    expect(screen.getByText("当前模型")).toBeInTheDocument();
+    expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
     expect(screen.getByText("初始化状态")).toBeInTheDocument();
     expect(screen.getByText("已完成")).toBeInTheDocument();
+    expect(screen.getByText("初始化反馈")).toBeInTheDocument();
+    expect(
+      screen.getByText("租户上下文、模型与 Skill 清单已同步完成。"),
+    ).toBeInTheDocument();
     expect(screen.getByText("审计状态")).toBeInTheDocument();
     expect(screen.getByText("已降级")).toBeInTheDocument();
     expect(screen.getByText("待补传：3")).toBeInTheDocument();
