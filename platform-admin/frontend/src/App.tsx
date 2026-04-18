@@ -33,6 +33,7 @@ import { AdminAuditPage } from "./pages/AdminAuditPage";
 import { AdminSessionsPage } from "./pages/AdminSessionsPage";
 
 const API_BASE_URL = "http://127.0.0.1:8080";
+const ADMIN_SESSION_STORAGE_KEY = "platform_admin_session";
 
 function formatMessage(
   template: string,
@@ -83,6 +84,38 @@ function authHeaders(session: LoginResponse, withJson = false): HeadersInit {
     Authorization: `Bearer ${session.accessToken}`,
     ...(withJson ? { "Content-Type": "application/json" } : {}),
   };
+}
+
+function readPersistedSession(): LoginResponse | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const rawValue = window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawValue) as LoginResponse;
+  } catch {
+    window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+    return null;
+  }
+}
+
+function persistSession(session: LoginResponse): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+function clearPersistedSession(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
 }
 
 function readPayloadString(
@@ -224,6 +257,7 @@ export default function App(): React.JSX.Element {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [session, setSession] = useState<LoginResponse | null>(null);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
@@ -673,6 +707,54 @@ export default function App(): React.JSX.Element {
     }
   };
 
+  useEffect(() => {
+    const persistedSession = readPersistedSession();
+    if (!persistedSession) {
+      setIsRestoringSession(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      try {
+        const payload = await requestJson<LoginResponse>("/api/auth/refresh", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            refreshToken: persistedSession.refreshToken,
+          }),
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setSession(payload);
+        persistSession(payload);
+        await loadWorkspace(payload, payload.tenant?.id ?? persistedSession.tenant?.id ?? null);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        clearPersistedSession();
+        setSession(null);
+      } finally {
+        if (!cancelled) {
+          setIsRestoringSession(false);
+        }
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -692,9 +774,11 @@ export default function App(): React.JSX.Element {
         }),
       });
       setSession(payload);
+      persistSession(payload);
       setSessionNotice(copy.notices.sessionActive);
       await loadWorkspace(payload, payload.tenant?.id ?? null);
     } catch (error) {
+      clearPersistedSession();
       setSession(null);
       setAccounts([]);
       setTenants([]);
@@ -730,6 +814,7 @@ export default function App(): React.JSX.Element {
         }),
       });
       setSession(payload);
+      persistSession(payload);
       setSessionNotice(copy.notices.sessionRefreshed);
     } catch (error) {
       setLoginError(resolveErrorMessage(error, copy.errors.unknownRefreshError));
@@ -1622,6 +1707,43 @@ export default function App(): React.JSX.Element {
 
     return null;
   };
+
+  if (!session && isRestoringSession) {
+    return (
+      <main className="platform-admin-app is-login-screen">
+        <section className="platform-admin-login-shell">
+          <div className="platform-admin-login-topbar">
+            <p className={healthClassName}>
+              {healthStatus === "online" ? (
+                <>
+                  <span>{copy.health.online}</span>
+                  <span className="platform-admin-status-detail">
+                    · {healthService || "platform-admin-backend"}
+                  </span>
+                </>
+              ) : null}
+              {healthStatus === "offline" ? (
+                <>
+                  <span>{copy.health.offline}</span>
+                  <span className="platform-admin-status-detail">· {healthError}</span>
+                </>
+              ) : null}
+              {healthStatus === "checking" ? <span>{copy.health.checking}</span> : null}
+            </p>
+          </div>
+          <article className="platform-admin-panel platform-admin-login-panel">
+            <div className="platform-admin-panel-header">
+              <div>
+                <p className="platform-admin-section-label">{copy.workspace.section}</p>
+                <h2>{copy.workspace.loading}</h2>
+              </div>
+              <p className="platform-admin-panel-note">{copy.login.refreshing}</p>
+            </div>
+          </article>
+        </section>
+      </main>
+    );
+  }
 
   if (!session) {
     return (

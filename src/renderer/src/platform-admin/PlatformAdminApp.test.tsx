@@ -62,6 +62,81 @@ afterEach(() => {
 });
 
 describe("platform admin frontend", () => {
+  it("restores the workspace from a persisted refresh token after page reload", async () => {
+    window.localStorage.setItem(
+      "platform_admin_session",
+      JSON.stringify({
+        accessToken: "atk_cached",
+        refreshToken: "rtk_cached",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+    );
+
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_root_restored",
+        refreshToken: "rtk_root_restored",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+      mockJsonResponse([
+        {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 11,
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          username: "alice",
+          displayName: "Alice",
+          roleCode: "tenant_user",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Workspace overview" }),
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/api/auth/refresh",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
+
   it("switches the admin console copy to Chinese", async () => {
     setupFetch([mockJsonResponse({ status: "ok", service: "platform-admin-backend" })]);
 
