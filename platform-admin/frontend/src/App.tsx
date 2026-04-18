@@ -1655,6 +1655,7 @@ export default function App(): React.JSX.Element {
 
           <div className="platform-admin-login-grid">
             <section className="platform-admin-login-copy">
+              <span className="platform-admin-login-copy-scan" aria-hidden="true" />
               <p className="platform-admin-login-kicker">{copy.login.heroEyebrow}</p>
               <h1>{copy.title}</h1>
               <p className="platform-admin-login-description">{copy.login.heroDescription}</p>
@@ -1666,6 +1667,8 @@ export default function App(): React.JSX.Element {
             </section>
 
             <article className="platform-admin-panel platform-admin-login-panel">
+              <span className="platform-admin-login-panel-scan" aria-hidden="true" />
+              <span className="platform-admin-login-panel-glow" aria-hidden="true" />
               <div className="platform-admin-panel-header">
                 <div>
                   <p className="platform-admin-section-label">{copy.login.section}</p>

@@ -16,6 +16,81 @@
   --font-mono: "Fira Code", "SFMono-Regular", monospace;
 }
 
+@keyframes platform-admin-orb-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scale(1.08);
+  }
+}
+
+@keyframes platform-admin-grid-drift {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(44px);
+  }
+}
+
+@keyframes platform-admin-panel-sweep {
+  0% {
+    transform: translateY(-120%) scaleY(0.85);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.7;
+  }
+  55% {
+    opacity: 0.28;
+  }
+  100% {
+    transform: translateY(260%) scaleY(1.05);
+    opacity: 0;
+  }
+}
+
+@keyframes platform-admin-copy-sweep {
+  0% {
+    transform: translateX(-130%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.22;
+  }
+  55% {
+    opacity: 0.08;
+  }
+  100% {
+    transform: translateX(140%);
+    opacity: 0;
+  }
+}
+
+@keyframes platform-admin-panel-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    filter: blur(18px);
+  }
+  50% {
+    opacity: 0.72;
+    filter: blur(28px);
+  }
+}
+
+@keyframes platform-admin-chip-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(14, 165, 233, 0.06);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(14, 165, 233, 0.22);
+  }
+}
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -73,6 +148,7 @@
     width: 20rem;
     height: 20rem;
     background: rgba(37, 99, 235, 0.26);
+    animation: platform-admin-orb-float 16s ease-in-out infinite;
   }
 
   .platform-admin-login-orb.is-secondary {
@@ -81,6 +157,7 @@
     width: 22rem;
     height: 22rem;
     background: rgba(14, 165, 233, 0.16);
+    animation: platform-admin-orb-float 18s ease-in-out infinite reverse;
   }
 
   .platform-admin-login-orb.is-accent {
@@ -89,6 +166,7 @@
     width: 16rem;
     height: 16rem;
     background: rgba(249, 115, 22, 0.12);
+    animation: platform-admin-orb-float 14s ease-in-out infinite;
   }
 
   .platform-admin-login-gridline {
@@ -98,6 +176,7 @@
       linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
     background-size: 100% 44px, 44px 100%;
     mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent 92%);
+    animation: platform-admin-grid-drift 18s linear infinite;
   }
 
   .platform-admin-login-shell {
@@ -132,6 +211,20 @@
     @apply relative mb-3 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-200;
   }
 
+  .platform-admin-login-copy-scan {
+    @apply pointer-events-none absolute inset-y-0 left-0 w-28 rounded-[2rem];
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(56, 189, 248, 0.02) 18%,
+      rgba(56, 189, 248, 0.18) 50%,
+      rgba(56, 189, 248, 0.02) 82%,
+      transparent 100%
+    );
+    mix-blend-mode: screen;
+    animation: platform-admin-copy-sweep 7.8s linear infinite;
+  }
+
   .platform-admin-login-copy h1 {
     @apply relative m-0 max-w-xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl;
   }
@@ -146,10 +239,11 @@
 
   .platform-admin-login-chip {
     @apply inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100 shadow-[0_0_30px_rgba(14,165,233,0.12)];
+    animation: platform-admin-chip-pulse 4.2s ease-in-out infinite;
   }
 
   .platform-admin-login-panel {
-    @apply p-5 sm:p-6;
+    @apply overflow-hidden p-5 sm:p-6;
     background:
       linear-gradient(180deg, rgba(9, 17, 32, 0.92), rgba(7, 12, 24, 0.96)),
       linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(15, 23, 42, 0));
@@ -157,6 +251,25 @@
     box-shadow:
       0 24px 80px rgba(2, 6, 23, 0.55),
       0 0 0 1px rgba(96, 165, 250, 0.12);
+  }
+
+  .platform-admin-login-panel-scan {
+    @apply pointer-events-none absolute inset-x-0 top-0 h-24;
+    background: linear-gradient(
+      180deg,
+      rgba(56, 189, 248, 0.28) 0%,
+      rgba(56, 189, 248, 0.08) 32%,
+      transparent 100%
+    );
+    filter: blur(6px);
+    opacity: 0;
+    animation: platform-admin-panel-sweep 5.8s linear infinite;
+  }
+
+  .platform-admin-login-panel-glow {
+    @apply pointer-events-none absolute -right-12 top-6 h-24 w-24 rounded-full;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.65), transparent 70%);
+    animation: platform-admin-panel-glow 5.2s ease-in-out infinite;
   }
 
   .platform-admin-hero,
@@ -450,5 +563,16 @@
 
   .is-login-screen .platform-admin-error {
     @apply border-rose-400/20 bg-rose-500/10 text-rose-100;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .platform-admin-login-orb,
+    .platform-admin-login-gridline,
+    .platform-admin-login-copy-scan,
+    .platform-admin-login-panel-scan,
+    .platform-admin-login-panel-glow,
+    .platform-admin-login-chip {
+      animation: none !important;
+    }
   }
 }
