@@ -28,6 +28,7 @@ body {
 }
 
 input,
+select,
 button {
   font: inherit;
 }
@@ -154,7 +155,8 @@ button {
   color: var(--admin-text);
 }
 
-.platform-admin-field input {
+.platform-admin-field input,
+.platform-admin-field select {
   width: 100%;
   padding: 13px 14px;
   border: 1px solid rgba(23, 34, 43, 0.12);
@@ -168,7 +170,8 @@ button {
     box-shadow 0.18s ease;
 }
 
-.platform-admin-field input:focus {
+.platform-admin-field input:focus,
+.platform-admin-field select:focus {
   border-color: rgba(197, 84, 50, 0.45);
   box-shadow: 0 0 0 4px rgba(197, 84, 50, 0.1);
   transform: translateY(-1px);
@@ -242,6 +245,79 @@ button {
   color: var(--admin-success);
 }
 
+.platform-admin-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.platform-admin-workspace-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.platform-admin-workspace-header h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.platform-admin-workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.platform-admin-workspace-grid.is-single-column {
+  grid-template-columns: 1fr;
+}
+
+.platform-admin-stack-card {
+  min-height: auto;
+  display: grid;
+  gap: 16px;
+}
+
+.platform-admin-stack-card h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.platform-admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.platform-admin-list-item {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid rgba(23, 34, 43, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  text-align: left;
+  cursor: pointer;
+}
+
+.platform-admin-list-item.is-selected {
+  border-color: rgba(197, 84, 50, 0.45);
+  box-shadow: 0 0 0 3px rgba(197, 84, 50, 0.08);
+}
+
+.platform-admin-list-item.is-static {
+  cursor: default;
+}
+
+.platform-admin-list-item span {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.platform-admin-list-item small {
+  color: var(--admin-muted);
+}
+
 .platform-admin-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -268,11 +344,16 @@ button {
 
 @media (max-width: 920px) {
   .platform-admin-hero,
-  .platform-admin-panel-header {
+  .platform-admin-panel-header,
+  .platform-admin-workspace-header {
     flex-direction: column;
   }
 
   .platform-admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-admin-workspace-grid {
     grid-template-columns: 1fr;
   }
 }

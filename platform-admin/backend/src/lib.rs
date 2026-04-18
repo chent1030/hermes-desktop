@@ -5,10 +5,17 @@ use std::net::{TcpListener, TcpStream};
 
 use serde::Serialize;
 
+pub mod admin;
 pub mod auth;
 
+use admin::{
+    AdminError, CreateAccountInput, CreateTenantInput, PgAdminStore, create_account_for_actor,
+    create_tenant_for_actor, deactivate_account_for_actor, deactivate_tenant_for_actor,
+    list_accounts_for_actor, list_tenants_for_actor,
+};
 use auth::{
-    AuthError, PgAuthStore, authenticate_login, invalid_credentials_message,
+    AuthError, BootstrapConfig, PgAuthStore, authenticate_access_token, authenticate_login,
+    ensure_bootstrap_super_admin, invalid_access_token_message, invalid_credentials_message,
     invalid_refresh_token_message, parse_login_request_json, parse_refresh_request_json,
     refresh_session,
 };
@@ -21,6 +28,9 @@ pub struct ServerConfig {
     pub port: u16,
     pub database_url: String,
     pub session_salt: String,
+    pub bootstrap_super_username: Option<String>,
+    pub bootstrap_super_password: Option<String>,
+    pub bootstrap_super_display_name: Option<String>,
 }
 
 #[derive(Debug)]
@@ -81,12 +91,18 @@ impl ServerConfig {
         });
         let session_salt = env::var("ADMIN_SESSION_SALT")
             .unwrap_or_else(|_| "platform-admin-dev-salt".to_string());
+        let bootstrap_super_username = env::var("ADMIN_BOOTSTRAP_SUPER_USERNAME").ok();
+        let bootstrap_super_password = env::var("ADMIN_BOOTSTRAP_SUPER_PASSWORD").ok();
+        let bootstrap_super_display_name = env::var("ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME").ok();
 
         Ok(Self {
             host,
             port,
             database_url,
             session_salt,
+            bootstrap_super_username,
+            bootstrap_super_password,
+            bootstrap_super_display_name,
         })
     }
 
@@ -121,19 +137,47 @@ pub fn handle_health_request(request: &str) -> String {
         port: 8080,
         database_url: "postgres://localhost/manager_admin".to_string(),
         session_salt: "platform-admin-test-salt".to_string(),
+        bootstrap_super_username: None,
+        bootstrap_super_password: None,
+        bootstrap_super_display_name: None,
     };
     handle_request(request, &config)
 }
 
 pub fn handle_request(request: &str, config: &ServerConfig) -> String {
     let (method, path) = parse_request_line(request);
+    let normalized_path = path
+        .map(|value| value.split('?').next().unwrap_or(value))
+        .unwrap_or_default()
+        .to_string();
 
-    match (method, path) {
-        (Some("GET"), Some("/api/health")) => json_response("HTTP/1.1 200 OK", &health_payload_json()),
-        (Some("OPTIONS"), Some("/api/auth/login")) => empty_response("HTTP/1.1 204 No Content"),
-        (Some("OPTIONS"), Some("/api/auth/refresh")) => empty_response("HTTP/1.1 204 No Content"),
-        (Some("POST"), Some("/api/auth/login")) => handle_login_request(request, config),
-        (Some("POST"), Some("/api/auth/refresh")) => handle_refresh_request(request, config),
+    match (method, normalized_path.as_str()) {
+        (Some("GET"), "/api/health") => json_response("HTTP/1.1 200 OK", &health_payload_json()),
+        (Some("OPTIONS"), "/api/auth/login") => empty_response("HTTP/1.1 204 No Content"),
+        (Some("OPTIONS"), "/api/auth/refresh") => empty_response("HTTP/1.1 204 No Content"),
+        (Some("OPTIONS"), _) if normalized_path.starts_with("/api/admin/") => {
+            empty_response("HTTP/1.1 204 No Content")
+        }
+        (Some("POST"), "/api/auth/login") => handle_login_request(request, config),
+        (Some("POST"), "/api/auth/refresh") => handle_refresh_request(request, config),
+        (Some("GET"), "/api/admin/me") => handle_admin_me(request, config),
+        (Some("GET"), "/api/admin/tenants") => handle_list_tenants(request, config),
+        (Some("POST"), "/api/admin/tenants") => handle_create_tenant(request, config),
+        (Some("GET"), "/api/admin/accounts") => handle_list_accounts(request, config),
+        (Some("POST"), "/api/admin/accounts") => handle_create_account(request, config),
+        (Some("GET"), "/api/admin/tenant/accounts") => handle_list_tenant_accounts(request, config),
+        (Some("POST"), "/api/admin/tenant/accounts") => {
+            handle_create_tenant_scoped_account(request, config)
+        }
+        (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenants/") && normalized_path.ends_with("/deactivate") => {
+            handle_deactivate_tenant(request, config, &normalized_path)
+        }
+        (Some("POST"), _) if normalized_path.starts_with("/api/admin/accounts/") && normalized_path.ends_with("/deactivate") => {
+            handle_deactivate_account(request, config, &normalized_path)
+        }
+        (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenant/accounts/") && normalized_path.ends_with("/deactivate") => {
+            handle_deactivate_account(request, config, &normalized_path)
+        }
         _ => json_response(
             "HTTP/1.1 404 Not Found",
             &serialize_json(&ErrorPayload {
@@ -157,6 +201,16 @@ pub fn handle_client(stream: &mut TcpStream, config: &ServerConfig) -> std::io::
 pub fn run_server(config: &ServerConfig) -> Result<(), ServerError> {
     let store = PgAuthStore::new(&config.database_url);
     store.ensure_schema()?;
+    let mut bootstrap_store = PgAuthStore::new(&config.database_url);
+    ensure_bootstrap_super_admin(
+        &mut bootstrap_store,
+        &BootstrapConfig {
+            username: config.bootstrap_super_username.clone(),
+            password: config.bootstrap_super_password.clone(),
+            display_name: config.bootstrap_super_display_name.clone(),
+        },
+    )
+    .map_err(|error| ServerError::Store(auth::AuthStoreError(error.to_string())))?;
 
     let listener = TcpListener::bind(config.bind_addr())?;
     println!(
@@ -203,6 +257,13 @@ fn handle_login_request(request: &str, config: &ServerConfig) -> String {
                 message: invalid_refresh_token_message().to_string(),
             }),
         ),
+        Err(AuthError::InvalidAccessToken) => json_response(
+            "HTTP/1.1 401 Unauthorized",
+            &serialize_json(&ErrorPayload {
+                error: "invalid_access_token",
+                message: invalid_access_token_message().to_string(),
+            }),
+        ),
         Err(AuthError::Store(message)) => json_response(
             "HTTP/1.1 500 Internal Server Error",
             &serialize_json(&ErrorPayload {
@@ -243,6 +304,13 @@ fn handle_refresh_request(request: &str, config: &ServerConfig) -> String {
                 message: invalid_credentials_message().to_string(),
             }),
         ),
+        Err(AuthError::InvalidAccessToken) => json_response(
+            "HTTP/1.1 401 Unauthorized",
+            &serialize_json(&ErrorPayload {
+                error: "invalid_access_token",
+                message: invalid_access_token_message().to_string(),
+            }),
+        ),
         Err(AuthError::Store(message)) => json_response(
             "HTTP/1.1 500 Internal Server Error",
             &serialize_json(&ErrorPayload {
@@ -250,6 +318,145 @@ fn handle_refresh_request(request: &str, config: &ServerConfig) -> String {
                 message,
             }),
         ),
+    }
+}
+
+fn handle_admin_me(request: &str, config: &ServerConfig) -> String {
+    match authenticate_request(request, config) {
+        Ok(actor) => json_response("HTTP/1.1 200 OK", &serialize_json(&actor)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_list_tenants(request: &str, config: &ServerConfig) -> String {
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAdminStore::new(&config.database_url);
+        list_tenants_for_actor(&mut store, &to_principal(actor))
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_create_tenant(request: &str, config: &ServerConfig) -> String {
+    let body = request_body(request);
+    let input = match serde_json::from_str::<CreateTenantInput>(body) {
+        Ok(payload) => payload,
+        Err(_) => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "request body must be valid JSON".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAdminStore::new(&config.database_url);
+        create_tenant_for_actor(&mut store, &to_principal(actor), input)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_deactivate_tenant(request: &str, config: &ServerConfig, path: &str) -> String {
+    let tenant_id = match trailing_resource_id(path, "/api/admin/tenants/", "/deactivate") {
+        Some(value) => value,
+        None => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "tenant id is invalid".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAdminStore::new(&config.database_url);
+        deactivate_tenant_for_actor(&mut store, &to_principal(actor), tenant_id)
+    }) {
+        Ok(()) => json_response("HTTP/1.1 200 OK", r#"{"status":"ok"}"#),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_list_accounts(request: &str, config: &ServerConfig) -> String {
+    let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
+        .and_then(|value: String| value.parse::<i64>().ok());
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAdminStore::new(&config.database_url);
+        list_accounts_for_actor(&mut store, &to_principal(actor), tenant_id)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_list_tenant_accounts(request: &str, config: &ServerConfig) -> String {
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAdminStore::new(&config.database_url);
+        list_accounts_for_actor(&mut store, &to_principal(actor), None)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_create_account(request: &str, config: &ServerConfig) -> String {
+    let body = request_body(request);
+    let input = match serde_json::from_str::<CreateAccountInput>(body) {
+        Ok(payload) => payload,
+        Err(_) => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "request body must be valid JSON".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAdminStore::new(&config.database_url);
+        create_account_for_actor(&mut store, &to_principal(actor), input)
+    }) {
+        Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
+        Err(error) => admin_error_response(error),
+    }
+}
+
+fn handle_create_tenant_scoped_account(request: &str, config: &ServerConfig) -> String {
+    handle_create_account(request, config)
+}
+
+fn handle_deactivate_account(request: &str, config: &ServerConfig, path: &str) -> String {
+    let account_id = trailing_resource_id_from_account_path(path);
+    let account_id = match account_id {
+        Some(value) => value,
+        None => {
+            return json_response(
+                "HTTP/1.1 400 Bad Request",
+                &serialize_json(&ErrorPayload {
+                    error: "invalid_request",
+                    message: "account id is invalid".to_string(),
+                }),
+            )
+        }
+    };
+
+    match authenticate_request(request, config).and_then(|actor| {
+        let mut store = PgAdminStore::new(&config.database_url);
+        deactivate_account_for_actor(&mut store, &to_principal(actor), account_id)
+    }) {
+        Ok(()) => json_response("HTTP/1.1 200 OK", r#"{"status":"ok"}"#),
+        Err(error) => admin_error_response(error),
     }
 }
 
@@ -265,6 +472,118 @@ fn parse_request_line(request: &str) -> (Option<&str>, Option<&str>) {
 
 fn request_body(request: &str) -> &str {
     request.split_once("\r\n\r\n").map(|(_, body)| body).unwrap_or("")
+}
+
+fn request_path(request: &str) -> Option<&str> {
+    let (_, path) = parse_request_line(request);
+    path
+}
+
+fn query_param(path: &str, key: &str) -> Option<String> {
+    let query = path.split_once('?')?.1;
+    query.split('&').find_map(|segment| {
+        let (segment_key, segment_value) = segment.split_once('=')?;
+        if segment_key == key {
+            Some(segment_value.to_string())
+        } else {
+            None
+        }
+    })
+}
+
+fn bearer_token(request: &str) -> Option<&str> {
+    request.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        if name.eq_ignore_ascii_case("authorization") {
+            value.trim().strip_prefix("Bearer ")
+        } else {
+            None
+        }
+    })
+}
+
+fn authenticate_request(
+    request: &str,
+    config: &ServerConfig,
+) -> Result<auth::AuthContextResponse, AdminError> {
+    let token = bearer_token(request)
+        .ok_or(AdminError::Forbidden("authorization header is required".to_string()))?;
+    let mut store = PgAuthStore::new(&config.database_url);
+    authenticate_access_token(&mut store, token).map_err(map_auth_to_admin_error)
+}
+
+fn map_auth_to_admin_error(error: AuthError) -> AdminError {
+    match error {
+        AuthError::InvalidAccessToken => {
+            AdminError::Forbidden(invalid_access_token_message().to_string())
+        }
+        AuthError::InvalidCredentials => {
+            AdminError::Forbidden(invalid_credentials_message().to_string())
+        }
+        AuthError::InvalidRefreshToken => {
+            AdminError::Forbidden(invalid_refresh_token_message().to_string())
+        }
+        AuthError::InvalidRequest(message) => AdminError::InvalidRequest(message),
+        AuthError::Store(message) => AdminError::Store(message),
+    }
+}
+
+fn admin_error_response(error: AdminError) -> String {
+    match error {
+        AdminError::InvalidRequest(message) => json_response(
+            "HTTP/1.1 400 Bad Request",
+            &serialize_json(&ErrorPayload {
+                error: "invalid_request",
+                message,
+            }),
+        ),
+        AdminError::Forbidden(message) => json_response(
+            "HTTP/1.1 403 Forbidden",
+            &serialize_json(&ErrorPayload {
+                error: "forbidden",
+                message,
+            }),
+        ),
+        AdminError::Conflict(message) => json_response(
+            "HTTP/1.1 409 Conflict",
+            &serialize_json(&ErrorPayload {
+                error: "conflict",
+                message,
+            }),
+        ),
+        AdminError::NotFound(message) => json_response(
+            "HTTP/1.1 404 Not Found",
+            &serialize_json(&ErrorPayload {
+                error: "not_found",
+                message,
+            }),
+        ),
+        AdminError::Store(message) => json_response(
+            "HTTP/1.1 500 Internal Server Error",
+            &serialize_json(&ErrorPayload {
+                error: "internal_error",
+                message,
+            }),
+        ),
+    }
+}
+
+fn to_principal(context: auth::AuthContextResponse) -> auth::AuthPrincipal {
+    auth::AuthPrincipal {
+        tenant: context.tenant,
+        user: context.user,
+        password_hash: String::new(),
+    }
+}
+
+fn trailing_resource_id(path: &str, prefix: &str, suffix: &str) -> Option<i64> {
+    let trimmed = path.strip_prefix(prefix)?.strip_suffix(suffix)?;
+    trimmed.parse::<i64>().ok()
+}
+
+fn trailing_resource_id_from_account_path(path: &str) -> Option<i64> {
+    trailing_resource_id(path, "/api/admin/accounts/", "/deactivate")
+        .or_else(|| trailing_resource_id(path, "/api/admin/tenant/accounts/", "/deactivate"))
 }
 
 fn json_response(status_line: &str, body: &str) -> String {
@@ -358,6 +677,29 @@ mod tests {
         assert_eq!(error.to_string(), "invalid ADMIN_BACKEND_PORT: invalid");
         unsafe {
             env::remove_var("ADMIN_BACKEND_PORT");
+        }
+    }
+
+    #[test]
+    fn reads_bootstrap_super_admin_from_env() {
+        unsafe {
+            env::set_var("ADMIN_BOOTSTRAP_SUPER_USERNAME", "root");
+            env::set_var("ADMIN_BOOTSTRAP_SUPER_PASSWORD", "Secret123!");
+            env::set_var("ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME", "Platform Root");
+        }
+
+        let config = ServerConfig::from_env().expect("config should load");
+        assert_eq!(config.bootstrap_super_username.as_deref(), Some("root"));
+        assert_eq!(config.bootstrap_super_password.as_deref(), Some("Secret123!"));
+        assert_eq!(
+            config.bootstrap_super_display_name.as_deref(),
+            Some("Platform Root")
+        );
+
+        unsafe {
+            env::remove_var("ADMIN_BOOTSTRAP_SUPER_USERNAME");
+            env::remove_var("ADMIN_BOOTSTRAP_SUPER_PASSWORD");
+            env::remove_var("ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME");
         }
     }
 }
