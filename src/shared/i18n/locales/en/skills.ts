@@ -1,6 +1,7 @@
 export default {
   title: "Skills",
   subtitle: "Browse the platform catalog and your local installation state.",
+  manualOnlyHint: "Only manual download is provided. Skills are not auto-installed.",
   download: "Download",
   scopeGlobal: "Global",
   scopeTenant: "Tenant",

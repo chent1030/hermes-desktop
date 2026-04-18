@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../components/I18nProvider";
 import Skills from "./Skills";
@@ -102,5 +102,43 @@ describe("Skills platform catalog", () => {
     expect(
       screen.getByText("/Users/demo/Downloads/knowledge-base-2.1.0.zip"),
     ).toBeInTheDocument();
+  });
+
+  it("shows the manual download hint and only triggers the download action", () => {
+    const onDownloadSkill = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <I18nProvider>
+        <Skills
+          catalog={[
+            {
+              id: "skill-a",
+              scope: "global",
+              name: "Code Review",
+              version: "1.0.0",
+              description: "Review code",
+              downloadUrl: "https://example.com/a.zip",
+            },
+          ]}
+          localStates={[
+            {
+              skillId: "skill-a",
+              installed: false,
+              version: null,
+              status: "not-downloaded",
+              path: null,
+            },
+          ]}
+          onDownloadSkill={onDownloadSkill}
+        />
+      </I18nProvider>,
+    );
+
+    expect(
+      screen.getByText("Only manual download is provided. Skills are not auto-installed."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    expect(onDownloadSkill).toHaveBeenCalledWith("skill-a");
   });
 });

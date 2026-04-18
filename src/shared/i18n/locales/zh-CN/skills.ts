@@ -1,6 +1,7 @@
 export default {
   title: "技能",
   subtitle: "查看平台下发的技能清单和本地状态。",
+  manualOnlyHint: "仅提供手动下载，不会自动安装到本机。",
   download: "下载",
   scopeGlobal: "全局",
   scopeTenant: "租户",

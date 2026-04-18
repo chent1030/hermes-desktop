@@ -150,6 +150,7 @@ export default function Skills({
           <p className="skills-subtitle">
             {t("skills.subtitle")}
           </p>
+          <p className="skills-hint">{t("skills.manualOnlyHint")}</p>
         </div>
       </div>
 

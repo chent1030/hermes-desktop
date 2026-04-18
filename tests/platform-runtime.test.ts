@@ -99,6 +99,53 @@ describe("platform runtime", () => {
     );
   });
 
+  it("fails initialization when the platform does not provide a default model", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              tenant: { id: "t1", code: "acme", name: "Acme" },
+              user: { id: "u1", username: "alice", displayName: "Alice" },
+              locale: "zh-CN",
+              features: { gatewayVisible: false },
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: "m-manual",
+                  provider: "openai",
+                  model: "gpt-5.4",
+                  label: "GPT-5.4",
+                  baseUrl: "",
+                  isDefault: false,
+                },
+              ],
+            }),
+          ),
+        )
+        .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }))),
+    );
+
+    await loginWithPassword({
+      tenantCode: "acme",
+      username: "alice",
+      password: "secret",
+    });
+
+    await expect(initializeWorkspaceState()).rejects.toThrow(
+      "platform default model missing",
+    );
+  });
+
   it("clears the in-memory session when refresh fails", async () => {
     vi.stubGlobal(
       "fetch",

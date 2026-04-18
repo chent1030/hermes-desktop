@@ -2750,6 +2750,12 @@ body {
   margin-top: 2px;
 }
 
+.skills-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
 .skills-error {
   display: flex;
   align-items: center;
