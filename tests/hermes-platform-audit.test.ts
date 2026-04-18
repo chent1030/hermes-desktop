@@ -322,7 +322,7 @@ describe("hermes platform audit", () => {
     );
   });
 
-  it("records run tool progress events for API streaming tool updates", async () => {
+  it("records run tool lifecycle events for API streaming tool updates", async () => {
     httpGet.mockImplementation((_url, _options, callback) => {
       const response = new EventEmitter() as EventEmitter & {
         resume: () => void;
@@ -385,6 +385,18 @@ describe("hermes platform audit", () => {
     expect(onToolProgress).toHaveBeenCalledWith("🔍 search_web");
     expect(enqueueAuditEvent).toHaveBeenCalledWith(
       expect.objectContaining({
+        type: "run.tool.started",
+        payload: expect.objectContaining({
+          label: "🔍 search_web",
+          profile: "default",
+          resumeSessionId: null,
+          sessionId: "session-tool-1",
+          source: "api",
+        }),
+      }),
+    );
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
         type: "run.tool.progress",
         payload: expect.objectContaining({
           label: "🔍 search_web",
@@ -392,6 +404,183 @@ describe("hermes platform audit", () => {
           resumeSessionId: null,
           sessionId: "session-tool-1",
           source: "api",
+        }),
+      }),
+    );
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run.tool.completed",
+        payload: expect.objectContaining({
+          profile: "default",
+          resumeSessionId: null,
+          sessionId: "session-tool-1",
+          source: "api",
+          progressCount: 1,
+          lastLabel: "🔍 search_web",
+        }),
+      }),
+    );
+  });
+
+  it("records run tool failed events when API tool execution ends with a stream error", async () => {
+    httpGet.mockImplementation((_url, _options, callback) => {
+      const response = new EventEmitter() as EventEmitter & {
+        resume: () => void;
+        statusCode: number;
+      };
+      response.statusCode = 200;
+      response.resume = vi.fn();
+      callback(response);
+
+      return createRequestHandle();
+    });
+
+    httpRequest.mockImplementation((_url, _options, callback) => {
+      const request = createRequestHandle();
+      request.end.mockImplementation(() => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          statusCode: number;
+        };
+        response.statusCode = 200;
+        response.headers = {
+          "x-hermes-session-id": "session-tool-fail",
+        };
+        callback(response);
+        response.emit(
+          "data",
+          Buffer.from(
+            'event: hermes.tool.progress\ndata: {"emoji":"🛠","tool":"apply_patch"}\n\n',
+          ),
+        );
+        response.emit("error", new Error("stream exploded"));
+      });
+      return request;
+    });
+
+    const hermes = await import("../src/main/hermes");
+    const errorPromise = new Promise<string>((resolve) => {
+      void hermes.sendMessage(
+        "cause tool failure",
+        {
+          onChunk: vi.fn(),
+          onDone: vi.fn(),
+          onError: resolve,
+          onToolProgress: vi.fn(),
+        },
+        "default",
+      );
+    });
+
+    await expect(errorPromise).resolves.toBe("Stream error: stream exploded");
+
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run.tool.failed",
+        payload: expect.objectContaining({
+          profile: "default",
+          resumeSessionId: null,
+          sessionId: "session-tool-fail",
+          source: "api",
+          progressCount: 1,
+          lastLabel: "🛠 apply_patch",
+          error: "Stream error: stream exploded",
+        }),
+      }),
+    );
+  });
+
+  it("records run tool lifecycle events when falling back to the CLI", async () => {
+    httpGet.mockImplementation((_url, _options, callback) => {
+      const response = new EventEmitter() as EventEmitter & {
+        resume: () => void;
+        statusCode: number;
+      };
+      response.statusCode = 503;
+      response.resume = vi.fn();
+      callback(response);
+
+      return createRequestHandle();
+    });
+
+    spawn.mockImplementation(() => {
+      const process = new EventEmitter() as EventEmitter & {
+        killed: boolean;
+        kill: ReturnType<typeof vi.fn>;
+        stderr: EventEmitter;
+        stdout: EventEmitter;
+        unref: ReturnType<typeof vi.fn>;
+      };
+      process.stdout = new EventEmitter();
+      process.stderr = new EventEmitter();
+      process.kill = vi.fn();
+      process.unref = vi.fn();
+      process.killed = false;
+
+      queueMicrotask(() => {
+        process.stdout.emit("data", Buffer.from("session_id: cli-tool-session\n"));
+        process.stdout.emit("data", Buffer.from("`🔍 search_web`\n"));
+        process.stdout.emit("data", Buffer.from("Final answer from CLI\n"));
+        process.emit("close", 0);
+      });
+
+      return process;
+    });
+
+    const onChunk = vi.fn();
+    const onToolProgress = vi.fn();
+    const hermes = await import("../src/main/hermes");
+    const donePromise = new Promise<string | undefined>((resolve) => {
+      void hermes.sendMessage(
+        "run tool in cli",
+        {
+          onChunk,
+          onDone: resolve,
+          onError: vi.fn(),
+          onToolProgress,
+        },
+        "default",
+      );
+    });
+
+    await expect(donePromise).resolves.toBe("cli-tool-session");
+
+    expect(onToolProgress).toHaveBeenCalledWith("🔍 search_web");
+    expect(onChunk).toHaveBeenCalledWith("Final answer from CLI\n");
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run.tool.started",
+        payload: expect.objectContaining({
+          label: "🔍 search_web",
+          profile: "default",
+          resumeSessionId: null,
+          sessionId: "cli-tool-session",
+          source: "cli",
+        }),
+      }),
+    );
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run.tool.progress",
+        payload: expect.objectContaining({
+          label: "🔍 search_web",
+          profile: "default",
+          resumeSessionId: null,
+          sessionId: "cli-tool-session",
+          source: "cli",
+        }),
+      }),
+    );
+    expect(enqueueAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "run.tool.completed",
+        payload: expect.objectContaining({
+          profile: "default",
+          resumeSessionId: null,
+          sessionId: "cli-tool-session",
+          source: "cli",
+          progressCount: 1,
+          lastLabel: "🔍 search_web",
         }),
       }),
     );

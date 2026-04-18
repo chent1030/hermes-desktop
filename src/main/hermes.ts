@@ -134,6 +134,8 @@ interface ChatAuditContext {
   sessionId?: string;
 }
 
+type ToolAuditSource = "api" | "cli";
+
 function flushChatAuditEvent(
   type: string,
   payload: Record<string, unknown>,
@@ -180,7 +182,7 @@ function recordToolProgress(
   context: ChatAuditContext & {
     label: string;
     sessionId?: string;
-    source: "api";
+    source: ToolAuditSource;
   },
 ): void {
   if (!context.label) {
@@ -194,6 +196,130 @@ function recordToolProgress(
     resumeSessionId: context.resumeSessionId || null,
     source: context.source,
   });
+}
+
+function recordToolStarted(
+  context: ChatAuditContext & {
+    label: string;
+    sessionId?: string;
+    source: ToolAuditSource;
+  },
+): void {
+  if (!context.label) {
+    return;
+  }
+
+  flushChatAuditEvent("run.tool.started", {
+    label: context.label,
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+    source: context.source,
+  });
+}
+
+function recordToolCompleted(
+  context: ChatAuditContext & {
+    sessionId?: string;
+    source: ToolAuditSource;
+    progressCount: number;
+    lastLabel: string | null;
+  },
+): void {
+  flushChatAuditEvent("run.tool.completed", {
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+    source: context.source,
+    progressCount: context.progressCount,
+    lastLabel: context.lastLabel,
+  });
+}
+
+function recordToolFailed(
+  context: ChatAuditContext & {
+    sessionId?: string;
+    source: ToolAuditSource;
+    progressCount: number;
+    lastLabel: string | null;
+    error: string;
+  },
+): void {
+  flushChatAuditEvent("run.tool.failed", {
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+    source: context.source,
+    progressCount: context.progressCount,
+    lastLabel: context.lastLabel,
+    error: context.error,
+  });
+}
+
+function createToolLifecycleTracker(
+  context: ChatAuditContext,
+  source: ToolAuditSource,
+  getSessionId: () => string,
+): {
+  onProgress: (label: string) => void;
+  onCompleted: () => void;
+  onFailed: (error: string) => void;
+} {
+  let progressCount = 0;
+  let lastLabel: string | null = null;
+
+  return {
+    onProgress: (label: string) => {
+      if (!label) {
+        return;
+      }
+
+      if (progressCount === 0) {
+        recordToolStarted({
+          ...context,
+          label,
+          sessionId: getSessionId(),
+          source,
+        });
+      }
+
+      progressCount += 1;
+      lastLabel = label;
+      recordToolProgress({
+        ...context,
+        label,
+        sessionId: getSessionId(),
+        source,
+      });
+    },
+    onCompleted: () => {
+      if (progressCount === 0) {
+        return;
+      }
+
+      recordToolCompleted({
+        ...context,
+        sessionId: getSessionId(),
+        source,
+        progressCount,
+        lastLabel,
+      });
+    },
+    onFailed: (error: string) => {
+      if (progressCount === 0) {
+        return;
+      }
+
+      recordToolFailed({
+        ...context,
+        sessionId: getSessionId(),
+        source,
+        progressCount,
+        lastLabel,
+        error,
+      });
+    },
+  };
 }
 
 function sendMessageViaApi(
@@ -241,11 +367,17 @@ function sendMessageViaApi(
   let lastError = ""; // capture embedded error messages
   // Tool progress pattern: `emoji tool_name` or `emoji description`
   const toolProgressRe = /^`([^\s`]+)\s+([^`]+)`$/;
+  const toolLifecycle = createToolLifecycleTracker(
+    auditContext,
+    "api",
+    () => sessionId,
+  );
 
   function finish(error?: string): void {
     if (finished) return;
     finished = true;
     if (error) {
+      toolLifecycle.onFailed(error);
       recordChatFailed({
         ...auditContext,
         error,
@@ -253,6 +385,7 @@ function sendMessageViaApi(
       });
       cb.onError(error);
     } else {
+      toolLifecycle.onCompleted();
       recordChatCompleted({
         ...auditContext,
         sessionId,
@@ -312,12 +445,7 @@ function sendMessageViaApi(
         const emoji = payload.emoji || "";
         const displayLabel = emoji ? `${emoji} ${label}` : label;
         cb.onToolProgress?.(displayLabel);
-        recordToolProgress({
-          ...auditContext,
-          label: displayLabel,
-          sessionId,
-          source: "api",
-        });
+        toolLifecycle.onProgress(displayLabel);
       } catch {
         /* malformed — skip */
       }
@@ -367,12 +495,7 @@ function sendMessageViaApi(
         if (match) {
           const displayLabel = `${match[1]} ${match[2]}`;
           cb.onToolProgress?.(displayLabel);
-          recordToolProgress({
-            ...auditContext,
-            label: displayLabel,
-            sessionId,
-            source: "api",
-          });
+          toolLifecycle.onProgress(displayLabel);
         } else {
           hasContent = true;
           cb.onChunk(delta.content);
@@ -483,6 +606,7 @@ function sendMessageViaApi(
 // ────────────────────────────────────────────────────
 
 const NOISE_PATTERNS = [/^[╭╰│╮╯─┌┐└┘┤├┬┴┼]/, /⚕\s*Hermes/];
+const cliToolProgressRe = /^`([^\s`]+)\s+([^`]+)`$/;
 
 function sendMessageViaCli(
   message: string,
@@ -588,6 +712,11 @@ function sendMessageViaCli(
   let hasOutput = false;
   let capturedSessionId = "";
   let outputBuffer = "";
+  const toolLifecycle = createToolLifecycleTracker(
+    auditContext,
+    "cli",
+    () => capturedSessionId,
+  );
 
   function processOutput(raw: Buffer): void {
     const text = stripAnsi(raw.toString());
@@ -602,6 +731,13 @@ function sendMessageViaCli(
     for (const line of lines) {
       const t = line.trim();
       if (t && NOISE_PATTERNS.some((p) => p.test(t))) continue;
+      const toolMatch = cliToolProgressRe.exec(t);
+      if (toolMatch) {
+        const displayLabel = `${toolMatch[1]} ${toolMatch[2]}`;
+        cb.onToolProgress?.(displayLabel);
+        toolLifecycle.onProgress(displayLabel);
+        continue;
+      }
       result.push(line);
     }
 
@@ -640,6 +776,7 @@ function sendMessageViaCli(
 
   proc.on("close", (code) => {
     if (code === 0 || hasOutput) {
+      toolLifecycle.onCompleted();
       recordChatCompleted({
         ...auditContext,
         sessionId: capturedSessionId,
@@ -650,6 +787,7 @@ function sendMessageViaCli(
       const message = detail
         ? `Hermes exited with code ${code}: ${detail}`
         : `Hermes exited with code ${code}. Check your model configuration and API key.`;
+      toolLifecycle.onFailed(message);
       recordChatFailed({
         ...auditContext,
         error: message,
@@ -660,6 +798,7 @@ function sendMessageViaCli(
   });
 
   proc.on("error", (err) => {
+    toolLifecycle.onFailed(err.message);
     recordChatFailed({
       ...auditContext,
       error: err.message,

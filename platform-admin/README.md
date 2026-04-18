@@ -293,7 +293,10 @@ Skill 管理当前只做“只读目录控制面”，继续复用 `platform_des
 - `run.skill.download.failed`
 - `run.skill.sync.completed`
 - `run.skill.sync.failed`
+- `run.tool.started`
 - `run.tool.progress`
+- `run.tool.completed`
+- `run.tool.failed`
 
 模型表最小字段包括：
 
