@@ -35,6 +35,27 @@ function getCardForHeading(name: string): HTMLElement {
   return card as HTMLElement;
 }
 
+function signIn(tenantCode: string, username: string, password: string): void {
+  fireEvent.change(screen.getByLabelText("Tenant code"), {
+    target: { value: tenantCode },
+  });
+  fireEvent.change(screen.getByLabelText("Username"), {
+    target: { value: username },
+  });
+  fireEvent.change(screen.getByLabelText("Password"), {
+    target: { value: password },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+}
+
+async function openWorkspaceSection(name: string): Promise<void> {
+  const navigationLabel = await screen.findByText("Navigation");
+  const navigationCard = navigationLabel.closest("div");
+  expect(navigationCard).not.toBeNull();
+  const button = within(navigationCard as HTMLElement).getByRole("button", { name });
+  fireEvent.click(button);
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   window.localStorage.clear();
@@ -213,6 +234,157 @@ describe("platform admin frontend", () => {
     render(<App />);
 
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    signIn("", "root", "Secret123!");
+
+    expect(await screen.findByText("Platform workspace")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Workspace overview",
+      }),
+    ).toBeInTheDocument();
+
+    await openWorkspaceSection("Tenants");
+    expect(await screen.findByRole("heading", { name: "Create tenant" })).toBeInTheDocument();
+
+    await openWorkspaceSection("Models");
+    expect(await screen.findByRole("heading", { name: "Model profile control" })).toBeInTheDocument();
+    expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
+
+    await openWorkspaceSection("Skills");
+    expect(await screen.findByRole("heading", { name: "Skill catalog control" })).toBeInTheDocument();
+    expect(screen.getByText("Code Review")).toBeInTheDocument();
+
+    await openWorkspaceSection("Audit");
+    expect(await screen.findByRole("heading", { name: "Audit center" })).toBeInTheDocument();
+    expect(screen.getByText("workspace.initialized")).toBeInTheDocument();
+
+    await openWorkspaceSection("Sessions");
+    expect(await screen.findByRole("heading", { name: "Session center" })).toBeInTheDocument();
+    expect(screen.getByText("session-1")).toBeInTheDocument();
+    expect(screen.getByText("chat.completed")).toBeInTheDocument();
+    expect(screen.getByText("2 events")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh session" }));
+    expect(await screen.findByText("Session refreshed")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/api/admin/tenants",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+  });
+
+  it("switches between modular admin pages after super admin login", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_root",
+        refreshToken: "rtk_root",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+      mockJsonResponse([
+        {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 11,
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          username: "alice",
+          displayName: "Alice",
+          roleCode: "tenant_user",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: "mdl_global_default",
+          scopeType: "global",
+          tenant: null,
+          provider: "openai",
+          model: "gpt-5.4",
+          label: "GPT-5.4",
+          baseUrl: "https://api.openai.com/v1",
+          isDefault: true,
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: "skill_global_review",
+          scopeType: "global",
+          tenant: null,
+          name: "Code Review",
+          version: "1.0.0",
+          description: "Review code",
+          downloadUrl: "https://example.com/skills/code-review.zip",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 91,
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          account: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          eventType: "workspace.initialized",
+          payload: {
+            modelCount: 1,
+          },
+          occurredAt: "2026-04-18T12:00:00.000Z",
+          createdAt: "2026-04-18T12:00:01.000Z",
+        },
+      ]),
+      mockJsonResponse([
+        {
+          sessionId: "session-1",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          lastAccount: {
+            id: 11,
+            username: "alice",
+            displayName: "Alice",
+            roleCode: "tenant_user",
+          },
+          lastEventType: "chat.completed",
+          lastOccurredAt: "2026-04-18T12:01:00.000Z",
+          eventCount: 2,
+          hasFailure: false,
+        },
+      ]),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Tenant code"), {
       target: { value: "" },
     });
@@ -224,47 +396,14 @@ describe("platform admin frontend", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Platform workspace")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        name: "Create tenant",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        name: "Model profile control",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        name: "Skill catalog control",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        name: "Audit center",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        name: "Session center",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
-    expect(screen.getByText("Code Review")).toBeInTheDocument();
-    expect(screen.getByText("workspace.initialized")).toBeInTheDocument();
-    expect(screen.getByText("session-1")).toBeInTheDocument();
-    expect(screen.getByText("chat.completed")).toBeInTheDocument();
-    expect(screen.getByText("2 events")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh session" }));
-    expect(await screen.findByText("Session refreshed")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Overview" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tenants" }));
+    expect(screen.getByRole("heading", { name: "Create tenant" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Model profile control" })).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:8080/api/admin/tenants",
-        expect.objectContaining({ method: "GET" }),
-      );
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Models" }));
+    expect(screen.getByRole("heading", { name: "Model profile control" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Create tenant" })).not.toBeInTheDocument();
   });
 
   it("renders a tenant admin workspace without tenant-admin creation controls", async () => {
@@ -381,50 +520,56 @@ describe("platform admin frontend", () => {
     render(<App />);
 
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Tenant code"), {
-      target: { value: "acme" },
-    });
-    fireEvent.change(screen.getByLabelText("Username"), {
-      target: { value: "admin" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "secret123" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    signIn("acme", "admin", "secret123");
 
     expect(await screen.findByText("Tenant workspace")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", {
+      await screen.findByRole("heading", {
+        name: "Workspace overview",
+      }),
+    ).toBeInTheDocument();
+
+    await openWorkspaceSection("Accounts");
+    expect(
+      await screen.findByRole("heading", {
         name: "Create tenant user",
       }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+
+    await openWorkspaceSection("Models");
     expect(
-      screen.getByRole("heading", {
+      await screen.findByRole("heading", {
         name: "Tenant model profiles",
       }),
     ).toBeInTheDocument();
+    expect(screen.getByText("GPT-4.1 Tenant")).toBeInTheDocument();
+
+    await openWorkspaceSection("Skills");
     expect(
-      screen.getByRole("heading", {
+      await screen.findByRole("heading", {
         name: "Tenant skill catalog",
       }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Acme CRM")).toBeInTheDocument();
+
+    await openWorkspaceSection("Audit");
     expect(
-      screen.getByRole("heading", {
+      await screen.findByRole("heading", {
         name: "Tenant audit center",
       }),
     ).toBeInTheDocument();
+    expect(screen.getByText("chat.started")).toBeInTheDocument();
+
+    await openWorkspaceSection("Sessions");
     expect(
-      screen.getByRole("heading", {
+      await screen.findByRole("heading", {
         name: "Tenant session center",
       }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Create tenant admin")).not.toBeInTheDocument();
     expect(screen.queryByText("Global models")).not.toBeInTheDocument();
     expect(screen.queryByText("Global skills")).not.toBeInTheDocument();
-    expect(screen.getByText("Alice")).toBeInTheDocument();
-    expect(screen.getByText("GPT-4.1 Tenant")).toBeInTheDocument();
-    expect(screen.getByText("Acme CRM")).toBeInTheDocument();
-    expect(screen.getByText("chat.started")).toBeInTheDocument();
     expect(screen.getByText("tenant-session-1")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
   });
@@ -566,16 +711,9 @@ describe("platform admin frontend", () => {
     render(<App />);
 
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Tenant code"), {
-      target: { value: "" },
-    });
-    fireEvent.change(screen.getByLabelText("Username"), {
-      target: { value: "root" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "Secret123!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    signIn("", "root", "Secret123!");
+
+    await openWorkspaceSection("Audit");
 
     expect(
       await screen.findByRole("heading", { name: "Audit center" }),
@@ -766,16 +904,9 @@ describe("platform admin frontend", () => {
     render(<App />);
 
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Tenant code"), {
-      target: { value: "" },
-    });
-    fireEvent.change(screen.getByLabelText("Username"), {
-      target: { value: "root" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "Secret123!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    signIn("", "root", "Secret123!");
+
+    await openWorkspaceSection("Sessions");
 
     expect(
       await screen.findByRole("heading", { name: "Session center" }),
@@ -932,16 +1063,9 @@ describe("platform admin frontend", () => {
     render(<App />);
 
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Tenant code"), {
-      target: { value: "" },
-    });
-    fireEvent.change(screen.getByLabelText("Username"), {
-      target: { value: "root" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "Secret123!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    signIn("", "root", "Secret123!");
+
+    await openWorkspaceSection("Sessions");
 
     expect(
       await screen.findByRole("heading", { name: "Session center" }),
@@ -1059,16 +1183,9 @@ describe("platform admin frontend", () => {
     render(<App />);
 
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Tenant code"), {
-      target: { value: "acme" },
-    });
-    fireEvent.change(screen.getByLabelText("Username"), {
-      target: { value: "admin" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "secret123" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    signIn("acme", "admin", "secret123");
+
+    await openWorkspaceSection("Audit");
 
     expect(await screen.findByText("Tenant workspace")).toBeInTheDocument();
     const auditCard = getCardForHeading("Tenant audit center");
@@ -1159,16 +1276,9 @@ describe("platform admin frontend", () => {
     render(<App />);
 
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Tenant code"), {
-      target: { value: "acme" },
-    });
-    fireEvent.change(screen.getByLabelText("Username"), {
-      target: { value: "admin" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "secret123" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    signIn("acme", "admin", "secret123");
+
+    await openWorkspaceSection("Audit");
 
     expect(await screen.findByRole("heading", { name: "Tenant audit center" })).toBeInTheDocument();
     expect(screen.getByText("run.tool.failed")).toBeInTheDocument();

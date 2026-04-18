@@ -41,6 +41,14 @@ export const ADMIN_COPY = {
       platformWorkspace: "Platform workspace",
       tenantWorkspace: "Tenant workspace",
       loading: "Loading...",
+      navigation: "Navigation",
+      overview: "Overview",
+      tenants: "Tenants",
+      accounts: "Accounts",
+      models: "Models",
+      skills: "Skills",
+      audit: "Audit",
+      sessions: "Sessions",
       next: "Next",
       tenantsRbacTitle: "Tenants & RBAC",
       tenantsRbacDesc:
@@ -54,6 +62,17 @@ export const ADMIN_COPY = {
       auditCenterTitle: "Audit Center",
       auditCenterDesc:
         "Keep login, runtime, and compliance events ready for full audit closure.",
+      overviewTitle: "Workspace overview",
+      overviewDesc:
+        "Use the modular navigation to switch between tenant management, model control, skill catalog, audit, and sessions.",
+      selectedTenant: "Selected tenant",
+      noTenantSelected: "No tenant selected",
+      totalTenants: "Total tenants",
+      totalAccounts: "Accounts",
+      totalModels: "Models",
+      totalSkills: "Skills",
+      totalAuditEvents: "Audit events",
+      totalSessions: "Sessions",
     },
     common: {
       active: "active",
@@ -265,6 +284,14 @@ export const ADMIN_COPY = {
       platformWorkspace: "平台工作台",
       tenantWorkspace: "租户工作台",
       loading: "加载中...",
+      navigation: "导航",
+      overview: "概览",
+      tenants: "租户",
+      accounts: "账号",
+      models: "模型",
+      skills: "技能",
+      audit: "审计",
+      sessions: "会话",
       next: "下一步",
       tenantsRbacTitle: "租户与 RBAC",
       tenantsRbacDesc: "优先完成租户隔离、管理员账号与权限边界能力。",
@@ -274,6 +301,16 @@ export const ADMIN_COPY = {
       skillHubDesc: "统一承载全局技能与租户自建技能的目录管理能力。",
       auditCenterTitle: "审计中心",
       auditCenterDesc: "让登录、运行与合规事件形成完整闭环审计能力。",
+      overviewTitle: "工作台概览",
+      overviewDesc: "通过模块化导航切换租户、模型、技能、审计与会话等后台页面。",
+      selectedTenant: "当前租户",
+      noTenantSelected: "未选择租户",
+      totalTenants: "租户总数",
+      totalAccounts: "账号数",
+      totalModels: "模型数",
+      totalSkills: "技能数",
+      totalAuditEvents: "审计事件",
+      totalSessions: "会话数",
     },
     common: {
       active: "启用",
@@ -449,6 +486,8 @@ export const ADMIN_COPY = {
     },
   },
 } as const;
+
+export type AdminCopy = (typeof ADMIN_COPY)[AdminLocale];
 
 export function resolveAdminLocale(): AdminLocale {
   if (typeof window !== "undefined") {

@@ -4,130 +4,34 @@ import {
   ADMIN_COPY,
   ADMIN_LOCALE_STORAGE_KEY,
   resolveAdminLocale,
+  type AdminCopy,
   type AdminLocale,
 } from "./adminI18n";
+import {
+  type AdminAccountRecord,
+  type AuditEventRecord,
+  type AuditFamilySummary,
+  type AuditFilters,
+  type LoginResponse,
+  type ModelProfileRecord,
+  type RoleCode,
+  type SessionSummaryRecord,
+  type SessionFilters,
+  type SkillCatalogRecord,
+  type TenantRecord,
+  type WorkspaceSection,
+  type HealthStatus,
+} from "./adminTypes";
+import { AdminWorkspaceNav } from "./pages/AdminWorkspaceNav";
+import { AdminOverviewPage } from "./pages/AdminOverviewPage";
+import { AdminTenantsPage } from "./pages/AdminTenantsPage";
+import { AdminAccountsPage } from "./pages/AdminAccountsPage";
+import { AdminModelsPage } from "./pages/AdminModelsPage";
+import { AdminSkillsPage } from "./pages/AdminSkillsPage";
+import { AdminAuditPage } from "./pages/AdminAuditPage";
+import { AdminSessionsPage } from "./pages/AdminSessionsPage";
 
 const API_BASE_URL = "http://127.0.0.1:8080";
-
-type HealthStatus = "checking" | "online" | "offline";
-
-type RoleCode = "super_admin" | "tenant_admin" | "tenant_user";
-
-interface SessionTenant {
-  id: number;
-  code: string;
-  name: string;
-}
-
-interface SessionUser {
-  id: number;
-  username: string;
-  displayName: string;
-  roleCode: RoleCode;
-  scopeType?: "platform" | "tenant";
-}
-
-interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
-  tenant: SessionTenant | null;
-  user: SessionUser;
-}
-
-interface TenantRecord {
-  id: number;
-  code: string;
-  name: string;
-  isActive: boolean;
-}
-
-interface AdminAccountRecord {
-  id: number;
-  scopeType: "platform" | "tenant";
-  tenant: SessionTenant | null;
-  username: string;
-  displayName: string;
-  roleCode: RoleCode;
-  isActive: boolean;
-}
-
-interface ModelProfileRecord {
-  id: string;
-  scopeType: "global" | "tenant";
-  tenant: SessionTenant | null;
-  provider: string;
-  model: string;
-  label: string;
-  baseUrl: string;
-  isDefault: boolean;
-  isActive: boolean;
-}
-
-interface SkillCatalogRecord {
-  id: string;
-  scopeType: "global" | "tenant";
-  tenant: SessionTenant | null;
-  name: string;
-  version: string;
-  description: string;
-  downloadUrl: string;
-  isActive: boolean;
-}
-
-interface AuditActorRecord {
-  id: number;
-  username: string;
-  displayName: string;
-  roleCode: RoleCode;
-}
-
-interface AuditEventRecord {
-  id: number;
-  tenant: SessionTenant;
-  account: AuditActorRecord;
-  eventType: string;
-  payload: Record<string, unknown>;
-  occurredAt: string;
-  createdAt: string;
-}
-
-interface SessionSummaryRecord {
-  sessionId: string;
-  tenant: SessionTenant;
-  lastAccount: AuditActorRecord;
-  lastEventType: string;
-  lastOccurredAt: string;
-  eventCount: number;
-  hasFailure: boolean;
-  toolRunCount?: number;
-  lastToolLabel?: string | null;
-  lastToolSource?: string | null;
-  hasToolFailure?: boolean;
-}
-
-interface AuditFilters {
-  eventPrefix: string;
-  eventType: string;
-  occurredFrom: string;
-  occurredTo: string;
-  accountQuery: string;
-  payloadQuery: string;
-  limit: string;
-}
-
-interface SessionFilters {
-  lastEventType: string;
-  hasFailure: string;
-  lastOccurredFrom: string;
-  lastOccurredTo: string;
-  limit: string;
-}
-
-interface AuditFamilySummary {
-  key: "run" | "chat" | "auth" | "workspace" | "other";
-  label: string;
-  count: number;
-}
 
 function formatMessage(
   template: string,
@@ -198,7 +102,7 @@ function readPayloadNumber(
 
 function buildAuditSummaryLines(
   item: AuditEventRecord,
-  copy: typeof ADMIN_COPY.en,
+  copy: AdminCopy,
 ): string[] {
   if (item.eventType.startsWith("run.tool.")) {
     const parts: string[] = [];
@@ -305,6 +209,7 @@ function auditFamilyKey(
 
 export default function App(): React.JSX.Element {
   const [locale, setLocale] = useState<AdminLocale>(() => resolveAdminLocale());
+  const [activeSection, setActiveSection] = useState<WorkspaceSection>("overview");
   const [tenantCode, setTenantCode] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -394,6 +299,29 @@ export default function App(): React.JSX.Element {
   };
 
   const roleLabel = (roleCode: RoleCode): string => copy.roles[roleCode];
+  const navItems = useMemo(() => {
+    if (!session) {
+      return [];
+    }
+    const items: Array<{ key: WorkspaceSection; label: string }> = [
+      { key: "overview", label: copy.workspace.overview },
+      { key: "accounts", label: copy.workspace.accounts },
+      { key: "models", label: copy.workspace.models },
+      { key: "skills", label: copy.workspace.skills },
+      { key: "audit", label: copy.workspace.audit },
+      { key: "sessions", label: copy.workspace.sessions },
+    ];
+
+    if (session.user.roleCode === "super_admin") {
+      items.splice(1, 0, { key: "tenants", label: copy.workspace.tenants });
+    }
+
+    return items;
+  }, [copy.workspace.accounts, copy.workspace.audit, copy.workspace.models, copy.workspace.overview, copy.workspace.sessions, copy.workspace.skills, copy.workspace.tenants, session]);
+
+  useEffect(() => {
+    setActiveSection("overview");
+  }, [session?.user.roleCode, session?.tenant?.id]);
 
   const auditSummary = useMemo(() => {
     const counts: Record<AuditFamilySummary["key"], number> = {
@@ -1149,6 +1077,7 @@ export default function App(): React.JSX.Element {
     };
 
     setAuditFilters(nextFilters);
+    setActiveSection("audit");
     setWorkspaceError(null);
     setIsLoadingAudit(true);
     try {
@@ -1233,7 +1162,7 @@ export default function App(): React.JSX.Element {
     const toolParts: string[] = [];
     if ((item.toolRunCount ?? 0) > 0) {
       toolParts.push(
-        formatMessage(copy.sessions.tools, { count: item.toolRunCount }),
+        formatMessage(copy.sessions.tools, { count: item.toolRunCount ?? 0 }),
       );
     }
     if (item.lastToolLabel) {
@@ -1467,6 +1396,194 @@ export default function App(): React.JSX.Element {
     </div>
   );
 
+  const renderWorkspaceContent = (): React.JSX.Element | null => {
+    if (!session) {
+      return (
+        <section className="platform-admin-grid" aria-label="phase-1-modules">
+          <article className="platform-admin-card">
+            <p className="platform-admin-section-label">{copy.workspace.next}</p>
+            <h2>{copy.workspace.tenantsRbacTitle}</h2>
+            <p>{copy.workspace.tenantsRbacDesc}</p>
+          </article>
+          <article className="platform-admin-card">
+            <p className="platform-admin-section-label">{copy.workspace.next}</p>
+            <h2>{copy.workspace.configCenterTitle}</h2>
+            <p>{copy.workspace.configCenterDesc}</p>
+          </article>
+          <article className="platform-admin-card">
+            <p className="platform-admin-section-label">{copy.workspace.next}</p>
+            <h2>{copy.workspace.skillHubTitle}</h2>
+            <p>{copy.workspace.skillHubDesc}</p>
+          </article>
+          <article className="platform-admin-card">
+            <p className="platform-admin-section-label">{copy.workspace.next}</p>
+            <h2>{copy.workspace.auditCenterTitle}</h2>
+            <p>{copy.workspace.auditCenterDesc}</p>
+          </article>
+        </section>
+      );
+    }
+
+    const canManageTenants = session.user.roleCode === "super_admin";
+
+    if (activeSection === "overview") {
+      return (
+        <AdminOverviewPage
+          copy={copy}
+          tenant={selectedTenantId ? tenants.find((item) => item.id === selectedTenantId) ?? null : session.tenant}
+          tenantCount={tenants.length}
+          accountCount={accounts.length}
+          modelCount={modelProfiles.length}
+          skillCount={skillCatalog.length}
+          auditCount={auditEvents.length}
+          sessionCount={sessions.length}
+          canManageTenants={canManageTenants}
+          onNavigate={setActiveSection}
+        />
+      );
+    }
+
+    if (canManageTenants && activeSection === "tenants") {
+      return (
+        <AdminTenantsPage
+          copy={copy}
+          tenantForm={tenantForm}
+          onTenantFormChange={(patch) =>
+            setTenantForm((current) => ({ ...current, ...patch }))
+          }
+          onSubmit={handleCreateTenant}
+          tenants={tenants}
+          selectedTenantId={selectedTenantId}
+          onSelectTenant={(tenantId) => {
+            void handleSelectTenant(tenantId);
+          }}
+          onDeactivateTenant={(tenantId) => {
+            void handleDeactivateTenant(tenantId);
+          }}
+        />
+      );
+    }
+
+    if (activeSection === "accounts") {
+      return (
+        <AdminAccountsPage
+          copy={copy}
+          title={
+            canManageTenants
+              ? copy.accountControl.createTitle
+              : copy.accountControl.createTenantUserTitle
+          }
+          showRoleSelector={canManageTenants}
+          accountForm={accountForm}
+          onAccountFormChange={(patch) =>
+            setAccountForm((current) => ({ ...current, ...patch }))
+          }
+          onSubmit={handleCreateAccount}
+          accounts={accounts}
+          roleLabel={roleLabel}
+          onDeactivate={(accountId) => {
+            void handleDeactivateAccount(accountId);
+          }}
+        />
+      );
+    }
+
+    if (activeSection === "models") {
+      return (
+        <AdminModelsPage
+          copy={copy}
+          title={canManageTenants ? copy.modelControl.title : copy.modelControl.tenantTitle}
+          showScopeSelector={canManageTenants}
+          modelScope={modelScope}
+          canSelectTenantScope={Boolean(selectedTenantId)}
+          onSelectScope={(scope) => {
+            void handleSelectModelScope(scope);
+          }}
+          modelForm={modelForm}
+          onModelFormChange={(patch) =>
+            setModelForm((current) => ({ ...current, ...patch }))
+          }
+          onSubmit={handleCreateModelProfile}
+          modelProfiles={modelProfiles}
+          onDeactivate={(modelId) => {
+            void handleDeactivateModelProfile(modelId);
+          }}
+        />
+      );
+    }
+
+    if (activeSection === "skills") {
+      return (
+        <AdminSkillsPage
+          copy={copy}
+          title={canManageTenants ? copy.skillControl.title : copy.skillControl.tenantTitle}
+          showScopeSelector={canManageTenants}
+          skillScope={skillScope}
+          canSelectTenantScope={Boolean(selectedTenantId)}
+          onSelectScope={(scope) => {
+            void handleSelectSkillScope(scope);
+          }}
+          skillForm={skillForm}
+          onSkillFormChange={(patch) =>
+            setSkillForm((current) => ({ ...current, ...patch }))
+          }
+          onSubmit={handleCreateSkillCatalog}
+          skillCatalog={skillCatalog}
+          onDeactivate={(skillId) => {
+            void handleDeactivateSkillCatalog(skillId);
+          }}
+        />
+      );
+    }
+
+    if (activeSection === "audit") {
+      return (
+        <AdminAuditPage
+          titleLabel={canManageTenants ? copy.audit.section : copy.audit.tenantSection}
+          title={canManageTenants ? copy.audit.title : copy.audit.tenantTitle}
+          filters={renderAuditFilters()}
+          summary={renderAuditSummary()}
+          hint={
+            canManageTenants && !selectedTenantId ? copy.audit.selectTenantHint : null
+          }
+          events={auditEvents.map((item) => renderAuditEvent(item))}
+          loadMoreVisible={
+            canManageTenants ? auditHasMore && Boolean(selectedTenantId) : auditHasMore
+          }
+          loadMoreLabel={isLoadingAudit ? copy.common.loading : copy.common.loadOlderEvents}
+          onLoadMore={() => {
+            void handleLoadOlderAuditEvents();
+          }}
+          disabled={isLoadingAudit}
+        />
+      );
+    }
+
+    if (activeSection === "sessions") {
+      return (
+        <AdminSessionsPage
+          titleLabel={canManageTenants ? copy.sessions.section : copy.sessions.tenantSection}
+          title={canManageTenants ? copy.sessions.title : copy.sessions.tenantTitle}
+          filters={renderSessionFilters()}
+          hint={
+            canManageTenants && !selectedTenantId ? copy.sessions.selectTenantHint : null
+          }
+          sessions={sessions.map((item) => renderSessionSummary(item))}
+          loadMoreVisible={
+            canManageTenants ? sessionHasMore && Boolean(selectedTenantId) : sessionHasMore
+          }
+          loadMoreLabel={isLoadingSessions ? copy.common.loading : copy.common.loadOlderSessions}
+          onLoadMore={() => {
+            void handleLoadOlderSessions();
+          }}
+          disabled={isLoadingSessions}
+        />
+      );
+    }
+
+    return null;
+  };
+
   return (
     <main className="platform-admin-app">
       <section className="platform-admin-hero">
@@ -1607,636 +1724,16 @@ export default function App(): React.JSX.Element {
             </div>
             {isLoadingWorkspace ? <p className="platform-admin-panel-note">{copy.workspace.loading}</p> : null}
           </div>
-
-          {!session ? (
-            <section className="platform-admin-grid" aria-label="phase-1-modules">
-              <article className="platform-admin-card">
-                <p className="platform-admin-section-label">{copy.workspace.next}</p>
-                <h2>{copy.workspace.tenantsRbacTitle}</h2>
-                <p>{copy.workspace.tenantsRbacDesc}</p>
-              </article>
-              <article className="platform-admin-card">
-                <p className="platform-admin-section-label">{copy.workspace.next}</p>
-                <h2>{copy.workspace.configCenterTitle}</h2>
-                <p>{copy.workspace.configCenterDesc}</p>
-              </article>
-              <article className="platform-admin-card">
-                <p className="platform-admin-section-label">{copy.workspace.next}</p>
-                <h2>{copy.workspace.skillHubTitle}</h2>
-                <p>{copy.workspace.skillHubDesc}</p>
-              </article>
-              <article className="platform-admin-card">
-                <p className="platform-admin-section-label">{copy.workspace.next}</p>
-                <h2>{copy.workspace.auditCenterTitle}</h2>
-                <p>{copy.workspace.auditCenterDesc}</p>
-              </article>
-            </section>
+          {session ? (
+            <AdminWorkspaceNav
+              title={copy.workspace.navigation}
+              items={navItems}
+              activeSection={activeSection}
+              onChange={setActiveSection}
+            />
           ) : null}
 
-          {session?.user.roleCode === "super_admin" ? (
-            <div className="platform-admin-workspace-grid">
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.tenantControl.section}</p>
-                <h3>{copy.tenantControl.createTitle}</h3>
-                <form className="platform-admin-form" onSubmit={handleCreateTenant}>
-                  <label className="platform-admin-field">
-                    <span>{copy.tenantControl.tenantCode}</span>
-                    <input
-                      value={tenantForm.code}
-                      onChange={(event) =>
-                        setTenantForm((current) => ({ ...current, code: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.tenantControl.tenantName}</span>
-                    <input
-                      value={tenantForm.name}
-                      onChange={(event) =>
-                        setTenantForm((current) => ({ ...current, name: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <button className="platform-admin-submit" type="submit">
-                    {copy.tenantControl.createButton}
-                  </button>
-                </form>
-
-                <div className="platform-admin-list">
-                  {tenants.map((tenant) => (
-                    <button
-                      key={tenant.id}
-                      type="button"
-                      className={`platform-admin-list-item${
-                        selectedTenantId === tenant.id ? " is-selected" : ""
-                      }`}
-                      onClick={() => handleSelectTenant(tenant.id)}
-                    >
-                      <span>{tenant.name}</span>
-                      <small>{tenant.code}</small>
-                      <small>{tenant.isActive ? copy.common.active : copy.common.inactive}</small>
-                    </button>
-                  ))}
-                </div>
-                {selectedTenantId ? (
-                  <button
-                    className="platform-admin-secondary-button"
-                    type="button"
-                    onClick={() => handleDeactivateTenant(selectedTenantId)}
-                  >
-                    {copy.tenantControl.deactivateButton}
-                  </button>
-                ) : null}
-              </article>
-
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.accountControl.section}</p>
-                <h3>{copy.accountControl.createTitle}</h3>
-                <form className="platform-admin-form" onSubmit={handleCreateAccount}>
-                  <label className="platform-admin-field">
-                    <span>{copy.accountControl.username}</span>
-                    <input
-                      value={accountForm.username}
-                      onChange={(event) =>
-                        setAccountForm((current) => ({ ...current, username: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.accountControl.displayName}</span>
-                    <input
-                      value={accountForm.displayName}
-                      onChange={(event) =>
-                        setAccountForm((current) => ({ ...current, displayName: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.accountControl.password}</span>
-                    <input
-                      type="password"
-                      value={accountForm.password}
-                      onChange={(event) =>
-                        setAccountForm((current) => ({ ...current, password: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.accountControl.role}</span>
-                    <select
-                      value={accountForm.roleCode}
-                      onChange={(event) =>
-                        setAccountForm((current) => ({
-                          ...current,
-                          roleCode: event.target.value as RoleCode,
-                        }))
-                      }
-                    >
-                      <option value="tenant_admin">{copy.accountControl.createTenantAdmin}</option>
-                      <option value="tenant_user">{copy.accountControl.createTenantUser}</option>
-                    </select>
-                  </label>
-                  <button className="platform-admin-submit" type="submit">
-                    {copy.accountControl.createButton}
-                  </button>
-                </form>
-
-                <div className="platform-admin-list">
-                  {accounts.map((account) => (
-                    <div key={account.id} className="platform-admin-list-item is-static">
-                      <span>{account.displayName}</span>
-                      <small>{account.username}</small>
-                      <small>{roleLabel(account.roleCode)}</small>
-                      <small>{account.isActive ? copy.common.active : copy.common.inactive}</small>
-                      <button
-                        className="platform-admin-secondary-button"
-                        type="button"
-                        onClick={() => handleDeactivateAccount(account.id)}
-                      >
-                        {copy.accountControl.deactivateButton}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.modelControl.section}</p>
-                <h3>{copy.modelControl.title}</h3>
-                <label className="platform-admin-field">
-                  <span>{copy.modelControl.scope}</span>
-                  <select
-                    value={modelScope}
-                    onChange={(event) =>
-                      void handleSelectModelScope(event.target.value as "global" | "tenant")
-                    }
-                  >
-                    <option value="global">{copy.modelControl.globalModels}</option>
-                    {selectedTenantId ? (
-                      <option value="tenant">{copy.modelControl.tenantModels}</option>
-                    ) : null}
-                  </select>
-                </label>
-                <form className="platform-admin-form" onSubmit={handleCreateModelProfile}>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.provider}</span>
-                    <input
-                      value={modelForm.provider}
-                      onChange={(event) =>
-                        setModelForm((current) => ({ ...current, provider: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.modelId}</span>
-                    <input
-                      value={modelForm.model}
-                      onChange={(event) =>
-                        setModelForm((current) => ({ ...current, model: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.label}</span>
-                    <input
-                      value={modelForm.label}
-                      onChange={(event) =>
-                        setModelForm((current) => ({ ...current, label: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.baseUrl}</span>
-                    <input
-                      value={modelForm.baseUrl}
-                      onChange={(event) =>
-                        setModelForm((current) => ({ ...current, baseUrl: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.defaultFlag}</span>
-                    <select
-                      value={modelForm.isDefault ? "true" : "false"}
-                      onChange={(event) =>
-                        setModelForm((current) => ({
-                          ...current,
-                          isDefault: event.target.value === "true",
-                        }))
-                      }
-                    >
-                      <option value="true">{copy.modelControl.defaultModel}</option>
-                      <option value="false">{copy.modelControl.optionalModel}</option>
-                    </select>
-                  </label>
-                  <button className="platform-admin-submit" type="submit">
-                    {copy.modelControl.createButton}
-                  </button>
-                </form>
-
-                <div className="platform-admin-list">
-                  {modelProfiles.map((item) => (
-                    <div key={item.id} className="platform-admin-list-item is-static">
-                      <span>{item.label}</span>
-                      <small>{item.provider}</small>
-                      <small>{item.model}</small>
-                      <small>{item.isDefault ? copy.common.default : copy.common.optional}</small>
-                      <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
-                      <button
-                        className="platform-admin-secondary-button"
-                        type="button"
-                        onClick={() => handleDeactivateModelProfile(item.id)}
-                      >
-                        {copy.modelControl.deactivateButton}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.skillControl.section}</p>
-                <h3>{copy.skillControl.title}</h3>
-                <label className="platform-admin-field">
-                  <span>{copy.skillControl.scope}</span>
-                  <select
-                    value={skillScope}
-                    onChange={(event) =>
-                      void handleSelectSkillScope(event.target.value as "global" | "tenant")
-                    }
-                  >
-                    <option value="global">{copy.skillControl.globalSkills}</option>
-                    {selectedTenantId ? (
-                      <option value="tenant">{copy.skillControl.tenantSkills}</option>
-                    ) : null}
-                  </select>
-                </label>
-                <form className="platform-admin-form" onSubmit={handleCreateSkillCatalog}>
-                  <label className="platform-admin-field">
-                    <span>{copy.skillControl.name}</span>
-                    <input
-                      value={skillForm.name}
-                      onChange={(event) =>
-                        setSkillForm((current) => ({ ...current, name: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.skillControl.version}</span>
-                    <input
-                      value={skillForm.version}
-                      onChange={(event) =>
-                        setSkillForm((current) => ({ ...current, version: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.skillControl.description}</span>
-                    <input
-                      value={skillForm.description}
-                      onChange={(event) =>
-                        setSkillForm((current) => ({
-                          ...current,
-                          description: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.skillControl.downloadUrl}</span>
-                    <input
-                      value={skillForm.downloadUrl}
-                      onChange={(event) =>
-                        setSkillForm((current) => ({
-                          ...current,
-                          downloadUrl: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <button className="platform-admin-submit" type="submit">
-                    {copy.skillControl.createButton}
-                  </button>
-                </form>
-
-                <div className="platform-admin-list">
-                  {skillCatalog.map((item) => (
-                    <div key={item.id} className="platform-admin-list-item is-static">
-                      <span>{item.name}</span>
-                      <small>{item.version}</small>
-                      <small>{item.scopeType === "global" ? copy.common.global : copy.common.tenant}</small>
-                      <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
-                      <button
-                        className="platform-admin-secondary-button"
-                        type="button"
-                        onClick={() => handleDeactivateSkillCatalog(item.id)}
-                      >
-                        {copy.skillControl.deactivateButton}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.audit.section}</p>
-                <h3>{copy.audit.title}</h3>
-                {renderAuditFilters()}
-                {renderAuditSummary()}
-                {!selectedTenantId ? (
-                  <p className="platform-admin-panel-note">
-                    {copy.audit.selectTenantHint}
-                  </p>
-                ) : null}
-                <div className="platform-admin-list">
-                  {auditEvents.map((item) => renderAuditEvent(item))}
-                </div>
-                {auditHasMore && selectedTenantId ? (
-                  <button
-                    className="platform-admin-secondary-button"
-                    type="button"
-                    onClick={() => void handleLoadOlderAuditEvents()}
-                    disabled={isLoadingAudit}
-                  >
-                    {isLoadingAudit ? copy.common.loading : copy.common.loadOlderEvents}
-                  </button>
-                ) : null}
-              </article>
-
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.sessions.section}</p>
-                <h3>{copy.sessions.title}</h3>
-                {renderSessionFilters()}
-                {!selectedTenantId ? (
-                  <p className="platform-admin-panel-note">
-                    {copy.sessions.selectTenantHint}
-                  </p>
-                ) : null}
-                <div className="platform-admin-list">
-                  {sessions.map((item) => renderSessionSummary(item))}
-                </div>
-                {sessionHasMore && selectedTenantId ? (
-                  <button
-                    className="platform-admin-secondary-button"
-                    type="button"
-                    onClick={() => void handleLoadOlderSessions()}
-                    disabled={isLoadingSessions}
-                  >
-                    {isLoadingSessions ? copy.common.loading : copy.common.loadOlderSessions}
-                  </button>
-                ) : null}
-              </article>
-            </div>
-          ) : null}
-
-          {session?.user.roleCode === "tenant_admin" ? (
-            <div className="platform-admin-workspace-grid is-single-column">
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.accountControl.section}</p>
-                <h3>{copy.accountControl.createTenantUserTitle}</h3>
-                <form className="platform-admin-form" onSubmit={handleCreateAccount}>
-                  <label className="platform-admin-field">
-                    <span>{copy.accountControl.username}</span>
-                    <input
-                      value={accountForm.username}
-                      onChange={(event) =>
-                        setAccountForm((current) => ({ ...current, username: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.accountControl.displayName}</span>
-                    <input
-                      value={accountForm.displayName}
-                      onChange={(event) =>
-                        setAccountForm((current) => ({ ...current, displayName: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.accountControl.password}</span>
-                    <input
-                      type="password"
-                      value={accountForm.password}
-                      onChange={(event) =>
-                        setAccountForm((current) => ({ ...current, password: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <button className="platform-admin-submit" type="submit">
-                    {copy.accountControl.createTenantUser}
-                  </button>
-                </form>
-
-                <div className="platform-admin-list">
-                  {accounts.map((account) => (
-                    <div key={account.id} className="platform-admin-list-item is-static">
-                      <span>{account.displayName}</span>
-                      <small>{account.username}</small>
-                      <small>{roleLabel(account.roleCode)}</small>
-                      <small>{account.isActive ? copy.common.active : copy.common.inactive}</small>
-                      <button
-                        className="platform-admin-secondary-button"
-                        type="button"
-                        onClick={() => handleDeactivateAccount(account.id)}
-                      >
-                        {copy.accountControl.deactivateButton}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.modelControl.tenantSection}</p>
-                <h3>{copy.modelControl.tenantTitle}</h3>
-                <form className="platform-admin-form" onSubmit={handleCreateModelProfile}>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.provider}</span>
-                    <input
-                      value={modelForm.provider}
-                      onChange={(event) =>
-                        setModelForm((current) => ({ ...current, provider: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.modelId}</span>
-                    <input
-                      value={modelForm.model}
-                      onChange={(event) =>
-                        setModelForm((current) => ({ ...current, model: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.label}</span>
-                    <input
-                      value={modelForm.label}
-                      onChange={(event) =>
-                        setModelForm((current) => ({ ...current, label: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.baseUrl}</span>
-                    <input
-                      value={modelForm.baseUrl}
-                      onChange={(event) =>
-                        setModelForm((current) => ({ ...current, baseUrl: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.modelControl.defaultFlag}</span>
-                    <select
-                      value={modelForm.isDefault ? "true" : "false"}
-                      onChange={(event) =>
-                        setModelForm((current) => ({
-                          ...current,
-                          isDefault: event.target.value === "true",
-                        }))
-                      }
-                    >
-                      <option value="true">{copy.modelControl.defaultModel}</option>
-                      <option value="false">{copy.modelControl.optionalModel}</option>
-                    </select>
-                  </label>
-                  <button className="platform-admin-submit" type="submit">
-                    {copy.modelControl.createButton}
-                  </button>
-                </form>
-
-                <div className="platform-admin-list">
-                  {modelProfiles.map((item) => (
-                    <div key={item.id} className="platform-admin-list-item is-static">
-                      <span>{item.label}</span>
-                      <small>{item.provider}</small>
-                      <small>{item.model}</small>
-                      <small>{item.isDefault ? copy.common.default : copy.common.optional}</small>
-                      <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
-                      <button
-                        className="platform-admin-secondary-button"
-                        type="button"
-                        onClick={() => handleDeactivateModelProfile(item.id)}
-                      >
-                        {copy.modelControl.deactivateButton}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.skillControl.tenantSection}</p>
-                <h3>{copy.skillControl.tenantTitle}</h3>
-                <form className="platform-admin-form" onSubmit={handleCreateSkillCatalog}>
-                  <label className="platform-admin-field">
-                    <span>{copy.skillControl.name}</span>
-                    <input
-                      value={skillForm.name}
-                      onChange={(event) =>
-                        setSkillForm((current) => ({ ...current, name: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.skillControl.version}</span>
-                    <input
-                      value={skillForm.version}
-                      onChange={(event) =>
-                        setSkillForm((current) => ({ ...current, version: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.skillControl.description}</span>
-                    <input
-                      value={skillForm.description}
-                      onChange={(event) =>
-                        setSkillForm((current) => ({
-                          ...current,
-                          description: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="platform-admin-field">
-                    <span>{copy.skillControl.downloadUrl}</span>
-                    <input
-                      value={skillForm.downloadUrl}
-                      onChange={(event) =>
-                        setSkillForm((current) => ({
-                          ...current,
-                          downloadUrl: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <button className="platform-admin-submit" type="submit">
-                    {copy.skillControl.createButton}
-                  </button>
-                </form>
-
-                <div className="platform-admin-list">
-                  {skillCatalog.map((item) => (
-                    <div key={item.id} className="platform-admin-list-item is-static">
-                      <span>{item.name}</span>
-                      <small>{item.version}</small>
-                      <small>{item.scopeType === "global" ? copy.common.global : copy.common.tenant}</small>
-                      <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
-                      <button
-                        className="platform-admin-secondary-button"
-                        type="button"
-                        onClick={() => handleDeactivateSkillCatalog(item.id)}
-                      >
-                        {copy.skillControl.deactivateButton}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.audit.tenantSection}</p>
-                <h3>{copy.audit.tenantTitle}</h3>
-                {renderAuditFilters()}
-                {renderAuditSummary()}
-                <div className="platform-admin-list">
-                  {auditEvents.map((item) => renderAuditEvent(item))}
-                </div>
-                {auditHasMore ? (
-                  <button
-                    className="platform-admin-secondary-button"
-                    type="button"
-                    onClick={() => void handleLoadOlderAuditEvents()}
-                    disabled={isLoadingAudit}
-                  >
-                    {isLoadingAudit ? copy.common.loading : copy.common.loadOlderEvents}
-                  </button>
-                ) : null}
-              </article>
-
-              <article className="platform-admin-card platform-admin-stack-card">
-                <p className="platform-admin-section-label">{copy.sessions.tenantSection}</p>
-                <h3>{copy.sessions.tenantTitle}</h3>
-                {renderSessionFilters()}
-                <div className="platform-admin-list">
-                  {sessions.map((item) => renderSessionSummary(item))}
-                </div>
-                {sessionHasMore ? (
-                  <button
-                    className="platform-admin-secondary-button"
-                    type="button"
-                    onClick={() => void handleLoadOlderSessions()}
-                    disabled={isLoadingSessions}
-                  >
-                    {isLoadingSessions ? copy.common.loading : copy.common.loadOlderSessions}
-                  </button>
-                ) : null}
-              </article>
-            </div>
-          ) : null}
+          {renderWorkspaceContent()}
         </section>
       </section>
 
