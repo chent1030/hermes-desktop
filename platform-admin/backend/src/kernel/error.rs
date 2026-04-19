@@ -84,6 +84,36 @@ impl ApiError {
             },
         }
     }
+
+    pub fn from_admin_error(error: crate::admin::domain::error::AdminError) -> Self {
+        let (status, code, message) = match error {
+            crate::admin::domain::error::AdminError::InvalidRequest(message) => {
+                (StatusCode::BAD_REQUEST, "invalid_request", message)
+            }
+            crate::admin::domain::error::AdminError::Forbidden(message) => {
+                (StatusCode::FORBIDDEN, "forbidden", message)
+            }
+            crate::admin::domain::error::AdminError::Conflict(message) => {
+                (StatusCode::CONFLICT, "conflict", message)
+            }
+            crate::admin::domain::error::AdminError::NotFound(message) => {
+                (StatusCode::NOT_FOUND, "not_found", message)
+            }
+            crate::admin::domain::error::AdminError::Store(message) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "store_error", message)
+            }
+        };
+
+        Self {
+            status,
+            envelope: ErrorEnvelope {
+                code,
+                message,
+                request_id: RequestId::new().into_string(),
+                retryable: false,
+            },
+        }
+    }
 }
 
 impl IntoResponse for ApiError {
