@@ -175,6 +175,111 @@ body {
   overflow-y: auto;
 }
 
+.initializing-screen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background:
+    radial-gradient(circle at top, rgba(0, 63, 122, 0.18), transparent 32%),
+    var(--bg-primary);
+}
+
+.initializing-card {
+  width: min(720px, 100%);
+  padding: 28px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-xl);
+  background: var(--bg-secondary);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+}
+
+.initializing-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.initializing-hint,
+.initializing-note {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.initializing-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.initializing-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+}
+
+.initializing-step strong {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.initializing-step small {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.initializing-step-active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(0, 63, 122, 0.22);
+}
+
+.initializing-step-completed {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: color-mix(in srgb, var(--success-bg) 60%, var(--bg-primary));
+}
+
+.initializing-step-failed {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: color-mix(in srgb, var(--error-bg) 70%, var(--bg-primary));
+}
+
+.initializing-error {
+  margin-top: 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--error);
+}
+
+.initializing-error-hint {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.initializing-error-raw {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.initializing-action {
+  margin-top: 18px;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

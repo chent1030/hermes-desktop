@@ -44,6 +44,10 @@ describe("platform screen localization", () => {
     expect(screen.getByLabelText("租户")).toBeInTheDocument();
     expect(screen.getByLabelText("账号")).toBeInTheDocument();
     expect(screen.getByLabelText("密码")).toBeInTheDocument();
+    expect(screen.getByText("Hermes 桌面端")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "进入租户控制台" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
     expect(screen.getByText("正在初始化工作区")).toBeInTheDocument();
     expect(

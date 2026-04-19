@@ -17,10 +17,18 @@ use crate::{
             tenant::{CreateTenantCommand, TenantRecord},
         },
     },
+    audit_center::{
+        AuditCenterError, AuditEventRecord, PgAuditCenterStore, build_audit_event_query,
+        list_audit_events_for_actor,
+    },
     auth::{AuthContextResponse, authenticate_access_token},
     bootstrap::app_state::AppState,
     iam::application::me,
     kernel::error::ApiError,
+    session_center::{
+        PgSessionCenterStore, SessionCenterError, SessionSummaryRecord, build_session_query,
+        list_sessions_for_actor, parse_has_failure_query,
+    },
 };
 
 #[derive(Debug, Deserialize)]
@@ -39,6 +47,33 @@ struct ModelProfilesQuery {
 #[serde(rename_all = "camelCase")]
 struct SkillCatalogQuery {
     tenant_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AuditEventsQuery {
+    tenant_id: Option<i64>,
+    event_family: Option<String>,
+    event_type: Option<String>,
+    event_prefix: Option<String>,
+    occurred_from: Option<String>,
+    occurred_to: Option<String>,
+    account_query: Option<String>,
+    payload_query: Option<String>,
+    before_id: Option<i64>,
+    limit: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionsQuery {
+    tenant_id: Option<i64>,
+    last_event_type: Option<String>,
+    has_failure: Option<String>,
+    last_occurred_from: Option<String>,
+    last_occurred_to: Option<String>,
+    before_id: Option<String>,
+    limit: Option<i64>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -91,6 +126,13 @@ pub fn routes() -> Router<AppState> {
             "/tenant/model-profiles/{model_id}/deactivate",
             axum::routing::post(deactivate_self_tenant_model_profile_handler),
         )
+        .route("/audit/events", get(list_audit_events_handler))
+        .route("/sessions", get(list_sessions_handler))
+        .route(
+            "/tenant/audit/events",
+            get(list_self_tenant_audit_events_handler),
+        )
+        .route("/tenant/sessions", get(list_self_tenant_sessions_handler))
         .route(
             "/skills/catalog",
             get(list_skill_catalog_handler).post(create_skill_catalog_handler),
@@ -233,6 +275,134 @@ async fn list_self_tenant_model_profiles_handler(
         .await
         .map_err(ApiError::from_admin_error)?;
     Ok(Json(profiles))
+}
+
+async fn list_audit_events_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<AuditEventsQuery>,
+) -> Result<Json<Vec<AuditEventRecord>>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let principal = principal_from_context(&context);
+    let audit_query = build_audit_event_query(
+        query.event_family,
+        query.event_type,
+        query.event_prefix,
+        query.occurred_from,
+        query.occurred_to,
+        query.account_query,
+        query.payload_query,
+        query.before_id,
+        query.limit,
+    )
+    .map_err(map_audit_center_error)?;
+
+    let database_url = state.config.database_url.clone();
+    let requested_tenant_id = query.tenant_id;
+    let events = tokio::task::spawn_blocking(move || {
+        let mut store = PgAuditCenterStore::new(database_url);
+        list_audit_events_for_actor(&mut store, &principal, requested_tenant_id, audit_query)
+    })
+    .await
+    .expect("audit list task join")
+    .map_err(map_audit_center_error)?;
+
+    Ok(Json(events))
+}
+
+async fn list_self_tenant_audit_events_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<AuditEventsQuery>,
+) -> Result<Json<Vec<AuditEventRecord>>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let principal = principal_from_context(&context);
+    let audit_query = build_audit_event_query(
+        query.event_family,
+        query.event_type,
+        query.event_prefix,
+        query.occurred_from,
+        query.occurred_to,
+        query.account_query,
+        query.payload_query,
+        query.before_id,
+        query.limit,
+    )
+    .map_err(map_audit_center_error)?;
+
+    let database_url = state.config.database_url.clone();
+    let events = tokio::task::spawn_blocking(move || {
+        let mut store = PgAuditCenterStore::new(database_url);
+        list_audit_events_for_actor(&mut store, &principal, None, audit_query)
+    })
+    .await
+    .expect("tenant audit list task join")
+    .map_err(map_audit_center_error)?;
+
+    Ok(Json(events))
+}
+
+async fn list_sessions_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<SessionsQuery>,
+) -> Result<Json<Vec<SessionSummaryRecord>>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let principal = principal_from_context(&context);
+    let has_failure =
+        parse_has_failure_query(query.has_failure).map_err(map_session_center_error)?;
+    let session_query = build_session_query(
+        query.last_event_type,
+        has_failure,
+        query.last_occurred_from,
+        query.last_occurred_to,
+        query.before_id,
+        query.limit,
+    )
+    .map_err(map_session_center_error)?;
+
+    let database_url = state.config.database_url.clone();
+    let requested_tenant_id = query.tenant_id;
+    let sessions = tokio::task::spawn_blocking(move || {
+        let mut store = PgSessionCenterStore::new(database_url);
+        list_sessions_for_actor(&mut store, &principal, requested_tenant_id, session_query)
+    })
+    .await
+    .expect("session list task join")
+    .map_err(map_session_center_error)?;
+
+    Ok(Json(sessions))
+}
+
+async fn list_self_tenant_sessions_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<SessionsQuery>,
+) -> Result<Json<Vec<SessionSummaryRecord>>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let principal = principal_from_context(&context);
+    let has_failure =
+        parse_has_failure_query(query.has_failure).map_err(map_session_center_error)?;
+    let session_query = build_session_query(
+        query.last_event_type,
+        has_failure,
+        query.last_occurred_from,
+        query.last_occurred_to,
+        query.before_id,
+        query.limit,
+    )
+    .map_err(map_session_center_error)?;
+
+    let database_url = state.config.database_url.clone();
+    let sessions = tokio::task::spawn_blocking(move || {
+        let mut store = PgSessionCenterStore::new(database_url);
+        list_sessions_for_actor(&mut store, &principal, None, session_query)
+    })
+    .await
+    .expect("tenant session list task join")
+    .map_err(map_session_center_error)?;
+
+    Ok(Json(sessions))
 }
 
 async fn create_self_tenant_model_profile_handler(
@@ -413,4 +583,36 @@ async fn authenticate_request(
     .await
     .expect("admin auth task join")
     .map_err(ApiError::from_auth_error)
+}
+
+fn principal_from_context(context: &AuthContextResponse) -> crate::auth::AuthPrincipal {
+    crate::auth::AuthPrincipal {
+        tenant: context.tenant.clone(),
+        user: context.user.clone(),
+        password_hash: String::new(),
+    }
+}
+
+fn map_audit_center_error(error: AuditCenterError) -> ApiError {
+    use crate::admin::domain::error::AdminError;
+
+    let admin_error = match error {
+        AuditCenterError::InvalidRequest(message) => AdminError::InvalidRequest(message),
+        AuditCenterError::Forbidden(message) => AdminError::Forbidden(message),
+        AuditCenterError::Conflict(message) => AdminError::Conflict(message),
+        AuditCenterError::NotFound(message) => AdminError::NotFound(message),
+        AuditCenterError::Store(message) => AdminError::Store(message),
+    };
+    ApiError::from_admin_error(admin_error)
+}
+
+fn map_session_center_error(error: SessionCenterError) -> ApiError {
+    use crate::admin::domain::error::AdminError;
+
+    let admin_error = match error {
+        SessionCenterError::InvalidRequest(message) => AdminError::InvalidRequest(message),
+        SessionCenterError::Forbidden(message) => AdminError::Forbidden(message),
+        SessionCenterError::Store(message) => AdminError::Store(message),
+    };
+    ApiError::from_admin_error(admin_error)
 }

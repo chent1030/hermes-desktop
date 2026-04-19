@@ -29,6 +29,9 @@ export default function Models(): React.JSX.Element {
             {model.baseUrl && <div className="models-card-url">{model.baseUrl}</div>}
           </button>
         ))}
+        {workspace && workspace.models.length === 0 && (
+          <div className="models-empty">{t("models.empty")}</div>
+        )}
       </div>
     </div>
   );

@@ -655,7 +655,7 @@ pub fn refresh_session<S: AuthStore>(
             &next_access_token_hash,
             &next_refresh_token_hash,
         )
-        .map_err(|error| AuthError::Store(error.to_string()))?;
+        .map_err(map_refresh_error)?;
 
     Ok(response)
 }
@@ -759,6 +759,14 @@ fn validate_refresh_request(request: &RefreshRequest) -> Result<(), AuthError> {
     Ok(())
 }
 
+fn map_refresh_error(error: AuthStoreError) -> AuthError {
+    if error.0 == "refresh session not found for rotation" {
+        AuthError::InvalidRefreshToken
+    } else {
+        AuthError::Store(error.to_string())
+    }
+}
+
 fn normalize_tenant_code(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -856,6 +864,7 @@ mod tests {
         sessions_by_refresh_hash: HashMap<String, i64>,
         sessions_by_access_hash: HashMap<String, i64>,
         created_accounts: Vec<(String, String, String)>,
+        replace_refresh_error: Option<String>,
     }
 
     impl MemoryAuthStore {
@@ -926,6 +935,9 @@ mod tests {
             next_access_token_hash: &str,
             next_refresh_token_hash: &str,
         ) -> Result<(), AuthStoreError> {
+            if let Some(message) = self.replace_refresh_error.clone() {
+                return Err(AuthStoreError(message));
+            }
             self.sessions_by_refresh_hash
                 .remove(current_refresh_token_hash);
             self.sessions_by_access_hash
@@ -1192,6 +1204,32 @@ mod tests {
             "stage1-salt",
         )
         .expect_err("unknown refresh token should fail");
+
+        assert_eq!(error, AuthError::InvalidRefreshToken);
+    }
+
+    #[test]
+    fn treats_refresh_rotation_race_as_invalid_refresh_token() {
+        let principal = sample_tenant_admin_principal();
+        let current_refresh_token = "rtk_current".to_string();
+        let mut store = MemoryAuthStore {
+            principals: vec![principal.clone()],
+            sessions_by_refresh_hash: HashMap::from([(
+                hash_token(&current_refresh_token),
+                principal.user.id,
+            )]),
+            replace_refresh_error: Some("refresh session not found for rotation".to_string()),
+            ..Default::default()
+        };
+
+        let error = refresh_session(
+            &mut store,
+            RefreshRequest {
+                refresh_token: current_refresh_token,
+            },
+            "stage1-salt",
+        )
+        .expect_err("rotated refresh token should fail as invalid refresh token");
 
         assert_eq!(error, AuthError::InvalidRefreshToken);
     }

@@ -65,4 +65,27 @@ describe("WorkspaceShell", () => {
     expect(screen.getByText("Gateway hidden")).toBeInTheDocument();
     expect(screen.queryByText("Gateway")).not.toBeInTheDocument();
   });
+
+  it("shows a local model fallback label when the platform does not provide model profiles", () => {
+    render(
+      <I18nProvider>
+        <WorkspaceShell
+          workspace={{
+            tenant: { id: "t1", code: "acme", name: "Acme" },
+            user: { id: "u1", username: "alice", displayName: "Alice" },
+            locale: "zh-CN",
+            features: { gatewayVisible: false },
+            models: [],
+            selectedModelId: "",
+            skills: [],
+          }}
+          audit={null}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText("当前模型")).toBeInTheDocument();
+    expect(screen.getByText("本地模型配置")).toBeInTheDocument();
+    expect(screen.getByText("Gateway hidden")).toBeInTheDocument();
+  });
 });

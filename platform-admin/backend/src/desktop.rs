@@ -15,11 +15,15 @@ CREATE TABLE IF NOT EXISTS platform_desktop_model_profiles (
     model VARCHAR(128) NOT NULL,
     label VARCHAR(255) NOT NULL,
     base_url VARCHAR(512) NOT NULL DEFAULT '',
+    api_key VARCHAR(512) NOT NULL DEFAULT '',
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE platform_desktop_model_profiles
+    ADD COLUMN IF NOT EXISTS api_key VARCHAR(512) NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS platform_desktop_skill_catalog (
     id VARCHAR(128) PRIMARY KEY,
@@ -79,6 +83,7 @@ pub struct DesktopModelProfile {
     pub model: String,
     pub label: String,
     pub base_url: String,
+    pub api_key: String,
     pub is_default: bool,
     #[serde(skip_serializing)]
     pub tenant_id: Option<i64>,
@@ -181,7 +186,7 @@ impl DesktopStore for PgDesktopStore {
         let mut client = self.connect()?;
         let rows = client.query(
             "
-            SELECT id, tenant_id, provider, model, label, base_url, is_default
+            SELECT id, tenant_id, provider, model, label, base_url, api_key, is_default
             FROM platform_desktop_model_profiles
             WHERE is_active = TRUE
               AND (tenant_id IS NULL OR tenant_id = $1)
@@ -198,6 +203,7 @@ impl DesktopStore for PgDesktopStore {
                 model: row.get("model"),
                 label: row.get("label"),
                 base_url: row.get("base_url"),
+                api_key: row.get("api_key"),
                 is_default: row.get("is_default"),
                 tenant_id: row.get("tenant_id"),
             })
@@ -373,6 +379,7 @@ mod tests {
             model: "gpt-5.4".to_string(),
             label: "GPT-5.4".to_string(),
             base_url: "https://api.openai.com/v1".to_string(),
+            api_key: String::new(),
             is_default: true,
             tenant_id: None,
         }];
@@ -409,6 +416,7 @@ mod tests {
                 model: "gpt-5.4".to_string(),
                 label: "GPT-5.4".to_string(),
                 base_url: "https://api.openai.com/v1".to_string(),
+                api_key: String::new(),
                 is_default: true,
                 tenant_id: None,
             },
@@ -418,6 +426,7 @@ mod tests {
                 model: "gpt-4.1".to_string(),
                 label: "GPT-4.1 Tenant".to_string(),
                 base_url: "https://api.openai.com/v1".to_string(),
+                api_key: String::new(),
                 is_default: true,
                 tenant_id: Some(7),
             },

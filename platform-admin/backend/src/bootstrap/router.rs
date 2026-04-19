@@ -3,6 +3,7 @@ use axum::{
     routing::get,
 };
 use serde::Serialize;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
     SERVICE_NAME, admin,
@@ -27,6 +28,19 @@ pub fn build_router(state: AppState) -> Router {
         .nest("/api/admin", admin::api::routes())
         .nest("/api/desktop", desktop::api::routes())
         .fallback(fallback)
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([
+                    axum::http::Method::GET,
+                    axum::http::Method::POST,
+                    axum::http::Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::header::AUTHORIZATION,
+                ]),
+        )
         .layer(middleware::from_fn(request_id_middleware))
         .with_state(state)
 }

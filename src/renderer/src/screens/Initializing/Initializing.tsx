@@ -131,36 +131,41 @@ export default function Initializing(): React.JSX.Element {
 
   return (
     <div className="initializing-screen">
-      <h1>{t("platform.initializingTitle")}</h1>
-      <p>{t("platform.initializingHint")}</p>
-      <div className="initializing-steps">
-        {INIT_STEPS.map((step) => {
-          const stepState = getStepState(step, currentInitStatus);
-          return (
-            <div
-              key={step}
-              className={`initializing-step initializing-step-${stepState}`}
-            >
-              <strong>{getStepLabel(step, t)}</strong>
-              <small>{getStepStateLabel(stepState, t)}</small>
+      <div className="initializing-card">
+        <h1 className="initializing-title">{t("platform.initializingTitle")}</h1>
+        <p className="initializing-hint">{t("platform.initializingHint")}</p>
+        <div className="initializing-steps">
+          {INIT_STEPS.map((step) => {
+            const stepState = getStepState(step, currentInitStatus);
+            return (
+              <div
+                key={step}
+                className={`initializing-step initializing-step-${stepState}`}
+              >
+                <strong>{getStepLabel(step, t)}</strong>
+                <small>{getStepStateLabel(stepState, t)}</small>
+              </div>
+            );
+          })}
+        </div>
+        {initError && errorDetails && (
+          <>
+            <div className="initializing-error">
+              {t("platform.initFailureStage", { stage: errorDetails.stage })}
             </div>
-          );
-        })}
+            <div className="initializing-error-hint">{errorDetails.hint}</div>
+            <div className="initializing-error-raw">
+              {t("platform.initRawErrorLabel")}: {initError}
+            </div>
+            <button
+              className="btn btn-primary initializing-action"
+              onClick={() => void retryInitialization()}
+            >
+              {t("platform.retry")}
+            </button>
+          </>
+        )}
       </div>
-      {initError && errorDetails && (
-        <>
-          <div className="initializing-error">
-            {t("platform.initFailureStage", { stage: errorDetails.stage })}
-          </div>
-          <div className="initializing-error-hint">{errorDetails.hint}</div>
-          <div className="initializing-error-raw">
-            {t("platform.initRawErrorLabel")}: {initError}
-          </div>
-          <button onClick={() => void retryInitialization()}>
-            {t("platform.retry")}
-          </button>
-        </>
-      )}
     </div>
   );
 }

@@ -92,22 +92,8 @@ export async function initializeWorkspaceState(): Promise<WorkspaceBootstrap> {
     throw error;
   }
 
-  if (models.items.length === 0) {
-    setInitStatus("failed", {
-      failedPhase: "models",
-      lastError: "platform models unavailable",
-    });
-    throw new Error("platform models unavailable");
-  }
-
   const defaultModel = models.items.find((item) => item.isDefault);
-  if (!defaultModel) {
-    setInitStatus("failed", {
-      failedPhase: "models",
-      lastError: "platform default model missing",
-    });
-    throw new Error("platform default model missing");
-  }
+  const selectedModelId = defaultModel?.id ?? models.items[0]?.id ?? "";
 
   setInitStatus("skills");
   let skills: Awaited<ReturnType<typeof fetchSkillCatalog>>;
@@ -125,7 +111,7 @@ export async function initializeWorkspaceState(): Promise<WorkspaceBootstrap> {
   const workspace: WorkspaceBootstrap = {
     ...bootstrap,
     models: models.items,
-    selectedModelId: defaultModel.id,
+    selectedModelId,
     skills: skills.items,
   };
 

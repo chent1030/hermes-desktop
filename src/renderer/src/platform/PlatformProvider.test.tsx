@@ -125,7 +125,7 @@ describe("PlatformProvider", () => {
     });
   });
 
-  it("blocks entering workspace when the platform returns no authorized models", async () => {
+  it("still enters workspace when the platform returns no authorized models", async () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: {
@@ -164,20 +164,11 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Failed at: Model configuration")).toBeInTheDocument();
+      expect(screen.getByText("Workspace ready")).toBeInTheDocument();
     });
-
-    expect(
-      screen.getByText(
-        "No authorized default model is ready. Ask your tenant or platform administrator to configure an available default model.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/platform models unavailable/i)).toBeInTheDocument();
-    expect(screen.getByText("Initializing workspace")).toBeInTheDocument();
-    expect(screen.queryByText("Workspace ready")).not.toBeInTheDocument();
   });
 
-  it("blocks entering workspace when the platform does not provide a default model", async () => {
+  it("still enters workspace when the platform does not provide a default model", async () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: {
@@ -225,17 +216,8 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Failed at: Model configuration")).toBeInTheDocument();
+      expect(screen.getByText("Workspace ready")).toBeInTheDocument();
     });
-
-    expect(
-      screen.getByText(
-        "No authorized default model is ready. Ask your tenant or platform administrator to configure an available default model.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/platform default model missing/i)).toBeInTheDocument();
-    expect(screen.getByText("Initializing workspace")).toBeInTheDocument();
-    expect(screen.queryByText("Workspace ready")).not.toBeInTheDocument();
   });
 
   it("shows a staged bootstrap hint when platform bootstrap loading fails", async () => {

@@ -6,6 +6,7 @@ interface ModelForm {
   model: string;
   label: string;
   baseUrl: string;
+  apiKey: string;
   isDefault: boolean;
 }
 
@@ -41,11 +42,15 @@ export function AdminModelsPage({
       <div className="platform-admin-resource-head">
         <div>
           <p className="platform-admin-section-label">
-            {showScopeSelector ? copy.modelControl.section : copy.modelControl.tenantSection}
+            {showScopeSelector
+              ? copy.modelControl.section
+              : copy.modelControl.tenantSection}
           </p>
           <h3>{title}</h3>
         </div>
-        <span className="platform-admin-resource-count">{modelProfiles.length}</span>
+        <span className="platform-admin-resource-count">
+          {modelProfiles.length}
+        </span>
       </div>
 
       <div className="platform-admin-resource-layout">
@@ -55,11 +60,15 @@ export function AdminModelsPage({
               <span>{copy.modelControl.scope}</span>
               <select
                 value={modelScope}
-                onChange={(event) => onSelectScope(event.target.value as "global" | "tenant")}
+                onChange={(event) =>
+                  onSelectScope(event.target.value as "global" | "tenant")
+                }
               >
                 <option value="global">{copy.modelControl.globalModels}</option>
                 {canSelectTenantScope ? (
-                  <option value="tenant">{copy.modelControl.tenantModels}</option>
+                  <option value="tenant">
+                    {copy.modelControl.tenantModels}
+                  </option>
                 ) : null}
               </select>
             </label>
@@ -69,28 +78,46 @@ export function AdminModelsPage({
               <span>{copy.modelControl.provider}</span>
               <input
                 value={modelForm.provider}
-                onChange={(event) => onModelFormChange({ provider: event.target.value })}
+                onChange={(event) =>
+                  onModelFormChange({ provider: event.target.value })
+                }
               />
             </label>
             <label className="platform-admin-field">
               <span>{copy.modelControl.modelId}</span>
               <input
                 value={modelForm.model}
-                onChange={(event) => onModelFormChange({ model: event.target.value })}
+                onChange={(event) =>
+                  onModelFormChange({ model: event.target.value })
+                }
               />
             </label>
             <label className="platform-admin-field">
               <span>{copy.modelControl.label}</span>
               <input
                 value={modelForm.label}
-                onChange={(event) => onModelFormChange({ label: event.target.value })}
+                onChange={(event) =>
+                  onModelFormChange({ label: event.target.value })
+                }
               />
             </label>
             <label className="platform-admin-field">
               <span>{copy.modelControl.baseUrl}</span>
               <input
                 value={modelForm.baseUrl}
-                onChange={(event) => onModelFormChange({ baseUrl: event.target.value })}
+                onChange={(event) =>
+                  onModelFormChange({ baseUrl: event.target.value })
+                }
+              />
+            </label>
+            <label className="platform-admin-field">
+              <span>{copy.modelControl.apiKey}</span>
+              <input
+                type="password"
+                value={modelForm.apiKey}
+                onChange={(event) =>
+                  onModelFormChange({ apiKey: event.target.value })
+                }
               />
             </label>
             <label className="platform-admin-field">
@@ -98,7 +125,9 @@ export function AdminModelsPage({
               <select
                 value={modelForm.isDefault ? "true" : "false"}
                 onChange={(event) =>
-                  onModelFormChange({ isDefault: event.target.value === "true" })
+                  onModelFormChange({
+                    isDefault: event.target.value === "true",
+                  })
                 }
               >
                 <option value="true">{copy.modelControl.defaultModel}</option>
@@ -120,13 +149,23 @@ export function AdminModelsPage({
                   className="platform-admin-list-item is-static platform-admin-resource-record"
                 >
                   <div className="platform-admin-resource-record-head">
-                    <span className="platform-admin-resource-record-title">{item.label}</span>
-                    <small>{item.isActive ? copy.common.active : copy.common.inactive}</small>
+                    <span className="platform-admin-resource-record-title">
+                      {item.label}
+                    </span>
+                    <small>
+                      {item.isActive
+                        ? copy.common.active
+                        : copy.common.inactive}
+                    </small>
                   </div>
                   <div className="platform-admin-resource-record-meta">
                     <small>{item.provider}</small>
                     <small>{item.model}</small>
-                    <small>{item.isDefault ? copy.common.default : copy.common.optional}</small>
+                    <small>
+                      {item.isDefault
+                        ? copy.common.default
+                        : copy.common.optional}
+                    </small>
                   </div>
                   <div className="platform-admin-resource-record-actions">
                     <button

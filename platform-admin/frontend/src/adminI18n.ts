@@ -169,6 +169,7 @@ export const ADMIN_COPY = {
       modelId: "Model ID",
       label: "Label",
       baseUrl: "Base URL",
+      apiKey: "API Key",
       defaultFlag: "Default",
       defaultModel: "Default model",
       optionalModel: "Optional model",
@@ -265,7 +266,8 @@ export const ADMIN_COPY = {
     title: "Hermes 平台管理端",
     description:
       "面向平台化落地的管理控制台，用于超级管理员初始化、租户边界、租户账号运营，以及按角色划分的管理视图。",
-    footerNote: "Hermes Platform Admin · 面向租户、模型、技能与审计的企业级控制平面。",
+    footerNote:
+      "Hermes Platform Admin · 面向租户、模型、技能与审计的企业级控制平面。",
     health: {
       online: "后端在线",
       offline: "后端离线",
@@ -318,7 +320,8 @@ export const ADMIN_COPY = {
       auditCenterTitle: "审计中心",
       auditCenterDesc: "让登录、运行与合规事件形成完整闭环审计能力。",
       overviewTitle: "工作台概览",
-      overviewDesc: "通过模块化导航切换租户、模型、技能、审计与会话等后台页面。",
+      overviewDesc:
+        "通过模块化导航切换租户、模型、技能、审计与会话等后台页面。",
       selectedTenant: "当前租户",
       noTenantSelected: "未选择租户",
       totalTenants: "租户总数",
@@ -415,6 +418,7 @@ export const ADMIN_COPY = {
       modelId: "模型 ID",
       label: "展示名称",
       baseUrl: "基础 URL",
+      apiKey: "API Key",
       defaultFlag: "默认项",
       defaultModel: "默认模型",
       optionalModel: "可选模型",

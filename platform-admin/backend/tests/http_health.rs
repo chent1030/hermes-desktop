@@ -65,3 +65,39 @@ async fn readiness_route_checks_database_connectivity() {
         .unwrap();
     assert_eq!(ready.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn cors_preflight_is_supported_for_admin_routes() {
+    let state = AppState::for_tests(AppConfig::for_tests());
+    let app = build_router(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/api/admin/me")
+                .header("origin", "http://127.0.0.1:4173")
+                .header("access-control-request-method", "GET")
+                .header("access-control-request-headers", "authorization")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(response.status().is_success());
+    assert_eq!(
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .unwrap(),
+        "*"
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("access-control-allow-headers")
+            .unwrap(),
+        "content-type,authorization"
+    );
+}

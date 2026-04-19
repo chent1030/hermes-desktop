@@ -32,8 +32,9 @@ export default function WorkspaceShell({
 }): React.JSX.Element {
   const { t } = useI18n();
   const selectedModel =
-    workspace.models.find((model) => model.id === workspace.selectedModelId)
-      ?.label ?? workspace.selectedModelId;
+    workspace.models.find((model) => model.id === workspace.selectedModelId)?.label ||
+    workspace.selectedModelId ||
+    t("platform.currentModelFallback");
 
   return (
     <div className="workspace-shell">

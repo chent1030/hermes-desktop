@@ -321,10 +321,11 @@ impl AdminRepository {
                 model,
                 label,
                 base_url,
+                api_key,
                 is_default,
                 is_active
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
             RETURNING id, tenant_id, provider, model, label, base_url, is_default, is_active
             "#,
         )
@@ -334,6 +335,7 @@ impl AdminRepository {
         .bind(input.normalized_model())
         .bind(input.normalized_label())
         .bind(input.normalized_base_url())
+        .bind(input.normalized_api_key())
         .bind(input.is_default)
         .fetch_one(&mut *tx)
         .await

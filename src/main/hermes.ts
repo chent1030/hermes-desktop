@@ -11,10 +11,7 @@ import {
   getEnhancedPath,
 } from "./installer";
 import { getModelConfig, readEnv } from "./config";
-import {
-  enqueueAuditEvent,
-  markAuditFailure,
-} from "./platform/audit";
+import { enqueueAuditEvent, markAuditFailure } from "./platform/audit";
 import {
   flushWorkspaceAuditEvents,
   getWorkspaceRuntime,
@@ -47,6 +44,7 @@ function resolveRuntimeModel(profile?: string): {
   provider: string;
   model: string;
   baseUrl: string;
+  apiKey: string;
 } {
   const runtime = getWorkspaceRuntime();
   const selectedModel = runtime?.workspace?.models.find(
@@ -58,10 +56,43 @@ function resolveRuntimeModel(profile?: string): {
       provider: selectedModel.provider,
       model: selectedModel.model,
       baseUrl: selectedModel.baseUrl,
+      apiKey: selectedModel.apiKey || "",
     };
   }
 
-  return getModelConfig(profile);
+  return {
+    ...getModelConfig(profile),
+    apiKey: "",
+  };
+}
+
+const PROVIDER_KEY_MAP: Record<string, string[]> = {
+  anthropic: ["ANTHROPIC_API_KEY"],
+  custom: ["OPENAI_API_KEY"],
+  google: ["GOOGLE_API_KEY"],
+  lmstudio: ["OPENAI_API_KEY"],
+  minimax: ["MINIMAX_API_KEY"],
+  nous: ["OPENAI_API_KEY"],
+  ollama: ["OPENAI_API_KEY"],
+  openai: ["OPENAI_API_KEY"],
+  openrouter: ["OPENROUTER_API_KEY"],
+  qwen: ["OPENAI_API_KEY"],
+  vllm: ["OPENAI_API_KEY"],
+  xai: ["XAI_API_KEY"],
+  llamacpp: ["OPENAI_API_KEY"],
+};
+
+function resolveApiKeyTargets(provider: string, baseUrl: string): string[] {
+  const targets = new Set<string>(PROVIDER_KEY_MAP[provider] || []);
+  for (const { pattern, envKey } of URL_KEY_MAP) {
+    if (pattern.test(baseUrl)) {
+      targets.add(envKey);
+    }
+  }
+  if (targets.size === 0) {
+    targets.add("OPENAI_API_KEY");
+  }
+  return Array.from(targets);
 }
 
 // ────────────────────────────────────────────────────
@@ -651,6 +682,8 @@ function sendMessageViaCli(
     "OPENROUTER_API_KEY",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
+    "GOOGLE_API_KEY",
+    "XAI_API_KEY",
     "GROQ_API_KEY",
     "GLM_API_KEY",
     "KIMI_API_KEY",
@@ -672,6 +705,12 @@ function sendMessageViaCli(
   for (const key of KNOWN_API_KEYS) {
     if (profileEnv[key] && !env[key]) {
       env[key] = profileEnv[key];
+    }
+  }
+
+  if (mc.apiKey) {
+    for (const key of resolveApiKeyTargets(mc.provider, mc.baseUrl)) {
+      env[key] = mc.apiKey;
     }
   }
 

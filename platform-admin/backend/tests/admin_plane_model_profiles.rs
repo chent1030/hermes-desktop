@@ -290,6 +290,66 @@ async fn find_tenant_id(database_url: &str, tenant_code: &str) -> i64 {
     row.get("id")
 }
 
+async fn seeded_super_and_tenant_harnesses() -> (ModelProfileHarness, ModelProfileHarness, i64) {
+    let database_url = live_database_url();
+    let super_username = live_unique("super-admin");
+    let tenant_code = live_unique("tenant");
+    let tenant_username = live_unique("tenant-admin");
+    let password = "Secret123!".to_string();
+    let seed_url = database_url.clone();
+    let seed_super_username = super_username.clone();
+    let seed_tenant_code = tenant_code.clone();
+    let seed_tenant_username = tenant_username.clone();
+    let seed_password = password.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let _guard = acquire_live_postgres_guard();
+        ensure_live_platform_schema(&seed_url);
+        let store = PgAuthStore::new(&seed_url);
+        store
+            .upsert_account_fixture(
+                None,
+                &AccountSeed {
+                    scope_type: "platform".to_string(),
+                    username: seed_super_username,
+                    display_name: "Platform Root".to_string(),
+                    password: seed_password.clone(),
+                    role_code: "super_admin".to_string(),
+                    is_active: true,
+                },
+            )
+            .expect("seed super admin");
+        store
+            .upsert_account_fixture(
+                Some(&TenantSeed {
+                    code: seed_tenant_code.clone(),
+                    name: format!("Tenant {seed_tenant_code}"),
+                    is_active: true,
+                }),
+                &AccountSeed {
+                    scope_type: "tenant".to_string(),
+                    username: seed_tenant_username,
+                    display_name: "Tenant Admin".to_string(),
+                    password: seed_password,
+                    role_code: "tenant_admin".to_string(),
+                    is_active: true,
+                },
+            )
+            .expect("seed tenant admin");
+    })
+    .await
+    .expect("seed join");
+
+    let tenant_id = find_tenant_id(&database_url, &tenant_code).await;
+    let super_harness =
+        ModelProfileHarness::new(database_url.clone(), None, super_username, password.clone())
+            .await;
+    let tenant_harness =
+        ModelProfileHarness::new(database_url, Some(tenant_code), tenant_username, password).await;
+
+    (super_harness, tenant_harness, tenant_id)
+}
+
 #[tokio::test]
 async fn super_admin_can_create_global_default_model_profile_over_http() {
     let harness = ModelProfileHarness::seeded_super_admin().await;
@@ -393,4 +453,36 @@ async fn creating_new_default_model_clears_previous_default_in_same_scope() {
 
     assert_eq!(defaults.len(), 1);
     assert_eq!(defaults[0]["model"], json!(second_model));
+}
+
+#[tokio::test]
+async fn desktop_model_delivery_includes_configured_api_key() {
+    let (super_harness, tenant_harness, tenant_id) = seeded_super_and_tenant_harnesses().await;
+    let super_token = super_harness.login().await;
+    let tenant_token = tenant_harness.login().await;
+
+    let create_response = super_harness
+        .post_with_bearer(
+            "/api/admin/model-profiles",
+            &super_token,
+            json!({
+                "tenantId": tenant_id,
+                "provider": "openai",
+                "model": live_unique("gpt-5-4"),
+                "label": "GPT-5.4 Tenant",
+                "baseUrl": "https://api.openai.com/v1",
+                "apiKey": "sk-platform-tenant",
+                "isDefault": true
+            }),
+        )
+        .await;
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let desktop_models = tenant_harness
+        .get_with_bearer("/api/desktop/model-profiles", &tenant_token)
+        .await;
+    assert_eq!(desktop_models.status(), StatusCode::OK);
+
+    let payload = tenant_harness.read_json(desktop_models).await;
+    assert_eq!(payload["items"][0]["apiKey"], json!("sk-platform-tenant"));
 }

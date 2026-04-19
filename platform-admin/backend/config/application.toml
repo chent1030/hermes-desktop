@@ -1,0 +1,9 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+url = "postgres:NewPass_123456@223.109.49.36:5432/manager_admin"
+
+[security]
+session_salt = "platform-admin-dev-salt"

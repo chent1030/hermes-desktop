@@ -119,7 +119,10 @@ function persistSession(session: LoginResponse): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(session));
+  window.localStorage.setItem(
+    ADMIN_SESSION_STORAGE_KEY,
+    JSON.stringify(session),
+  );
 }
 
 function clearPersistedSession(): void {
@@ -134,7 +137,9 @@ function readPersistedActiveSection(): WorkspaceSection {
     return "overview";
   }
 
-  const rawValue = window.localStorage.getItem(ADMIN_ACTIVE_SECTION_STORAGE_KEY);
+  const rawValue = window.localStorage.getItem(
+    ADMIN_ACTIVE_SECTION_STORAGE_KEY,
+  );
   if (rawValue && WORKSPACE_SECTIONS.includes(rawValue as WorkspaceSection)) {
     return rawValue as WorkspaceSection;
   }
@@ -186,10 +191,16 @@ function buildAuditSummaryLines(
       parts.push(formatMessage(copy.audit.summary.source, { value: source }));
     }
     if (lastLabel) {
-      parts.push(formatMessage(copy.audit.summary.lastLabel, { value: lastLabel }));
+      parts.push(
+        formatMessage(copy.audit.summary.lastLabel, { value: lastLabel }),
+      );
     }
     if (typeof progressCount === "number") {
-      parts.push(formatMessage(copy.audit.summary.progressCount, { value: progressCount }));
+      parts.push(
+        formatMessage(copy.audit.summary.progressCount, {
+          value: progressCount,
+        }),
+      );
     }
 
     return [
@@ -219,17 +230,28 @@ function buildAuditSummaryLines(
     const installedCount = readPayloadNumber(item.payload, "installedCount");
     const downloadedCount = readPayloadNumber(item.payload, "downloadedCount");
     const brokenCount = readPayloadNumber(item.payload, "brokenCount");
-    const notDownloadedCount = readPayloadNumber(item.payload, "notDownloadedCount");
+    const notDownloadedCount = readPayloadNumber(
+      item.payload,
+      "notDownloadedCount",
+    );
     const parts: string[] = [];
 
     if (typeof installedCount === "number") {
-      parts.push(formatMessage(copy.audit.summary.installed, { value: installedCount }));
+      parts.push(
+        formatMessage(copy.audit.summary.installed, { value: installedCount }),
+      );
     }
     if (typeof downloadedCount === "number") {
-      parts.push(formatMessage(copy.audit.summary.downloaded, { value: downloadedCount }));
+      parts.push(
+        formatMessage(copy.audit.summary.downloaded, {
+          value: downloadedCount,
+        }),
+      );
     }
     if (typeof brokenCount === "number") {
-      parts.push(formatMessage(copy.audit.summary.broken, { value: brokenCount }));
+      parts.push(
+        formatMessage(copy.audit.summary.broken, { value: brokenCount }),
+      );
     }
     if (typeof notDownloadedCount === "number") {
       parts.push(
@@ -340,6 +362,7 @@ export default function App(): React.JSX.Element {
     model: "",
     label: "",
     baseUrl: "",
+    apiKey: "",
     isDefault: true,
   });
   const [skillForm, setSkillForm] = useState({
@@ -393,7 +416,16 @@ export default function App(): React.JSX.Element {
     }
 
     return items;
-  }, [copy.workspace.accounts, copy.workspace.audit, copy.workspace.models, copy.workspace.overview, copy.workspace.sessions, copy.workspace.skills, copy.workspace.tenants, session]);
+  }, [
+    copy.workspace.accounts,
+    copy.workspace.audit,
+    copy.workspace.models,
+    copy.workspace.overview,
+    copy.workspace.sessions,
+    copy.workspace.skills,
+    copy.workspace.tenants,
+    session,
+  ]);
 
   useEffect(() => {
     if (!session) {
@@ -401,7 +433,9 @@ export default function App(): React.JSX.Element {
     }
 
     const allowedSections = new Set(navItems.map((item) => item.key));
-    setActiveSection((current) => (allowedSections.has(current) ? current : "overview"));
+    setActiveSection((current) =>
+      allowedSections.has(current) ? current : "overview",
+    );
   }, [navItems, session]);
 
   useEffect(() => {
@@ -428,13 +462,18 @@ export default function App(): React.JSX.Element {
       { key: "run", label: copy.audit.families.run, count: counts.run },
       { key: "chat", label: copy.audit.families.chat, count: counts.chat },
       { key: "auth", label: copy.audit.families.auth, count: counts.auth },
-      { key: "workspace", label: copy.audit.families.workspace, count: counts.workspace },
+      {
+        key: "workspace",
+        label: copy.audit.families.workspace,
+        count: counts.workspace,
+      },
       { key: "other", label: copy.audit.families.other, count: counts.other },
     ];
 
     return {
       total: auditEvents.length,
-      failures: auditEvents.filter((item) => item.eventType.endsWith(".failed")).length,
+      failures: auditEvents.filter((item) => item.eventType.endsWith(".failed"))
+        .length,
       families,
     };
   }, [auditEvents, copy.audit.families]);
@@ -485,7 +524,12 @@ export default function App(): React.JSX.Element {
       return copy.health.offline;
     }
     return copy.health.checking;
-  }, [copy.health.checking, copy.health.offline, copy.health.online, healthStatus]);
+  }, [
+    copy.health.checking,
+    copy.health.offline,
+    copy.health.online,
+    healthStatus,
+  ]);
 
   const healthDetail = useMemo(() => {
     if (healthStatus === "online") {
@@ -504,7 +548,11 @@ export default function App(): React.JSX.Element {
     return session.user.roleCode === "super_admin"
       ? copy.workspace.platformWorkspace
       : copy.workspace.tenantWorkspace;
-  }, [copy.workspace.platformWorkspace, copy.workspace.tenantWorkspace, session]);
+  }, [
+    copy.workspace.platformWorkspace,
+    copy.workspace.tenantWorkspace,
+    session,
+  ]);
 
   const fetchSuperAdminModelProfiles = async (
     nextSession: LoginResponse,
@@ -580,10 +628,13 @@ export default function App(): React.JSX.Element {
     if (typeof beforeId === "number") {
       params.set("beforeId", String(beforeId));
     }
-    return requestJson<AuditEventRecord[]>(`/api/admin/audit/events?${params.toString()}`, {
-      method: "GET",
-      headers: authHeaders(nextSession),
-    });
+    return requestJson<AuditEventRecord[]>(
+      `/api/admin/audit/events?${params.toString()}`,
+      {
+        method: "GET",
+        headers: authHeaders(nextSession),
+      },
+    );
   };
 
   const fetchTenantAuditEvents = async (
@@ -644,10 +695,16 @@ export default function App(): React.JSX.Element {
       params.set("hasFailure", filters.hasFailure);
     }
     if (filters.lastOccurredFrom) {
-      params.set("lastOccurredFrom", new Date(filters.lastOccurredFrom).toISOString());
+      params.set(
+        "lastOccurredFrom",
+        new Date(filters.lastOccurredFrom).toISOString(),
+      );
     }
     if (filters.lastOccurredTo) {
-      params.set("lastOccurredTo", new Date(filters.lastOccurredTo).toISOString());
+      params.set(
+        "lastOccurredTo",
+        new Date(filters.lastOccurredTo).toISOString(),
+      );
     }
     if (beforeId) {
       params.set("beforeId", beforeId);
@@ -676,10 +733,16 @@ export default function App(): React.JSX.Element {
       params.set("hasFailure", filters.hasFailure);
     }
     if (filters.lastOccurredFrom) {
-      params.set("lastOccurredFrom", new Date(filters.lastOccurredFrom).toISOString());
+      params.set(
+        "lastOccurredFrom",
+        new Date(filters.lastOccurredFrom).toISOString(),
+      );
     }
     if (filters.lastOccurredTo) {
-      params.set("lastOccurredTo", new Date(filters.lastOccurredTo).toISOString());
+      params.set(
+        "lastOccurredTo",
+        new Date(filters.lastOccurredTo).toISOString(),
+      );
     }
     if (beforeId) {
       params.set("beforeId", beforeId);
@@ -693,16 +756,22 @@ export default function App(): React.JSX.Element {
     );
   };
 
-  const loadWorkspace = async (nextSession: LoginResponse, preferredTenantId?: number | null) => {
+  const loadWorkspace = async (
+    nextSession: LoginResponse,
+    preferredTenantId?: number | null,
+  ) => {
     setIsLoadingWorkspace(true);
     setWorkspaceError(null);
 
     try {
       if (nextSession.user.roleCode === "super_admin") {
-        const nextTenants = await requestJson<TenantRecord[]>("/api/admin/tenants", {
-          method: "GET",
-          headers: authHeaders(nextSession),
-        });
+        const nextTenants = await requestJson<TenantRecord[]>(
+          "/api/admin/tenants",
+          {
+            method: "GET",
+            headers: authHeaders(nextSession),
+          },
+        );
         setTenants(nextTenants);
 
         const nextSelectedTenantId =
@@ -728,18 +797,39 @@ export default function App(): React.JSX.Element {
           skillScope === "tenant" && nextSelectedTenantId ? "tenant" : "global";
         setModelScope(nextModelScope);
         setSkillScope(nextSkillScope);
-        const [nextModels, nextSkills, nextAuditEvents, nextSessions] = await Promise.all([
-          fetchSuperAdminModelProfiles(nextSession, nextModelScope, nextSelectedTenantId),
-          fetchSuperAdminSkillCatalog(nextSession, nextSkillScope, nextSelectedTenantId),
-          fetchSuperAdminAuditEvents(nextSession, nextSelectedTenantId, auditFilters),
-          fetchSuperAdminSessions(nextSession, nextSelectedTenantId, sessionFilters),
-        ]);
+        const [nextModels, nextSkills, nextAuditEvents, nextSessions] =
+          await Promise.all([
+            fetchSuperAdminModelProfiles(
+              nextSession,
+              nextModelScope,
+              nextSelectedTenantId,
+            ),
+            fetchSuperAdminSkillCatalog(
+              nextSession,
+              nextSkillScope,
+              nextSelectedTenantId,
+            ),
+            fetchSuperAdminAuditEvents(
+              nextSession,
+              nextSelectedTenantId,
+              auditFilters,
+            ),
+            fetchSuperAdminSessions(
+              nextSession,
+              nextSelectedTenantId,
+              sessionFilters,
+            ),
+          ]);
         setModelProfiles(nextModels);
         setSkillCatalog(nextSkills);
         setAuditEvents(nextAuditEvents);
         setSessions(nextSessions);
-        setAuditHasMore(nextAuditEvents.length >= Number(auditFilters.limit || "100"));
-        setSessionHasMore(nextSessions.length >= Number(sessionFilters.limit || "100"));
+        setAuditHasMore(
+          nextAuditEvents.length >= Number(auditFilters.limit || "100"),
+        );
+        setSessionHasMore(
+          nextSessions.length >= Number(sessionFilters.limit || "100"),
+        );
         return;
       }
 
@@ -753,26 +843,39 @@ export default function App(): React.JSX.Element {
       setTenants([]);
       setSelectedTenantId(nextSession.tenant?.id ?? null);
       setAccounts(tenantAccounts);
-      const [tenantModels, tenantSkills, tenantAuditEvents, tenantSessions] = await Promise.all([
-        requestJson<ModelProfileRecord[]>("/api/admin/tenant/model-profiles", {
-          method: "GET",
-          headers: authHeaders(nextSession),
-        }),
-        requestJson<SkillCatalogRecord[]>("/api/admin/tenant/skills/catalog", {
-          method: "GET",
-          headers: authHeaders(nextSession),
-        }),
-        fetchTenantAuditEvents(nextSession, auditFilters),
-        fetchTenantSessions(nextSession, sessionFilters),
-      ]);
+      const [tenantModels, tenantSkills, tenantAuditEvents, tenantSessions] =
+        await Promise.all([
+          requestJson<ModelProfileRecord[]>(
+            "/api/admin/tenant/model-profiles",
+            {
+              method: "GET",
+              headers: authHeaders(nextSession),
+            },
+          ),
+          requestJson<SkillCatalogRecord[]>(
+            "/api/admin/tenant/skills/catalog",
+            {
+              method: "GET",
+              headers: authHeaders(nextSession),
+            },
+          ),
+          fetchTenantAuditEvents(nextSession, auditFilters),
+          fetchTenantSessions(nextSession, sessionFilters),
+        ]);
       setModelProfiles(tenantModels);
       setSkillCatalog(tenantSkills);
       setAuditEvents(tenantAuditEvents);
       setSessions(tenantSessions);
-      setAuditHasMore(tenantAuditEvents.length >= Number(auditFilters.limit || "100"));
-      setSessionHasMore(tenantSessions.length >= Number(sessionFilters.limit || "100"));
+      setAuditHasMore(
+        tenantAuditEvents.length >= Number(auditFilters.limit || "100"),
+      );
+      setSessionHasMore(
+        tenantSessions.length >= Number(sessionFilters.limit || "100"),
+      );
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.workspaceLoadFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.workspaceLoadFailed),
+      );
     } finally {
       setIsLoadingWorkspace(false);
     }
@@ -821,7 +924,10 @@ export default function App(): React.JSX.Element {
 
         setSession(payload);
         persistSession(payload);
-        await loadWorkspace(payload, payload.tenant?.id ?? persistedSession.tenant?.id ?? null);
+        await loadWorkspace(
+          payload,
+          payload.tenant?.id ?? persistedSession.tenant?.id ?? null,
+        );
       } catch (error) {
         if (cancelled) {
           return;
@@ -927,7 +1033,8 @@ export default function App(): React.JSX.Element {
     if (!session || session.user.roleCode !== "super_admin") {
       return;
     }
-    const nextScope = scope === "tenant" && !selectedTenantId ? "global" : scope;
+    const nextScope =
+      scope === "tenant" && !selectedTenantId ? "global" : scope;
     setModelScope(nextScope);
     try {
       const nextModels = await fetchSuperAdminModelProfiles(
@@ -937,7 +1044,9 @@ export default function App(): React.JSX.Element {
       );
       setModelProfiles(nextModels);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadModelProfilesFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.loadModelProfilesFailed),
+      );
     }
   };
 
@@ -945,7 +1054,8 @@ export default function App(): React.JSX.Element {
     if (!session || session.user.roleCode !== "super_admin") {
       return;
     }
-    const nextScope = scope === "tenant" && !selectedTenantId ? "global" : scope;
+    const nextScope =
+      scope === "tenant" && !selectedTenantId ? "global" : scope;
     setSkillScope(nextScope);
     try {
       const nextSkills = await fetchSuperAdminSkillCatalog(
@@ -955,11 +1065,15 @@ export default function App(): React.JSX.Element {
       );
       setSkillCatalog(nextSkills);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadSkillCatalogFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.loadSkillCatalogFailed),
+      );
     }
   };
 
-  const handleCreateTenant = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateTenant = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     if (!session || session.user.roleCode !== "super_admin") {
       return;
@@ -978,11 +1092,15 @@ export default function App(): React.JSX.Element {
       setAccounts([]);
       setSessionNotice(copy.notices.tenantCreated);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.createTenantFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.createTenantFailed),
+      );
     }
   };
 
-  const handleCreateAccount = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateAccount = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     if (!session) {
       return;
@@ -1013,7 +1131,9 @@ export default function App(): React.JSX.Element {
       });
       setSessionNotice(copy.notices.accountCreated);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.createAccountFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.createAccountFailed),
+      );
     }
   };
 
@@ -1040,7 +1160,9 @@ export default function App(): React.JSX.Element {
       );
       setSessionNotice(copy.notices.accountDeactivated);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.deactivateAccountFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.deactivateAccountFailed),
+      );
     }
   };
 
@@ -1051,10 +1173,13 @@ export default function App(): React.JSX.Element {
 
     setWorkspaceError(null);
     try {
-      await requestJson<{ status: string }>(`/api/admin/tenants/${tenantId}/deactivate`, {
-        method: "POST",
-        headers: authHeaders(session),
-      });
+      await requestJson<{ status: string }>(
+        `/api/admin/tenants/${tenantId}/deactivate`,
+        {
+          method: "POST",
+          headers: authHeaders(session),
+        },
+      );
       setTenants((current) =>
         current.map((tenant) =>
           tenant.id === tenantId ? { ...tenant, isActive: false } : tenant,
@@ -1062,11 +1187,15 @@ export default function App(): React.JSX.Element {
       );
       setSessionNotice(copy.notices.tenantDeactivated);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.deactivateTenantFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.deactivateTenantFailed),
+      );
     }
   };
 
-  const handleCreateModelProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateModelProfile = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     if (!session) {
       return;
@@ -1100,11 +1229,14 @@ export default function App(): React.JSX.Element {
         model: "",
         label: "",
         baseUrl: "",
+        apiKey: "",
         isDefault: true,
       });
       setSessionNotice(copy.notices.modelProfileCreated);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.createModelProfileFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.createModelProfileFailed),
+      );
     }
   };
 
@@ -1130,11 +1262,15 @@ export default function App(): React.JSX.Element {
       );
       setSessionNotice(copy.notices.modelProfileDeactivated);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.deactivateModelProfileFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.deactivateModelProfileFailed),
+      );
     }
   };
 
-  const handleCreateSkillCatalog = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateSkillCatalog = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     if (!session) {
       return;
@@ -1143,7 +1279,9 @@ export default function App(): React.JSX.Element {
     setWorkspaceError(null);
     try {
       const isSuperAdmin = session.user.roleCode === "super_admin";
-      const path = isSuperAdmin ? "/api/admin/skills/catalog" : "/api/admin/tenant/skills/catalog";
+      const path = isSuperAdmin
+        ? "/api/admin/skills/catalog"
+        : "/api/admin/tenant/skills/catalog";
       const payload = isSuperAdmin
         ? {
             ...skillForm,
@@ -1164,7 +1302,9 @@ export default function App(): React.JSX.Element {
       });
       setSessionNotice(copy.notices.skillCatalogCreated);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.createSkillCatalogFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.createSkillCatalogFailed),
+      );
     }
   };
 
@@ -1190,7 +1330,9 @@ export default function App(): React.JSX.Element {
       );
       setSessionNotice(copy.notices.skillCatalogDeactivated);
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.deactivateSkillFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.deactivateSkillFailed),
+      );
     }
   };
 
@@ -1204,12 +1346,18 @@ export default function App(): React.JSX.Element {
     try {
       const items =
         session.user.roleCode === "super_admin"
-          ? await fetchSuperAdminAuditEvents(session, selectedTenantId, auditFilters)
+          ? await fetchSuperAdminAuditEvents(
+              session,
+              selectedTenantId,
+              auditFilters,
+            )
           : await fetchTenantAuditEvents(session, auditFilters);
       setAuditEvents(items);
       setAuditHasMore(items.length >= Number(auditFilters.limit || "100"));
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadAuditEventsFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.loadAuditEventsFailed),
+      );
     } finally {
       setIsLoadingAudit(false);
     }
@@ -1230,12 +1378,19 @@ export default function App(): React.JSX.Element {
     try {
       const olderItems =
         session.user.roleCode === "super_admin"
-          ? await fetchSuperAdminAuditEvents(session, selectedTenantId, auditFilters, beforeId)
+          ? await fetchSuperAdminAuditEvents(
+              session,
+              selectedTenantId,
+              auditFilters,
+              beforeId,
+            )
           : await fetchTenantAuditEvents(session, auditFilters, beforeId);
       setAuditEvents((current) => [...current, ...olderItems]);
       setAuditHasMore(olderItems.length >= Number(auditFilters.limit || "100"));
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadOlderAuditEventsFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.loadOlderAuditEventsFailed),
+      );
     } finally {
       setIsLoadingAudit(false);
     }
@@ -1263,13 +1418,21 @@ export default function App(): React.JSX.Element {
     try {
       const items =
         session.user.roleCode === "super_admin"
-          ? await fetchSuperAdminAuditEvents(session, selectedTenantId, nextFilters)
+          ? await fetchSuperAdminAuditEvents(
+              session,
+              selectedTenantId,
+              nextFilters,
+            )
           : await fetchTenantAuditEvents(session, nextFilters);
       setAuditEvents(items);
       setAuditHasMore(items.length >= Number(nextFilters.limit || "100"));
-      setSessionNotice(formatMessage(copy.notices.auditFilteredBySession, { sessionId }));
+      setSessionNotice(
+        formatMessage(copy.notices.auditFilteredBySession, { sessionId }),
+      );
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadSessionAuditFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.loadSessionAuditFailed),
+      );
     } finally {
       setIsLoadingAudit(false);
     }
@@ -1285,12 +1448,18 @@ export default function App(): React.JSX.Element {
     try {
       const items =
         session.user.roleCode === "super_admin"
-          ? await fetchSuperAdminSessions(session, selectedTenantId, sessionFilters)
+          ? await fetchSuperAdminSessions(
+              session,
+              selectedTenantId,
+              sessionFilters,
+            )
           : await fetchTenantSessions(session, sessionFilters);
       setSessions(items);
       setSessionHasMore(items.length >= Number(sessionFilters.limit || "100"));
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadSessionsFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.loadSessionsFailed),
+      );
     } finally {
       setIsLoadingSessions(false);
     }
@@ -1311,12 +1480,21 @@ export default function App(): React.JSX.Element {
     try {
       const olderItems =
         session.user.roleCode === "super_admin"
-          ? await fetchSuperAdminSessions(session, selectedTenantId, sessionFilters, beforeId)
+          ? await fetchSuperAdminSessions(
+              session,
+              selectedTenantId,
+              sessionFilters,
+              beforeId,
+            )
           : await fetchTenantSessions(session, sessionFilters, beforeId);
       setSessions((current) => [...current, ...olderItems]);
-      setSessionHasMore(olderItems.length >= Number(sessionFilters.limit || "100"));
+      setSessionHasMore(
+        olderItems.length >= Number(sessionFilters.limit || "100"),
+      );
     } catch (error) {
-      setWorkspaceError(resolveErrorMessage(error, copy.errors.loadOlderSessionsFailed));
+      setWorkspaceError(
+        resolveErrorMessage(error, copy.errors.loadOlderSessionsFailed),
+      );
     } finally {
       setIsLoadingSessions(false);
     }
@@ -1328,10 +1506,15 @@ export default function App(): React.JSX.Element {
     const payloadText = JSON.stringify(item.payload);
 
     return (
-      <div key={item.id} className="platform-admin-list-item is-static platform-admin-record-card">
+      <div
+        key={item.id}
+        className="platform-admin-list-item is-static platform-admin-record-card"
+      >
         <div className="platform-admin-record-head">
           <div className="platform-admin-record-title-block">
-            <span className="platform-admin-record-title">{item.eventType}</span>
+            <span className="platform-admin-record-title">
+              {item.eventType}
+            </span>
             <div className="platform-admin-record-pill-row">
               <small>{copy.audit.families[eventFamily]}</small>
               <small>{item.account.displayName}</small>
@@ -1354,7 +1537,9 @@ export default function App(): React.JSX.Element {
     );
   };
 
-  const renderSessionSummary = (item: SessionSummaryRecord): React.JSX.Element => {
+  const renderSessionSummary = (
+    item: SessionSummaryRecord,
+  ): React.JSX.Element => {
     const toolParts: string[] = [];
     if ((item.toolRunCount ?? 0) > 0) {
       toolParts.push(
@@ -1373,14 +1558,23 @@ export default function App(): React.JSX.Element {
     }
 
     return (
-      <div key={item.sessionId} className="platform-admin-list-item is-static platform-admin-record-card">
+      <div
+        key={item.sessionId}
+        className="platform-admin-list-item is-static platform-admin-record-card"
+      >
         <div className="platform-admin-record-head">
           <div className="platform-admin-record-title-block">
-            <span className="platform-admin-record-title">{item.sessionId}</span>
+            <span className="platform-admin-record-title">
+              {item.sessionId}
+            </span>
             <div className="platform-admin-record-pill-row">
               <small>{item.lastEventType}</small>
               <small>{item.lastAccount.displayName}</small>
-              <small>{formatMessage(copy.sessions.events, { count: item.eventCount })}</small>
+              <small>
+                {formatMessage(copy.sessions.events, {
+                  count: item.eventCount,
+                })}
+              </small>
             </div>
             <div className="platform-admin-record-actions">
               <button
@@ -1402,7 +1596,9 @@ export default function App(): React.JSX.Element {
         {item.hasFailure || item.hasToolFailure ? (
           <div className="platform-admin-record-pill-row">
             {item.hasFailure ? <small>{copy.sessions.failed}</small> : null}
-            {item.hasToolFailure ? <small>{copy.sessions.toolFailed}</small> : null}
+            {item.hasToolFailure ? (
+              <small>{copy.sessions.toolFailed}</small>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -1435,7 +1631,10 @@ export default function App(): React.JSX.Element {
         <input
           value={auditFilters.eventType}
           onChange={(event) =>
-            setAuditFilters((current) => ({ ...current, eventType: event.target.value }))
+            setAuditFilters((current) => ({
+              ...current,
+              eventType: event.target.value,
+            }))
           }
         />
       </label>
@@ -1444,7 +1643,10 @@ export default function App(): React.JSX.Element {
         <input
           value={auditFilters.accountQuery}
           onChange={(event) =>
-            setAuditFilters((current) => ({ ...current, accountQuery: event.target.value }))
+            setAuditFilters((current) => ({
+              ...current,
+              accountQuery: event.target.value,
+            }))
           }
         />
       </label>
@@ -1453,7 +1655,10 @@ export default function App(): React.JSX.Element {
         <input
           value={auditFilters.payloadQuery}
           onChange={(event) =>
-            setAuditFilters((current) => ({ ...current, payloadQuery: event.target.value }))
+            setAuditFilters((current) => ({
+              ...current,
+              payloadQuery: event.target.value,
+            }))
           }
         />
       </label>
@@ -1463,7 +1668,10 @@ export default function App(): React.JSX.Element {
           type="datetime-local"
           value={auditFilters.occurredFrom}
           onChange={(event) =>
-            setAuditFilters((current) => ({ ...current, occurredFrom: event.target.value }))
+            setAuditFilters((current) => ({
+              ...current,
+              occurredFrom: event.target.value,
+            }))
           }
         />
       </label>
@@ -1473,7 +1681,10 @@ export default function App(): React.JSX.Element {
           type="datetime-local"
           value={auditFilters.occurredTo}
           onChange={(event) =>
-            setAuditFilters((current) => ({ ...current, occurredTo: event.target.value }))
+            setAuditFilters((current) => ({
+              ...current,
+              occurredTo: event.target.value,
+            }))
           }
         />
       </label>
@@ -1485,21 +1696,33 @@ export default function App(): React.JSX.Element {
           max="200"
           value={auditFilters.limit}
           onChange={(event) =>
-            setAuditFilters((current) => ({ ...current, limit: event.target.value || "100" }))
+            setAuditFilters((current) => ({
+              ...current,
+              limit: event.target.value || "100",
+            }))
           }
         />
       </label>
-      <button className="platform-admin-submit" type="button" onClick={() => void handleApplyAuditFilters()}>
+      <button
+        className="platform-admin-submit"
+        type="button"
+        onClick={() => void handleApplyAuditFilters()}
+      >
         {copy.common.applyFilters}
       </button>
     </div>
   );
 
   const renderAuditSummary = (): React.JSX.Element => (
-    <section className="platform-admin-audit-summary" aria-label="audit-summary">
+    <section
+      className="platform-admin-audit-summary"
+      aria-label="audit-summary"
+    >
       <div className="platform-admin-audit-summary-header">
         <div>
-          <p className="platform-admin-section-label">{copy.audit.summarySection}</p>
+          <p className="platform-admin-section-label">
+            {copy.audit.summarySection}
+          </p>
           <h4>{copy.audit.summaryTitle}</h4>
         </div>
         <small>{copy.audit.summaryNote}</small>
@@ -1511,18 +1734,26 @@ export default function App(): React.JSX.Element {
         </div>
         <div className="platform-admin-audit-kpi">
           <span>{copy.audit.failures}</span>
-          <strong>{formatMessage(copy.audit.failedSuffix, { count: auditSummary.failures })}</strong>
+          <strong>
+            {formatMessage(copy.audit.failedSuffix, {
+              count: auditSummary.failures,
+            })}
+          </strong>
         </div>
       </div>
       <div className="platform-admin-audit-family-list">
         {auditSummary.families.map((family) => {
           const percentage =
-            auditSummary.total > 0 ? Math.round((family.count / auditSummary.total) * 100) : 0;
+            auditSummary.total > 0
+              ? Math.round((family.count / auditSummary.total) * 100)
+              : 0;
           return (
             <div key={family.key} className="platform-admin-audit-family-row">
               <div className="platform-admin-audit-family-meta">
                 <span>{family.label}</span>
-                <small>{formatMessage(copy.sessions.events, { count: family.count })}</small>
+                <small>
+                  {formatMessage(copy.sessions.events, { count: family.count })}
+                </small>
               </div>
               <div className="platform-admin-audit-family-bar">
                 <span style={{ width: `${percentage}%` }} />
@@ -1598,7 +1829,10 @@ export default function App(): React.JSX.Element {
           max="200"
           value={sessionFilters.limit}
           onChange={(event) =>
-            setSessionFilters((current) => ({ ...current, limit: event.target.value || "100" }))
+            setSessionFilters((current) => ({
+              ...current,
+              limit: event.target.value || "100",
+            }))
           }
         />
       </label>
@@ -1617,22 +1851,30 @@ export default function App(): React.JSX.Element {
       return (
         <section className="platform-admin-grid" aria-label="phase-1-modules">
           <article className="platform-admin-card">
-            <p className="platform-admin-section-label">{copy.workspace.next}</p>
+            <p className="platform-admin-section-label">
+              {copy.workspace.next}
+            </p>
             <h2>{copy.workspace.tenantsRbacTitle}</h2>
             <p>{copy.workspace.tenantsRbacDesc}</p>
           </article>
           <article className="platform-admin-card">
-            <p className="platform-admin-section-label">{copy.workspace.next}</p>
+            <p className="platform-admin-section-label">
+              {copy.workspace.next}
+            </p>
             <h2>{copy.workspace.configCenterTitle}</h2>
             <p>{copy.workspace.configCenterDesc}</p>
           </article>
           <article className="platform-admin-card">
-            <p className="platform-admin-section-label">{copy.workspace.next}</p>
+            <p className="platform-admin-section-label">
+              {copy.workspace.next}
+            </p>
             <h2>{copy.workspace.skillHubTitle}</h2>
             <p>{copy.workspace.skillHubDesc}</p>
           </article>
           <article className="platform-admin-card">
-            <p className="platform-admin-section-label">{copy.workspace.next}</p>
+            <p className="platform-admin-section-label">
+              {copy.workspace.next}
+            </p>
             <h2>{copy.workspace.auditCenterTitle}</h2>
             <p>{copy.workspace.auditCenterDesc}</p>
           </article>
@@ -1646,7 +1888,11 @@ export default function App(): React.JSX.Element {
       return (
         <AdminOverviewPage
           copy={copy}
-          tenant={selectedTenantId ? tenants.find((item) => item.id === selectedTenantId) ?? null : session.tenant}
+          tenant={
+            selectedTenantId
+              ? (tenants.find((item) => item.id === selectedTenantId) ?? null)
+              : session.tenant
+          }
           tenantCount={tenants.length}
           accountCount={accounts.length}
           modelCount={modelProfiles.length}
@@ -1708,7 +1954,11 @@ export default function App(): React.JSX.Element {
       return (
         <AdminModelsPage
           copy={copy}
-          title={canManageTenants ? copy.modelControl.title : copy.modelControl.tenantTitle}
+          title={
+            canManageTenants
+              ? copy.modelControl.title
+              : copy.modelControl.tenantTitle
+          }
           showScopeSelector={canManageTenants}
           modelScope={modelScope}
           canSelectTenantScope={Boolean(selectedTenantId)}
@@ -1732,7 +1982,11 @@ export default function App(): React.JSX.Element {
       return (
         <AdminSkillsPage
           copy={copy}
-          title={canManageTenants ? copy.skillControl.title : copy.skillControl.tenantTitle}
+          title={
+            canManageTenants
+              ? copy.skillControl.title
+              : copy.skillControl.tenantTitle
+          }
           showScopeSelector={canManageTenants}
           skillScope={skillScope}
           canSelectTenantScope={Boolean(selectedTenantId)}
@@ -1755,18 +2009,26 @@ export default function App(): React.JSX.Element {
     if (activeSection === "audit") {
       return (
         <AdminAuditPage
-          titleLabel={canManageTenants ? copy.audit.section : copy.audit.tenantSection}
+          titleLabel={
+            canManageTenants ? copy.audit.section : copy.audit.tenantSection
+          }
           title={canManageTenants ? copy.audit.title : copy.audit.tenantTitle}
           filters={renderAuditFilters()}
           summary={renderAuditSummary()}
           hint={
-            canManageTenants && !selectedTenantId ? copy.audit.selectTenantHint : null
+            canManageTenants && !selectedTenantId
+              ? copy.audit.selectTenantHint
+              : null
           }
           events={auditEvents.map((item) => renderAuditEvent(item))}
           loadMoreVisible={
-            canManageTenants ? auditHasMore && Boolean(selectedTenantId) : auditHasMore
+            canManageTenants
+              ? auditHasMore && Boolean(selectedTenantId)
+              : auditHasMore
           }
-          loadMoreLabel={isLoadingAudit ? copy.common.loading : copy.common.loadOlderEvents}
+          loadMoreLabel={
+            isLoadingAudit ? copy.common.loading : copy.common.loadOlderEvents
+          }
           onLoadMore={() => {
             void handleLoadOlderAuditEvents();
           }}
@@ -1778,17 +2040,31 @@ export default function App(): React.JSX.Element {
     if (activeSection === "sessions") {
       return (
         <AdminSessionsPage
-          titleLabel={canManageTenants ? copy.sessions.section : copy.sessions.tenantSection}
-          title={canManageTenants ? copy.sessions.title : copy.sessions.tenantTitle}
+          titleLabel={
+            canManageTenants
+              ? copy.sessions.section
+              : copy.sessions.tenantSection
+          }
+          title={
+            canManageTenants ? copy.sessions.title : copy.sessions.tenantTitle
+          }
           filters={renderSessionFilters()}
           hint={
-            canManageTenants && !selectedTenantId ? copy.sessions.selectTenantHint : null
+            canManageTenants && !selectedTenantId
+              ? copy.sessions.selectTenantHint
+              : null
           }
           sessions={sessions.map((item) => renderSessionSummary(item))}
           loadMoreVisible={
-            canManageTenants ? sessionHasMore && Boolean(selectedTenantId) : sessionHasMore
+            canManageTenants
+              ? sessionHasMore && Boolean(selectedTenantId)
+              : sessionHasMore
           }
-          loadMoreLabel={isLoadingSessions ? copy.common.loading : copy.common.loadOlderSessions}
+          loadMoreLabel={
+            isLoadingSessions
+              ? copy.common.loading
+              : copy.common.loadOlderSessions
+          }
           onLoadMore={() => {
             void handleLoadOlderSessions();
           }}
@@ -1807,10 +2083,14 @@ export default function App(): React.JSX.Element {
           <article className="platform-admin-panel platform-admin-login-panel">
             <div className="platform-admin-panel-header">
               <div>
-                <p className="platform-admin-section-label">{copy.workspace.section}</p>
+                <p className="platform-admin-section-label">
+                  {copy.workspace.section}
+                </p>
                 <h2>{copy.workspace.loading}</h2>
               </div>
-              <p className="platform-admin-panel-note">{copy.login.refreshing}</p>
+              <p className="platform-admin-panel-note">
+                {copy.login.refreshing}
+              </p>
             </div>
           </article>
         </section>
@@ -1833,7 +2113,9 @@ export default function App(): React.JSX.Element {
             <div className={healthClassName}>
               <span>{healthLabel}</span>
               {healthDetail ? (
-                <small className="platform-admin-status-detail">{healthDetail}</small>
+                <small className="platform-admin-status-detail">
+                  {healthDetail}
+                </small>
               ) : null}
             </div>
             <div
@@ -1870,19 +2152,35 @@ export default function App(): React.JSX.Element {
           <div className="platform-admin-login-grid">
             <section className="platform-admin-login-stage">
               <div className="platform-admin-login-brand">
-                <p className="platform-admin-login-kicker">{copy.login.heroEyebrow}</p>
+                <p className="platform-admin-login-kicker">
+                  {copy.login.heroEyebrow}
+                </p>
                 <h1>{copy.title}</h1>
-                <p className="platform-admin-login-description">{copy.login.heroDescription}</p>
+                <p className="platform-admin-login-description">
+                  {copy.login.heroDescription}
+                </p>
                 <div className="platform-admin-login-chip-list">
-                  <span className="platform-admin-login-chip">{copy.login.heroFeatureModels}</span>
-                  <span className="platform-admin-login-chip">{copy.login.heroFeatureSkills}</span>
-                  <span className="platform-admin-login-chip">{copy.login.heroFeatureAudit}</span>
+                  <span className="platform-admin-login-chip">
+                    {copy.login.heroFeatureModels}
+                  </span>
+                  <span className="platform-admin-login-chip">
+                    {copy.login.heroFeatureSkills}
+                  </span>
+                  <span className="platform-admin-login-chip">
+                    {copy.login.heroFeatureAudit}
+                  </span>
                 </div>
               </div>
 
               <article className="platform-admin-panel platform-admin-login-panel">
-                <span className="platform-admin-login-panel-scan" aria-hidden="true" />
-                <span className="platform-admin-login-panel-glow" aria-hidden="true" />
+                <span
+                  className="platform-admin-login-panel-scan"
+                  aria-hidden="true"
+                />
+                <span
+                  className="platform-admin-login-panel-glow"
+                  aria-hidden="true"
+                />
                 <span
                   className="platform-admin-login-panel-corner is-top-left"
                   aria-hidden="true"
@@ -1899,7 +2197,10 @@ export default function App(): React.JSX.Element {
                   className="platform-admin-login-panel-corner is-bottom-right"
                   aria-hidden="true"
                 />
-                <div className="platform-admin-login-panel-topline" aria-hidden="true">
+                <div
+                  className="platform-admin-login-panel-topline"
+                  aria-hidden="true"
+                >
                   <div className="platform-admin-login-panel-dots">
                     <span />
                     <span />
@@ -1909,7 +2210,9 @@ export default function App(): React.JSX.Element {
 
                 <div className="platform-admin-panel-header">
                   <div>
-                    <p className="platform-admin-section-label">{copy.login.section}</p>
+                    <p className="platform-admin-section-label">
+                      {copy.login.section}
+                    </p>
                     <h2>{copy.login.title}</h2>
                   </div>
                   <p className="platform-admin-panel-note">{copy.login.note}</p>
@@ -1919,7 +2222,10 @@ export default function App(): React.JSX.Element {
                   <label className="platform-admin-field platform-admin-login-field">
                     <span>{copy.login.tenantCode}</span>
                     <div className="platform-admin-login-input-shell">
-                      <span className="platform-admin-login-input-prefix" aria-hidden="true">
+                      <span
+                        className="platform-admin-login-input-prefix"
+                        aria-hidden="true"
+                      >
                         [01]
                       </span>
                       <input
@@ -1928,14 +2234,20 @@ export default function App(): React.JSX.Element {
                         onChange={(event) => setTenantCode(event.target.value)}
                         placeholder="acme"
                       />
-                      <span className="platform-admin-login-input-signal" aria-hidden="true" />
+                      <span
+                        className="platform-admin-login-input-signal"
+                        aria-hidden="true"
+                      />
                     </div>
                   </label>
 
                   <label className="platform-admin-field platform-admin-login-field">
                     <span>{copy.login.username}</span>
                     <div className="platform-admin-login-input-shell">
-                      <span className="platform-admin-login-input-prefix" aria-hidden="true">
+                      <span
+                        className="platform-admin-login-input-prefix"
+                        aria-hidden="true"
+                      >
                         [02]
                       </span>
                       <input
@@ -1944,14 +2256,20 @@ export default function App(): React.JSX.Element {
                         onChange={(event) => setUsername(event.target.value)}
                         placeholder="admin"
                       />
-                      <span className="platform-admin-login-input-signal" aria-hidden="true" />
+                      <span
+                        className="platform-admin-login-input-signal"
+                        aria-hidden="true"
+                      />
                     </div>
                   </label>
 
                   <label className="platform-admin-field platform-admin-login-field">
                     <span>{copy.login.password}</span>
                     <div className="platform-admin-login-input-shell">
-                      <span className="platform-admin-login-input-prefix" aria-hidden="true">
+                      <span
+                        className="platform-admin-login-input-prefix"
+                        aria-hidden="true"
+                      >
                         [03]
                       </span>
                       <input
@@ -1961,7 +2279,10 @@ export default function App(): React.JSX.Element {
                         onChange={(event) => setPassword(event.target.value)}
                         placeholder="••••••••"
                       />
-                      <span className="platform-admin-login-input-signal" aria-hidden="true" />
+                      <span
+                        className="platform-admin-login-input-signal"
+                        aria-hidden="true"
+                      />
                     </div>
                   </label>
 
@@ -1970,15 +2291,24 @@ export default function App(): React.JSX.Element {
                     type="submit"
                     disabled={isSubmitting}
                   >
-                    <span>{isSubmitting ? copy.login.signingIn : copy.login.signIn}</span>
-                    <span className="platform-admin-login-submit-code" aria-hidden="true">
+                    <span>
+                      {isSubmitting ? copy.login.signingIn : copy.login.signIn}
+                    </span>
+                    <span
+                      className="platform-admin-login-submit-code"
+                      aria-hidden="true"
+                    >
                       /RUN
                     </span>
                   </button>
                 </form>
 
-                {loginError ? <p className="platform-admin-error">{loginError}</p> : null}
-                {workspaceError ? <p className="platform-admin-error">{workspaceError}</p> : null}
+                {loginError ? (
+                  <p className="platform-admin-error">{loginError}</p>
+                ) : null}
+                {workspaceError ? (
+                  <p className="platform-admin-error">{workspaceError}</p>
+                ) : null}
               </article>
             </section>
           </div>
@@ -2003,15 +2333,21 @@ export default function App(): React.JSX.Element {
       <section className="platform-admin-console-header">
         <div>
           <div className="platform-admin-console-badge-row">
-            <span className="platform-admin-console-badge">{copy.workspace.section}</span>
+            <span className="platform-admin-console-badge">
+              {copy.workspace.section}
+            </span>
             <span className="platform-admin-console-badge is-muted">
               {roleLabel(session.user.roleCode)}
             </span>
           </div>
           <h1>{copy.title}</h1>
-          <p className="platform-admin-console-description">{copy.workspace.overviewDesc}</p>
+          <p className="platform-admin-console-description">
+            {copy.workspace.overviewDesc}
+          </p>
           <div className="platform-admin-console-meta">
-            <span className="platform-admin-console-meta-pill">@{session.user.username}</span>
+            <span className="platform-admin-console-meta-pill">
+              @{session.user.username}
+            </span>
             <span className="platform-admin-console-meta-pill">
               {session.tenant
                 ? `${session.tenant.name} (${session.tenant.code})`
@@ -2023,7 +2359,9 @@ export default function App(): React.JSX.Element {
           <div className={healthClassName}>
             <span>{healthLabel}</span>
             {healthDetail ? (
-              <small className="platform-admin-status-detail">{healthDetail}</small>
+              <small className="platform-admin-status-detail">
+                {healthDetail}
+              </small>
             ) : null}
           </div>
           <div
@@ -2062,22 +2400,36 @@ export default function App(): React.JSX.Element {
         <article className="platform-admin-panel">
           <div className="platform-admin-panel-header">
             <div>
-              <p className="platform-admin-section-label">{copy.workspace.section}</p>
-              <h2>{formatMessage(copy.login.signedInAs, { name: session.user.displayName })}</h2>
+              <p className="platform-admin-section-label">
+                {copy.workspace.section}
+              </p>
+              <h2>
+                {formatMessage(copy.login.signedInAs, {
+                  name: session.user.displayName,
+                })}
+              </h2>
             </div>
             <p className="platform-admin-panel-note">
-              {copy.login.scope}: {session.tenant
+              {copy.login.scope}:{" "}
+              {session.tenant
                 ? `${session.tenant.name} (${session.tenant.code})`
                 : copy.login.platformScope}
             </p>
           </div>
 
-          <section className="platform-admin-session is-console" aria-label="login-session">
+          <section
+            className="platform-admin-session is-console"
+            aria-label="login-session"
+          >
             <div className="platform-admin-session-hero">
               <div>
-                <p className="platform-admin-session-kicker">{copy.login.account}</p>
+                <p className="platform-admin-session-kicker">
+                  {copy.login.account}
+                </p>
                 <h3>{session.user.displayName}</h3>
-                <p className="platform-admin-session-subtitle">@{session.user.username}</p>
+                <p className="platform-admin-session-subtitle">
+                  @{session.user.username}
+                </p>
               </div>
               <span className="platform-admin-session-role-pill">
                 {roleLabel(session.user.roleCode)}
@@ -2110,7 +2462,9 @@ export default function App(): React.JSX.Element {
                 onClick={handleRefreshSession}
                 disabled={isRefreshingSession}
               >
-                {isRefreshingSession ? copy.login.refreshing : copy.login.refresh}
+                {isRefreshingSession
+                  ? copy.login.refreshing
+                  : copy.login.refresh}
               </button>
               <button
                 className="platform-admin-secondary-button"
@@ -2120,22 +2474,37 @@ export default function App(): React.JSX.Element {
                 {copy.login.signOut}
               </button>
               {sessionNotice ? (
-                <span className="platform-admin-session-notice">{sessionNotice}</span>
+                <span className="platform-admin-session-notice">
+                  {sessionNotice}
+                </span>
               ) : null}
             </div>
           </section>
 
-          {loginError ? <p className="platform-admin-error">{loginError}</p> : null}
-          {workspaceError ? <p className="platform-admin-error">{workspaceError}</p> : null}
+          {loginError ? (
+            <p className="platform-admin-error">{loginError}</p>
+          ) : null}
+          {workspaceError ? (
+            <p className="platform-admin-error">{workspaceError}</p>
+          ) : null}
         </article>
 
-        <section className="platform-admin-workspace" aria-label="admin-workspace">
+        <section
+          className="platform-admin-workspace"
+          aria-label="admin-workspace"
+        >
           <div className="platform-admin-workspace-header">
             <div>
-              <p className="platform-admin-section-label">{copy.workspace.section}</p>
+              <p className="platform-admin-section-label">
+                {copy.workspace.section}
+              </p>
               <h2>{workspaceTitle || copy.workspace.managementModules}</h2>
             </div>
-            {isLoadingWorkspace ? <p className="platform-admin-panel-note">{copy.workspace.loading}</p> : null}
+            {isLoadingWorkspace ? (
+              <p className="platform-admin-panel-note">
+                {copy.workspace.loading}
+              </p>
+            ) : null}
           </div>
           {session ? (
             <AdminWorkspaceNav

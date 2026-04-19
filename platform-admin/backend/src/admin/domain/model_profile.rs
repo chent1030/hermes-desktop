@@ -26,6 +26,8 @@ pub struct CreateModelProfileCommand {
     pub model: String,
     pub label: String,
     pub base_url: String,
+    #[serde(default)]
+    pub api_key: String,
     pub is_default: bool,
 }
 
@@ -60,5 +62,9 @@ impl CreateModelProfileCommand {
 
     pub fn normalized_base_url(&self) -> &str {
         self.base_url.trim()
+    }
+
+    pub fn normalized_api_key(&self) -> &str {
+        self.api_key.trim()
     }
 }

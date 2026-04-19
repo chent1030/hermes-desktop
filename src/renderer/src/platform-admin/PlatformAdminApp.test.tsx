@@ -1,8 +1,19 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../../../../platform-admin/frontend/src/App";
 
-function mockJsonResponse(body: unknown, ok = true, status = 200, statusText = "OK") {
+function mockJsonResponse(
+  body: unknown,
+  ok = true,
+  status = 200,
+  statusText = "OK",
+) {
   return {
     ok,
     status,
@@ -12,7 +23,12 @@ function mockJsonResponse(body: unknown, ok = true, status = 200, statusText = "
   } as unknown as Response;
 }
 
-function mockTextResponse(body: string, ok = true, status = 200, statusText = "OK") {
+function mockTextResponse(
+  body: string,
+  ok = true,
+  status = 200,
+  statusText = "OK",
+) {
   return {
     ok,
     status,
@@ -25,7 +41,10 @@ function mockTextResponse(body: string, ok = true, status = 200, statusText = "O
 }
 
 function setupFetch(responses: Response[]): void {
-  vi.stubGlobal("fetch", vi.fn().mockImplementation(() => responses.shift()));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementation(() => responses.shift()),
+  );
 }
 
 function getCardForHeading(name: string): HTMLElement {
@@ -52,7 +71,9 @@ async function openWorkspaceSection(name: string): Promise<void> {
   const navigationLabel = await screen.findByText("Navigation");
   const navigationCard = navigationLabel.closest("div");
   expect(navigationCard).not.toBeNull();
-  const button = within(navigationCard as HTMLElement).getByRole("button", { name });
+  const button = within(navigationCard as HTMLElement).getByRole("button", {
+    name,
+  });
   fireEvent.click(button);
 }
 
@@ -254,10 +275,14 @@ describe("platform admin frontend", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     expect(
-      await screen.findByRole("heading", { name: "Sign in to the shared platform" }),
+      await screen.findByRole("heading", {
+        name: "Sign in to the shared platform",
+      }),
     ).toBeInTheDocument();
     expect(window.localStorage.getItem("platform_admin_session")).toBeNull();
-    expect(window.localStorage.getItem("platform_admin_active_section")).toBeNull();
+    expect(
+      window.localStorage.getItem("platform_admin_active_section"),
+    ).toBeNull();
   });
 
   it("returns to the login screen with a clear error when refresh session fails", async () => {
@@ -302,7 +327,12 @@ describe("platform admin frontend", () => {
       mockJsonResponse([]),
       mockJsonResponse([]),
       mockJsonResponse([]),
-      mockJsonResponse({ message: "Refresh token expired, please sign in again." }, false, 401, "Unauthorized"),
+      mockJsonResponse(
+        { message: "Refresh token expired, please sign in again." },
+        false,
+        401,
+        "Unauthorized",
+      ),
     ]);
 
     render(<App />);
@@ -317,7 +347,9 @@ describe("platform admin frontend", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh session" }));
 
     expect(
-      await screen.findByRole("heading", { name: "Sign in to the shared platform" }),
+      await screen.findByRole("heading", {
+        name: "Sign in to the shared platform",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Refresh token expired, please sign in again."),
@@ -325,25 +357,33 @@ describe("platform admin frontend", () => {
   });
 
   it("switches the admin console copy to Chinese", async () => {
-    setupFetch([mockJsonResponse({ status: "ok", service: "platform-admin-backend" })]);
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+    ]);
 
     render(<App />);
 
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "中文" }));
 
-    expect(screen.getByRole("heading", { name: "登录共享平台" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "登录共享平台" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
     expect(screen.getByText("后端在线")).toBeInTheDocument();
   });
 
   it("renders the ICP filing footer link on the login screen", async () => {
-    setupFetch([mockJsonResponse({ status: "ok", service: "platform-admin-backend" })]);
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+    ]);
 
     render(<App />);
 
     expect(await screen.findByText("Backend online")).toBeInTheDocument();
-    const filingLink = screen.getByRole("link", { name: "苏ICP备2026017592号-1" });
+    const filingLink = screen.getByRole("link", {
+      name: "苏ICP备2026017592号-1",
+    });
     expect(filingLink).toHaveAttribute("href", "http://beian.miit.gov.cn/");
     expect(filingLink).toHaveAttribute("target", "_blank");
     expect(filingLink).toHaveAttribute("rel", "noreferrer");
@@ -506,22 +546,32 @@ describe("platform admin frontend", () => {
     ).toBeInTheDocument();
 
     await openWorkspaceSection("Tenants");
-    expect(await screen.findByRole("heading", { name: "Create tenant" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Create tenant" }),
+    ).toBeInTheDocument();
 
     await openWorkspaceSection("Models");
-    expect(await screen.findByRole("heading", { name: "Model profile control" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Model profile control" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
 
     await openWorkspaceSection("Skills");
-    expect(await screen.findByRole("heading", { name: "Skill catalog control" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Skill catalog control" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Code Review")).toBeInTheDocument();
 
     await openWorkspaceSection("Audit");
-    expect(await screen.findByRole("heading", { name: "Audit center" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Audit center" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("workspace.initialized")).toBeInTheDocument();
 
     await openWorkspaceSection("Sessions");
-    expect(await screen.findByRole("heading", { name: "Session center" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Session center" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("session-1")).toBeInTheDocument();
     expect(screen.getByText("chat.completed")).toBeInTheDocument();
     expect(screen.getByText("2 events")).toBeInTheDocument();
@@ -658,14 +708,24 @@ describe("platform admin frontend", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByRole("button", { name: "Overview" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Overview" }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tenants" }));
-    expect(screen.getByRole("heading", { name: "Create tenant" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Model profile control" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Create tenant" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Model profile control" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Models" }));
-    expect(screen.getByRole("heading", { name: "Model profile control" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Create tenant" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Model profile control" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Create tenant" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders a tenant admin workspace without tenant-admin creation controls", async () => {
@@ -995,7 +1055,9 @@ describe("platform admin frontend", () => {
     fireEvent.change(within(auditCard).getByLabelText("Limit"), {
       target: { value: "1" },
     });
-    fireEvent.click(within(auditCard).getByRole("button", { name: "Apply filters" }));
+    fireEvent.click(
+      within(auditCard).getByRole("button", { name: "Apply filters" }),
+    );
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
@@ -1005,7 +1067,9 @@ describe("platform admin frontend", () => {
     });
 
     expect(await screen.findByText("chat.started")).toBeInTheDocument();
-    fireEvent.click(within(auditCard).getByRole("button", { name: "Load older events" }));
+    fireEvent.click(
+      within(auditCard).getByRole("button", { name: "Load older events" }),
+    );
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
@@ -1014,7 +1078,111 @@ describe("platform admin frontend", () => {
       );
     });
 
-    expect(await screen.findByText("{\"sessionId\":\"s0\"}")).toBeInTheDocument();
+    expect(await screen.findByText('{"sessionId":"s0"}')).toBeInTheDocument();
+  });
+
+  it("submits apiKey when creating a model profile", async () => {
+    setupFetch([
+      mockJsonResponse({ status: "ok", service: "platform-admin-backend" }),
+      mockJsonResponse({
+        accessToken: "atk_root",
+        refreshToken: "rtk_root",
+        tenant: null,
+        user: {
+          id: 1,
+          username: "root",
+          displayName: "Platform Root",
+          roleCode: "super_admin",
+          scopeType: "platform",
+        },
+      }),
+      mockJsonResponse([
+        {
+          id: 7,
+          code: "acme",
+          name: "Acme Corp",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([
+        {
+          id: 11,
+          scopeType: "tenant",
+          tenant: {
+            id: 7,
+            code: "acme",
+            name: "Acme Corp",
+          },
+          username: "alice",
+          displayName: "Alice",
+          roleCode: "tenant_user",
+          isActive: true,
+        },
+      ]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse([]),
+      mockJsonResponse({
+        id: "mdl_new",
+        scopeType: "global",
+        tenant: null,
+        provider: "openai",
+        model: "gpt-5.4",
+        label: "GPT-5.4",
+        baseUrl: "https://api.openai.com/v1",
+        isDefault: true,
+        isActive: true,
+      }),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText("Backend online")).toBeInTheDocument();
+    signIn("", "root", "Secret123!");
+
+    expect(
+      await screen.findByRole("heading", { name: "Workspace overview" }),
+    ).toBeInTheDocument();
+
+    await openWorkspaceSection("Models");
+
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "openai" },
+    });
+    fireEvent.change(screen.getByLabelText("Model ID"), {
+      target: { value: "gpt-5.4" },
+    });
+    fireEvent.change(screen.getByLabelText("Label"), {
+      target: { value: "GPT-5.4" },
+    });
+    fireEvent.change(screen.getByLabelText("Base URL"), {
+      target: { value: "https://api.openai.com/v1" },
+    });
+    fireEvent.change(screen.getByLabelText("API Key"), {
+      target: { value: "sk-platform-admin" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create model profile" }),
+    );
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:8080/api/admin/model-profiles",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            provider: "openai",
+            model: "gpt-5.4",
+            label: "GPT-5.4",
+            baseUrl: "https://api.openai.com/v1",
+            apiKey: "sk-platform-admin",
+            isDefault: true,
+            tenantId: null,
+          }),
+        }),
+      );
+    });
   });
 
   it("applies session filters and loads older sessions", async () => {
@@ -1191,15 +1359,21 @@ describe("platform admin frontend", () => {
     fireEvent.change(within(sessionCard).getByLabelText("Limit"), {
       target: { value: "1" },
     });
-    fireEvent.click(within(sessionCard).getByRole("button", { name: "Apply filters" }));
+    fireEvent.click(
+      within(sessionCard).getByRole("button", { name: "Apply filters" }),
+    );
 
     expect(await screen.findByText("session-199")).toBeInTheDocument();
     expect(screen.getByText("2 events")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
-    expect(screen.getByText("Tools: 2 • Last tool: apply_patch • Source: cli")).toBeInTheDocument();
+    expect(
+      screen.getByText("Tools: 2 • Last tool: apply_patch • Source: cli"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Tool failed")).toBeInTheDocument();
 
-    fireEvent.click(within(sessionCard).getByRole("button", { name: "Load older sessions" }));
+    fireEvent.click(
+      within(sessionCard).getByRole("button", { name: "Load older sessions" }),
+    );
 
     expect(await screen.findByText("session-188")).toBeInTheDocument();
   });
@@ -1334,11 +1508,15 @@ describe("platform admin frontend", () => {
     ).toBeInTheDocument();
 
     const sessionCard = getCardForHeading("Session center");
-    const sessionRow = within(sessionCard).getByText("session-201").closest("div");
+    const sessionRow = within(sessionCard)
+      .getByText("session-201")
+      .closest("div");
     expect(sessionRow).not.toBeNull();
 
     fireEvent.click(
-      within(sessionRow as HTMLElement).getByRole("button", { name: "Open in audit" }),
+      within(sessionRow as HTMLElement).getByRole("button", {
+        name: "Open in audit",
+      }),
     );
 
     await waitFor(() => {
@@ -1349,9 +1527,13 @@ describe("platform admin frontend", () => {
     });
 
     const auditCard = getCardForHeading("Audit center");
-    expect(within(auditCard).getByLabelText("Payload contains")).toHaveValue("session-201");
+    expect(within(auditCard).getByLabelText("Payload contains")).toHaveValue(
+      "session-201",
+    );
     expect(
-      await within(auditCard).findByText("{\"sessionId\":\"session-201\",\"reason\":\"timeout\"}"),
+      await within(auditCard).findByText(
+        '{"sessionId":"session-201","reason":"timeout"}',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -1451,12 +1633,16 @@ describe("platform admin frontend", () => {
 
     expect(await screen.findByText("Tenant workspace")).toBeInTheDocument();
     const auditCard = getCardForHeading("Tenant audit center");
-    expect(await within(auditCard).findByText("Audit summary")).toBeInTheDocument();
+    expect(
+      await within(auditCard).findByText("Audit summary"),
+    ).toBeInTheDocument();
     expect(within(auditCard).getByText("3")).toBeInTheDocument();
     expect(within(auditCard).getByText("1 failed")).toBeInTheDocument();
     expect(within(auditCard).getAllByText("Run").length).toBeGreaterThan(0);
     expect(within(auditCard).getAllByText("Chat").length).toBeGreaterThan(0);
-    expect(within(auditCard).getAllByText("Workspace").length).toBeGreaterThan(0);
+    expect(within(auditCard).getAllByText("Workspace").length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("applies event family filters and renders run audit summaries", async () => {
@@ -1542,18 +1728,26 @@ describe("platform admin frontend", () => {
 
     await openWorkspaceSection("Audit");
 
-    expect(await screen.findByRole("heading", { name: "Tenant audit center" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Tenant audit center" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("run.tool.failed")).toBeInTheDocument();
     expect(
-      screen.getByText("Source: cli • Last label: 🔍 search_web • Progress count: 2"),
+      screen.getByText(
+        "Source: cli • Last label: 🔍 search_web • Progress count: 2",
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Error: tool stream interrupted")).toBeInTheDocument();
+    expect(
+      screen.getByText("Error: tool stream interrupted"),
+    ).toBeInTheDocument();
 
     const auditCard = getCardForHeading("Tenant audit center");
     fireEvent.change(within(auditCard).getByLabelText("Event family"), {
       target: { value: "run" },
     });
-    fireEvent.click(within(auditCard).getByRole("button", { name: "Apply filters" }));
+    fireEvent.click(
+      within(auditCard).getByRole("button", { name: "Apply filters" }),
+    );
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
@@ -1562,9 +1756,13 @@ describe("platform admin frontend", () => {
       );
     });
 
-    expect(await screen.findByText("run.skill.sync.completed")).toBeInTheDocument();
     expect(
-      screen.getByText("Installed: 1 • Downloaded: 2 • Broken: 1 • Not downloaded: 3"),
+      await screen.findByText("run.skill.sync.completed"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Installed: 1 • Downloaded: 2 • Broken: 1 • Not downloaded: 3",
+      ),
     ).toBeInTheDocument();
   });
 });

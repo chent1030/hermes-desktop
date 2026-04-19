@@ -48,9 +48,28 @@
   - 两类工作台都已补模型配置卡片
 - 浏览器跨端口访问已补齐 CORS / `OPTIONS` 预检支持
 
-## 环境变量
+## 配置文件与环境变量
 
-核心环境变量如下：
+后端现在默认会读取 `platform-admin/backend/config/application.toml`：
+
+```toml
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+url = "postgres://postgres:password@postgres:5432/manager_admin"
+
+[security]
+session_salt = "platform-admin-dev-salt"
+```
+
+仓库里同时提供：
+
+- `platform-admin/backend/config/application.toml`
+- `platform-admin/backend/config/application.example.toml`
+
+环境变量仍然保留，用于覆盖文件中的对应值。核心覆盖项如下：
 
 ```bash
 ADMIN_DATABASE_URL=postgres://postgres:password@postgres:5432/manager_admin
@@ -58,8 +77,13 @@ ADMIN_SESSION_SALT=platform-admin-dev-salt
 ADMIN_BOOTSTRAP_SUPER_USERNAME=root
 ADMIN_BOOTSTRAP_SUPER_PASSWORD=Secret123!
 ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
+ADMIN_BACKEND_HOST=0.0.0.0
+ADMIN_BACKEND_PORT=8080
 ```
 
+- `ADMIN_BACKEND_HOST` / `ADMIN_BACKEND_PORT`：覆盖服务监听地址
+- `ADMIN_DATABASE_URL`：覆盖数据库连接串
+- `ADMIN_SESSION_SALT`：覆盖会话签名盐值
 - `ADMIN_BOOTSTRAP_SUPER_USERNAME` / `ADMIN_BOOTSTRAP_SUPER_PASSWORD`：用于首次启动自动播种平台超级管理员
 - `ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME`：可选，不传时默认回落到用户名
 - 如果数据库中已经存在激活状态的 `super_admin`，服务不会重复播种
@@ -93,6 +117,7 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 
 ```bash
 cd platform-admin/backend
+cargo run
 cargo test --test http_health --test http_error_envelope --test iam_auth_flow --test router_planes
 cargo fmt --check
 cargo clippy --all-targets --all-features

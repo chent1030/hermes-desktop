@@ -25,9 +25,12 @@ describe("platform runtime", () => {
   it("stores tokens in memory and auto-selects the default model", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockResolvedValueOnce(
           new Response(
@@ -49,6 +52,7 @@ describe("platform runtime", () => {
                   model: "gpt-5.4",
                   label: "GPT-5.4",
                   baseUrl: "",
+                  apiKey: "sk-platform-model",
                   isDefault: true,
                 },
               ],
@@ -66,15 +70,19 @@ describe("platform runtime", () => {
     const workspace = await initializeWorkspaceState();
 
     expect(workspace.selectedModelId).toBe("m-default");
+    expect(workspace.models[0]?.apiKey).toBe("sk-platform-model");
     expect(getWorkspaceRuntime()?.refreshToken).toBe("r1");
   });
 
   it("fails initialization when the platform returns no authorized models", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockResolvedValueOnce(
           new Response(
@@ -104,9 +112,12 @@ describe("platform runtime", () => {
   it("fails initialization when the platform does not provide a default model", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockResolvedValueOnce(
           new Response(
@@ -151,9 +162,12 @@ describe("platform runtime", () => {
   it("clears the in-memory session when refresh fails", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockRejectedValueOnce(new Error("401")),
     );
@@ -197,18 +211,24 @@ describe("platform runtime", () => {
   it("surfaces backend message when bootstrap initialization fails", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ message: "workspace bootstrap disabled" }), {
-            status: 503,
-            statusText: "Service Unavailable",
-            headers: {
-              "Content-Type": "application/json",
+          new Response(
+            JSON.stringify({ message: "workspace bootstrap disabled" }),
+            {
+              status: 503,
+              statusText: "Service Unavailable",
+              headers: {
+                "Content-Type": "application/json",
+              },
             },
-          }),
+          ),
         )
         .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] })))
         .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }))),
@@ -285,9 +305,12 @@ describe("platform runtime", () => {
   it("keeps the failed init phase when model loading breaks", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockResolvedValueOnce(
           new Response(
@@ -322,18 +345,24 @@ describe("platform runtime", () => {
   it("degrades audit status when the remote audit health probe fails", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ message: "audit service unavailable" }), {
-            status: 503,
-            statusText: "Service Unavailable",
-            headers: {
-              "Content-Type": "application/json",
+          new Response(
+            JSON.stringify({ message: "audit service unavailable" }),
+            {
+              status: 503,
+              statusText: "Service Unavailable",
+              headers: {
+                "Content-Type": "application/json",
+              },
             },
-          }),
+          ),
         ),
     );
 
@@ -355,9 +384,12 @@ describe("platform runtime", () => {
   it("requires re-login when the remote audit health probe returns unauthorized", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockResolvedValueOnce(
           new Response(JSON.stringify({ message: "session expired" }), {
@@ -387,9 +419,12 @@ describe("platform runtime", () => {
   it("preserves the initialized workspace when refresh succeeds", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockResolvedValueOnce(
           new Response(
@@ -419,7 +454,9 @@ describe("platform runtime", () => {
         )
         .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] })))
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a2", refreshToken: "r2" })),
+          new Response(
+            JSON.stringify({ accessToken: "a2", refreshToken: "r2" }),
+          ),
         ),
     );
 
@@ -442,9 +479,12 @@ describe("platform runtime", () => {
   it("refreshes the session and retries audit upload after a 401 response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a1", refreshToken: "r1" })),
+          new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          ),
         )
         .mockResolvedValueOnce(
           new Response(
@@ -480,7 +520,9 @@ describe("platform runtime", () => {
           }),
         )
         .mockResolvedValueOnce(
-          new Response(JSON.stringify({ accessToken: "a2", refreshToken: "r2" })),
+          new Response(
+            JSON.stringify({ accessToken: "a2", refreshToken: "r2" }),
+          ),
         )
         .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: 1 }))),
     );

@@ -27,19 +27,19 @@ interface PlatformContextValue {
 
 export const PlatformContext = createContext<PlatformContextValue | null>(null);
 
-function ensureWorkspaceReady(
+function normalizeWorkspace(
   workspace: WorkspaceBootstrap,
 ): WorkspaceBootstrap {
-  if (workspace.models.length === 0) {
-    throw new Error("platform models unavailable");
-  }
+  const normalizedSelectedModelId =
+    workspace.selectedModelId ||
+    workspace.models.find((model) => model.isDefault)?.id ||
+    workspace.models[0]?.id ||
+    "";
 
-  const defaultModel = workspace.models.find((model) => model.isDefault);
-  if (!defaultModel) {
-    throw new Error("platform default model missing");
-  }
-
-  return workspace;
+  return {
+    ...workspace,
+    selectedModelId: normalizedSelectedModelId,
+  };
 }
 
 export function PlatformProvider({
@@ -64,7 +64,7 @@ export function PlatformProvider({
     setSessionRecoveryReason(null);
 
     try {
-      const nextWorkspace = ensureWorkspaceReady(
+      const nextWorkspace = normalizeWorkspace(
         await window.hermesAPI.initializeWorkspace(),
       );
       setSharedLocale(nextWorkspace.locale);

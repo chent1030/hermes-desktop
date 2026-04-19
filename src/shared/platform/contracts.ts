@@ -22,6 +22,7 @@ export interface WorkspaceModel {
   model: string;
   label: string;
   baseUrl: string;
+  apiKey?: string;
   isDefault: boolean;
 }
 
@@ -38,12 +39,7 @@ export interface LocalSkillState {
   skillId: string;
   installed: boolean;
   version: string | null;
-  status:
-    | "not-downloaded"
-    | "downloaded"
-    | "installed"
-    | "outdated"
-    | "broken";
+  status: "not-downloaded" | "downloaded" | "installed" | "outdated" | "broken";
   path: string | null;
 }
 
