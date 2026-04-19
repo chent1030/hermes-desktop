@@ -1,7 +1,8 @@
-use platform_admin_backend::{run_server, ServerConfig};
+use platform_admin_backend::bootstrap::{config::AppConfig, startup};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = ServerConfig::from_env()?;
-    run_server(&config)?;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = AppConfig::from_env()?;
+    startup::run(config).await?;
     Ok(())
 }
