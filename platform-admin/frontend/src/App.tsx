@@ -1784,25 +1784,6 @@ export default function App(): React.JSX.Element {
     return (
       <main className="platform-admin-app is-login-screen">
         <section className="platform-admin-login-shell">
-          <div className="platform-admin-login-topbar">
-            <p className={healthClassName}>
-              {healthStatus === "online" ? (
-                <>
-                  <span>{copy.health.online}</span>
-                  <span className="platform-admin-status-detail">
-                    · {healthService || "platform-admin-backend"}
-                  </span>
-                </>
-              ) : null}
-              {healthStatus === "offline" ? (
-                <>
-                  <span>{copy.health.offline}</span>
-                  <span className="platform-admin-status-detail">· {healthError}</span>
-                </>
-              ) : null}
-              {healthStatus === "checking" ? <span>{copy.health.checking}</span> : null}
-            </p>
-          </div>
           <article className="platform-admin-panel platform-admin-login-panel">
             <div className="platform-admin-panel-header">
               <div>
@@ -1858,23 +1839,6 @@ export default function App(): React.JSX.Element {
                 {copy.localeEnglish}
               </button>
             </div>
-            <p className={healthClassName}>
-              {healthStatus === "online" ? (
-                <>
-                  <span>{copy.health.online}</span>
-                  <span className="platform-admin-status-detail">
-                    · {healthService || "platform-admin-backend"}
-                  </span>
-                </>
-              ) : null}
-              {healthStatus === "offline" ? (
-                <>
-                  <span>{copy.health.offline}</span>
-                  <span className="platform-admin-status-detail">· {healthError}</span>
-                </>
-              ) : null}
-              {healthStatus === "checking" ? <span>{copy.health.checking}</span> : null}
-            </p>
           </div>
 
           <div className="platform-admin-login-grid">
@@ -1915,14 +1879,6 @@ export default function App(): React.JSX.Element {
                     <span />
                     <span />
                   </div>
-                  <span className="platform-admin-login-panel-code">AUTH://PANEL-01</span>
-                </div>
-                <div className="platform-admin-panel-header">
-                  <div>
-                    <p className="platform-admin-section-label">{copy.login.section}</p>
-                    <h2>{copy.login.title}</h2>
-                  </div>
-                  <p className="platform-admin-panel-note">{copy.login.note}</p>
                 </div>
 
                 <form className="platform-admin-form" onSubmit={handleSubmit}>
@@ -2059,23 +2015,6 @@ export default function App(): React.JSX.Element {
               {copy.localeEnglish}
             </button>
           </div>
-          <p className={healthClassName}>
-            {healthStatus === "online" ? (
-              <>
-                <span>{copy.health.online}</span>
-                <span className="platform-admin-status-detail">
-                  · {healthService || "platform-admin-backend"}
-                </span>
-              </>
-            ) : null}
-            {healthStatus === "offline" ? (
-              <>
-                <span>{copy.health.offline}</span>
-                <span className="platform-admin-status-detail">· {healthError}</span>
-              </>
-            ) : null}
-            {healthStatus === "checking" ? <span>{copy.health.checking}</span> : null}
-          </p>
         </div>
       </section>
 
