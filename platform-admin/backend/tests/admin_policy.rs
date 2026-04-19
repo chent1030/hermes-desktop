@@ -39,3 +39,28 @@ fn tenant_admin_can_create_tenant_users_inside_own_scope() {
 
     assert!(decision.is_ok());
 }
+
+#[test]
+fn tenant_admin_cannot_create_global_model_profiles() {
+    let actor = AdminActor::tenant_admin(tenant_fixture());
+    let policy = DefaultAdminPolicy::new();
+
+    let decision = policy.authorize(&actor, AdminPermission::ModelProfileCreateGlobal);
+
+    assert_eq!(
+        decision,
+        Err(AdminError::forbidden(
+            "actor is not allowed to manage global model profiles"
+        ))
+    );
+}
+
+#[test]
+fn tenant_admin_can_manage_self_tenant_skill_catalog() {
+    let actor = AdminActor::tenant_admin(tenant_fixture());
+    let policy = DefaultAdminPolicy::new();
+
+    let decision = policy.authorize(&actor, AdminPermission::SkillCatalogCreateTenant);
+
+    assert!(decision.is_ok());
+}
