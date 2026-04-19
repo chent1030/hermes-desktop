@@ -75,10 +75,15 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
   - 当前已接入：`POST /api/auth/login`、`POST /api/auth/refresh`
 - `/api/admin/*`
   - `admin control plane`
-  - 当前已接入：`GET /api/admin/me`
+  - 当前已接入：
+    - `GET /api/admin/me`
+    - tenant control：`/api/admin/tenants`、`/api/admin/tenants/{tenantId}/deactivate`
+    - account control：`/api/admin/accounts`、`/api/admin/tenant/accounts`
+    - model profile control：`/api/admin/model-profiles`、`/api/admin/tenant/model-profiles`
+    - skill catalog control：`/api/admin/skills/catalog`、`/api/admin/tenant/skills/catalog`
 - `/api/desktop/*`
   - `desktop delivery plane`
-  - 当前已补最小 shell：`GET /api/desktop/bootstrap`
+  - 当前对外保持桌面投递面能力：`GET /api/desktop/bootstrap`、`GET /api/desktop/model-profiles`、`GET /api/desktop/skills/catalog`
 
 当前代码仍同时保留旧阶段的平铺模块实现与新的 async 骨架。后续迁移以新 router 为主，新功能不再继续堆到旧的手写 HTTP 入口里。
 
