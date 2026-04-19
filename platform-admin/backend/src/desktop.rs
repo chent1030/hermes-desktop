@@ -1,3 +1,5 @@
+pub mod api;
+
 use std::fmt::{Display, Formatter};
 
 use postgres::{Client, NoTls};
@@ -312,7 +314,9 @@ mod tests {
         acquire_live_postgres_guard, ensure_live_platform_schema, live_database_url, live_unique,
         seed_live_super_admin, seed_live_tenant_admin,
     };
-    use crate::model_profiles::{CreateModelProfileInput, PgModelProfileStore, create_model_profile_for_actor};
+    use crate::model_profiles::{
+        CreateModelProfileInput, PgModelProfileStore, create_model_profile_for_actor,
+    };
     use crate::skill_catalog::{
         CreateSkillCatalogInput, PgSkillCatalogStore, create_skill_catalog_item_for_actor,
     };
@@ -522,7 +526,12 @@ mod tests {
         assert_eq!(bootstrap.tenant.code, tenant_code);
         assert_eq!(bootstrap.features.gateway_visible, false);
         assert!(models.items.iter().any(|item| item.id == global_model.id));
-        assert!(models.items.iter().any(|item| item.id == tenant_model.id && item.is_default));
+        assert!(
+            models
+                .items
+                .iter()
+                .any(|item| item.id == tenant_model.id && item.is_default)
+        );
         assert!(skills.items.iter().any(|item| item.id == global_skill.id));
         assert!(skills.items.iter().any(|item| item.id == tenant_skill.id));
     }

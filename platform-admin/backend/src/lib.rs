@@ -5,14 +5,15 @@ use std::net::{TcpListener, TcpStream};
 
 use serde::Serialize;
 
-pub mod bootstrap;
-pub mod infrastructure;
-pub mod kernel;
 pub mod admin;
 pub mod audit;
 pub mod audit_center;
 pub mod auth;
+pub mod bootstrap;
 pub mod desktop;
+pub mod iam;
+pub mod infrastructure;
+pub mod kernel;
 #[cfg(test)]
 pub mod live_test_support;
 pub mod model_profiles;
@@ -25,12 +26,16 @@ use admin::{
     list_accounts_for_actor, list_tenants_for_actor,
 };
 use audit::{
-    AuditBatchInput, AuditError, PgAuditStore, audit_health_for_actor,
-    write_audit_events_for_actor,
+    AuditBatchInput, AuditError, PgAuditStore, audit_health_for_actor, write_audit_events_for_actor,
 };
 use audit_center::{
-    AuditCenterError, PgAuditCenterStore, build_audit_event_query,
-    list_audit_events_for_actor,
+    AuditCenterError, PgAuditCenterStore, build_audit_event_query, list_audit_events_for_actor,
+};
+use auth::{
+    AuthError, BootstrapConfig, PgAuthStore, authenticate_access_token, authenticate_login,
+    ensure_bootstrap_super_admin, invalid_access_token_message, invalid_credentials_message,
+    invalid_refresh_token_message, parse_login_request_json, parse_refresh_request_json,
+    refresh_session,
 };
 use desktop::{
     DesktopError, PgDesktopStore, desktop_bootstrap_for_actor, desktop_model_profiles_for_actor,
@@ -49,12 +54,6 @@ use skill_catalog::{
     CreateSkillCatalogInput, PgSkillCatalogStore, SkillCatalogError,
     create_skill_catalog_item_for_actor, deactivate_skill_catalog_item_for_actor,
     list_skill_catalog_for_actor,
-};
-use auth::{
-    AuthError, BootstrapConfig, PgAuthStore, authenticate_access_token, authenticate_login,
-    ensure_bootstrap_super_admin, invalid_access_token_message, invalid_credentials_message,
-    invalid_refresh_token_message, parse_login_request_json, parse_refresh_request_json,
-    refresh_session,
 };
 
 pub const SERVICE_NAME: &str = "platform-admin-backend";
@@ -180,11 +179,7 @@ impl HttpResponse {
         Self::with_body(status_line, String::new(), Vec::new())
     }
 
-    fn with_body(
-        status_line: &str,
-        body: String,
-        mut headers: Vec<(String, String)>,
-    ) -> Self {
+    fn with_body(status_line: &str, body: String, mut headers: Vec<(String, String)>) -> Self {
         headers.push(("content-length".to_string(), body.len().to_string()));
         headers.push(("connection".to_string(), "close".to_string()));
         headers.extend(cors_headers());
@@ -202,10 +197,7 @@ impl HttpResponse {
             .iter()
             .map(|(name, value)| format!("{name}: {value}\r\n"))
             .collect::<String>();
-        format!(
-            "{}\r\n{}\r\n{}",
-            self.status_line, headers, self.body
-        )
+        format!("{}\r\n{}\r\n{}", self.status_line, headers, self.body)
     }
 }
 
@@ -267,13 +259,9 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         (Some("GET"), "/api/admin/audit/events") => handle_list_audit_events(request, config),
         (Some("GET"), "/api/admin/sessions") => handle_list_sessions(request, config),
         (Some("GET"), "/api/admin/model-profiles") => handle_list_model_profiles(request, config),
-        (Some("POST"), "/api/admin/model-profiles") => {
-            handle_create_model_profile(request, config)
-        }
+        (Some("POST"), "/api/admin/model-profiles") => handle_create_model_profile(request, config),
         (Some("GET"), "/api/admin/skills/catalog") => handle_list_skill_catalog(request, config),
-        (Some("POST"), "/api/admin/skills/catalog") => {
-            handle_create_skill_catalog(request, config)
-        }
+        (Some("POST"), "/api/admin/skills/catalog") => handle_create_skill_catalog(request, config),
         (Some("GET"), "/api/admin/accounts") => handle_list_accounts(request, config),
         (Some("POST"), "/api/admin/accounts") => handle_create_account(request, config),
         (Some("GET"), "/api/admin/tenant/model-profiles") => {
@@ -282,9 +270,7 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         (Some("GET"), "/api/admin/tenant/audit/events") => {
             handle_list_tenant_audit_events(request, config)
         }
-        (Some("GET"), "/api/admin/tenant/sessions") => {
-            handle_list_tenant_sessions(request, config)
-        }
+        (Some("GET"), "/api/admin/tenant/sessions") => handle_list_tenant_sessions(request, config),
         (Some("POST"), "/api/admin/tenant/model-profiles") => {
             handle_create_tenant_model_profile(request, config)
         }
@@ -298,25 +284,46 @@ pub fn handle_request(request: &str, config: &ServerConfig) -> String {
         (Some("POST"), "/api/admin/tenant/accounts") => {
             handle_create_tenant_scoped_account(request, config)
         }
-        (Some("POST"), _) if normalized_path.starts_with("/api/admin/model-profiles/") && normalized_path.ends_with("/deactivate") => {
+        (Some("POST"), _)
+            if normalized_path.starts_with("/api/admin/model-profiles/")
+                && normalized_path.ends_with("/deactivate") =>
+        {
             handle_deactivate_model_profile(request, config, &normalized_path)
         }
-        (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenant/model-profiles/") && normalized_path.ends_with("/deactivate") => {
+        (Some("POST"), _)
+            if normalized_path.starts_with("/api/admin/tenant/model-profiles/")
+                && normalized_path.ends_with("/deactivate") =>
+        {
             handle_deactivate_model_profile(request, config, &normalized_path)
         }
-        (Some("POST"), _) if normalized_path.starts_with("/api/admin/skills/catalog/") && normalized_path.ends_with("/deactivate") => {
+        (Some("POST"), _)
+            if normalized_path.starts_with("/api/admin/skills/catalog/")
+                && normalized_path.ends_with("/deactivate") =>
+        {
             handle_deactivate_skill_catalog(request, config, &normalized_path)
         }
-        (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenant/skills/catalog/") && normalized_path.ends_with("/deactivate") => {
+        (Some("POST"), _)
+            if normalized_path.starts_with("/api/admin/tenant/skills/catalog/")
+                && normalized_path.ends_with("/deactivate") =>
+        {
             handle_deactivate_skill_catalog(request, config, &normalized_path)
         }
-        (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenants/") && normalized_path.ends_with("/deactivate") => {
+        (Some("POST"), _)
+            if normalized_path.starts_with("/api/admin/tenants/")
+                && normalized_path.ends_with("/deactivate") =>
+        {
             handle_deactivate_tenant(request, config, &normalized_path)
         }
-        (Some("POST"), _) if normalized_path.starts_with("/api/admin/accounts/") && normalized_path.ends_with("/deactivate") => {
+        (Some("POST"), _)
+            if normalized_path.starts_with("/api/admin/accounts/")
+                && normalized_path.ends_with("/deactivate") =>
+        {
             handle_deactivate_account(request, config, &normalized_path)
         }
-        (Some("POST"), _) if normalized_path.starts_with("/api/admin/tenant/accounts/") && normalized_path.ends_with("/deactivate") => {
+        (Some("POST"), _)
+            if normalized_path.starts_with("/api/admin/tenant/accounts/")
+                && normalized_path.ends_with("/deactivate") =>
+        {
             handle_deactivate_account(request, config, &normalized_path)
         }
         _ => json_response(
@@ -343,13 +350,13 @@ pub fn run_server(config: &ServerConfig) -> Result<(), ServerError> {
     let store = PgAuthStore::new(&config.database_url);
     store.ensure_schema()?;
     let desktop_store = PgDesktopStore::new(&config.database_url);
-    desktop_store.ensure_schema().map_err(|error| {
-        ServerError::Store(auth::AuthStoreError(error.to_string()))
-    })?;
+    desktop_store
+        .ensure_schema()
+        .map_err(|error| ServerError::Store(auth::AuthStoreError(error.to_string())))?;
     let audit_store = PgAuditStore::new(&config.database_url);
-    audit_store.ensure_schema().map_err(|error| {
-        ServerError::Store(auth::AuthStoreError(error.to_string()))
-    })?;
+    audit_store
+        .ensure_schema()
+        .map_err(|error| ServerError::Store(auth::AuthStoreError(error.to_string())))?;
     let mut bootstrap_store = PgAuthStore::new(&config.database_url);
     ensure_bootstrap_super_admin(
         &mut bootstrap_store,
@@ -473,7 +480,8 @@ fn handle_refresh_request(request: &str, config: &ServerConfig) -> String {
 fn handle_desktop_bootstrap(request: &str, config: &ServerConfig) -> String {
     match authenticate_request(request, config).and_then(|actor| {
         let mut store = PgDesktopStore::new(&config.database_url);
-        desktop_bootstrap_for_actor(&mut store, &to_principal(actor)).map_err(map_desktop_to_admin_error)
+        desktop_bootstrap_for_actor(&mut store, &to_principal(actor))
+            .map_err(map_desktop_to_admin_error)
     }) {
         Ok(payload) => json_response("HTTP/1.1 200 OK", &serialize_json(&payload)),
         Err(error) => admin_error_response(error),
@@ -513,7 +521,7 @@ fn handle_audit_batch(request: &str, config: &ServerConfig) -> String {
                     error: "invalid_request",
                     message: "request body must be valid JSON".to_string(),
                 }),
-            )
+            );
         }
     };
 
@@ -564,7 +572,7 @@ fn handle_create_tenant(request: &str, config: &ServerConfig) -> String {
                     error: "invalid_request",
                     message: "request body must be valid JSON".to_string(),
                 }),
-            )
+            );
         }
     };
 
@@ -657,16 +665,18 @@ fn handle_list_sessions(request: &str, config: &ServerConfig) -> String {
     let tenant_id = query_param(request_path(request).unwrap_or_default(), "tenantId")
         .and_then(|value: String| value.parse::<i64>().ok());
     let last_event_type = query_param(request_path(request).unwrap_or_default(), "lastEventType");
-    let has_failure = match parse_has_failure_query(
-        query_param(request_path(request).unwrap_or_default(), "hasFailure"),
-    ) {
+    let has_failure = match parse_has_failure_query(query_param(
+        request_path(request).unwrap_or_default(),
+        "hasFailure",
+    )) {
         Ok(value) => value,
         Err(error) => return admin_error_response(map_session_center_to_admin_error(error)),
     };
-    let last_occurred_from =
-        query_param(request_path(request).unwrap_or_default(), "lastOccurredFrom");
-    let last_occurred_to =
-        query_param(request_path(request).unwrap_or_default(), "lastOccurredTo");
+    let last_occurred_from = query_param(
+        request_path(request).unwrap_or_default(),
+        "lastOccurredFrom",
+    );
+    let last_occurred_to = query_param(request_path(request).unwrap_or_default(), "lastOccurredTo");
     let before_id = query_param(request_path(request).unwrap_or_default(), "beforeId");
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
         .and_then(|value: String| value.parse::<i64>().ok());
@@ -694,16 +704,18 @@ fn handle_list_sessions(request: &str, config: &ServerConfig) -> String {
 
 fn handle_list_tenant_sessions(request: &str, config: &ServerConfig) -> String {
     let last_event_type = query_param(request_path(request).unwrap_or_default(), "lastEventType");
-    let has_failure = match parse_has_failure_query(
-        query_param(request_path(request).unwrap_or_default(), "hasFailure"),
-    ) {
+    let has_failure = match parse_has_failure_query(query_param(
+        request_path(request).unwrap_or_default(),
+        "hasFailure",
+    )) {
         Ok(value) => value,
         Err(error) => return admin_error_response(map_session_center_to_admin_error(error)),
     };
-    let last_occurred_from =
-        query_param(request_path(request).unwrap_or_default(), "lastOccurredFrom");
-    let last_occurred_to =
-        query_param(request_path(request).unwrap_or_default(), "lastOccurredTo");
+    let last_occurred_from = query_param(
+        request_path(request).unwrap_or_default(),
+        "lastOccurredFrom",
+    );
+    let last_occurred_to = query_param(request_path(request).unwrap_or_default(), "lastOccurredTo");
     let before_id = query_param(request_path(request).unwrap_or_default(), "beforeId");
     let limit = query_param(request_path(request).unwrap_or_default(), "limit")
         .and_then(|value: String| value.parse::<i64>().ok());
@@ -790,7 +802,7 @@ fn handle_create_skill_catalog(request: &str, config: &ServerConfig) -> String {
                     error: "invalid_request",
                     message: "request body must be valid JSON".to_string(),
                 }),
-            )
+            );
         }
     };
 
@@ -815,7 +827,7 @@ fn handle_create_model_profile(request: &str, config: &ServerConfig) -> String {
                     error: "invalid_request",
                     message: "request body must be valid JSON".to_string(),
                 }),
-            )
+            );
         }
     };
 
@@ -840,18 +852,19 @@ fn handle_create_tenant_skill_catalog(request: &str, config: &ServerConfig) -> S
                     error: "invalid_request",
                     message: "request body must be valid JSON".to_string(),
                 }),
-            )
+            );
         }
     };
 
     match authenticate_request(request, config).and_then(|actor| {
-        let tenant_id = actor
-            .tenant
-            .as_ref()
-            .map(|tenant| tenant.id)
-            .ok_or(AdminError::Forbidden(
-                "tenant admin must belong to a tenant".to_string(),
-            ))?;
+        let tenant_id =
+            actor
+                .tenant
+                .as_ref()
+                .map(|tenant| tenant.id)
+                .ok_or(AdminError::Forbidden(
+                    "tenant admin must belong to a tenant".to_string(),
+                ))?;
         let mut store = PgSkillCatalogStore::new(&config.database_url);
         create_skill_catalog_item_for_actor(
             &mut store,
@@ -879,18 +892,19 @@ fn handle_create_tenant_model_profile(request: &str, config: &ServerConfig) -> S
                     error: "invalid_request",
                     message: "request body must be valid JSON".to_string(),
                 }),
-            )
+            );
         }
     };
 
     match authenticate_request(request, config).and_then(|actor| {
-        let tenant_id = actor
-            .tenant
-            .as_ref()
-            .map(|tenant| tenant.id)
-            .ok_or(AdminError::Forbidden(
-                "tenant admin must belong to a tenant".to_string(),
-            ))?;
+        let tenant_id =
+            actor
+                .tenant
+                .as_ref()
+                .map(|tenant| tenant.id)
+                .ok_or(AdminError::Forbidden(
+                    "tenant admin must belong to a tenant".to_string(),
+                ))?;
         let mut store = PgModelProfileStore::new(&config.database_url);
         create_model_profile_for_actor(
             &mut store,
@@ -918,7 +932,7 @@ fn handle_deactivate_skill_catalog(request: &str, config: &ServerConfig, path: &
                     error: "invalid_request",
                     message: "skill id is invalid".to_string(),
                 }),
-            )
+            );
         }
     };
 
@@ -943,7 +957,7 @@ fn handle_deactivate_model_profile(request: &str, config: &ServerConfig, path: &
                     error: "invalid_request",
                     message: "model id is invalid".to_string(),
                 }),
-            )
+            );
         }
     };
 
@@ -967,7 +981,7 @@ fn handle_deactivate_tenant(request: &str, config: &ServerConfig, path: &str) ->
                     error: "invalid_request",
                     message: "tenant id is invalid".to_string(),
                 }),
-            )
+            );
         }
     };
 
@@ -1014,7 +1028,7 @@ fn handle_create_account(request: &str, config: &ServerConfig) -> String {
                     error: "invalid_request",
                     message: "request body must be valid JSON".to_string(),
                 }),
-            )
+            );
         }
     };
 
@@ -1042,7 +1056,7 @@ fn handle_deactivate_account(request: &str, config: &ServerConfig, path: &str) -
                     error: "invalid_request",
                     message: "account id is invalid".to_string(),
                 }),
-            )
+            );
         }
     };
 
@@ -1066,7 +1080,10 @@ fn parse_request_line(request: &str) -> (Option<&str>, Option<&str>) {
 }
 
 fn request_body(request: &str) -> &str {
-    request.split_once("\r\n\r\n").map(|(_, body)| body).unwrap_or("")
+    request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .unwrap_or("")
 }
 
 fn request_path(request: &str) -> Option<&str> {
@@ -1142,8 +1159,9 @@ fn authenticate_request(
     request: &str,
     config: &ServerConfig,
 ) -> Result<auth::AuthContextResponse, AdminError> {
-    let token = bearer_token(request)
-        .ok_or(AdminError::Forbidden("authorization header is required".to_string()))?;
+    let token = bearer_token(request).ok_or(AdminError::Forbidden(
+        "authorization header is required".to_string(),
+    ))?;
     let mut store = PgAuthStore::new(&config.database_url);
     authenticate_access_token(&mut store, token).map_err(map_auth_to_admin_error)
 }
@@ -1291,9 +1309,9 @@ fn trailing_string_resource_id_from_model_path(path: &str) -> Option<String> {
 }
 
 fn trailing_string_resource_id_from_skill_path(path: &str) -> Option<String> {
-    trailing_string_resource_id(path, "/api/admin/skills/catalog/", "/deactivate").or_else(
-        || trailing_string_resource_id(path, "/api/admin/tenant/skills/catalog/", "/deactivate"),
-    )
+    trailing_string_resource_id(path, "/api/admin/skills/catalog/", "/deactivate").or_else(|| {
+        trailing_string_resource_id(path, "/api/admin/tenant/skills/catalog/", "/deactivate")
+    })
 }
 
 fn json_response(status_line: &str, body: &str) -> String {
@@ -1341,8 +1359,7 @@ mod tests {
 
     #[test]
     fn formats_http_health_response() {
-        let response =
-            handle_health_request("GET /api/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        let response = handle_health_request("GET /api/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
         assert!(response.starts_with("HTTP/1.1 200 OK\r\n"));
         assert!(response.contains("content-type: application/json"));
         assert!(response.contains("\"status\":\"ok\""));
@@ -1445,7 +1462,10 @@ mod tests {
 
         let config = ServerConfig::from_env().expect("config should load");
         assert_eq!(config.bootstrap_super_username.as_deref(), Some("root"));
-        assert_eq!(config.bootstrap_super_password.as_deref(), Some("Secret123!"));
+        assert_eq!(
+            config.bootstrap_super_password.as_deref(),
+            Some("Secret123!")
+        );
         assert_eq!(
             config.bootstrap_super_display_name.as_deref(),
             Some("Platform Root")

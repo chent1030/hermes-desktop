@@ -325,9 +325,7 @@ pub fn list_sessions_for_actor<S: SessionCenterStore>(
         }
         "tenant_admin" => {
             let tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
-                SessionCenterError::Forbidden(
-                    "tenant admin must belong to a tenant".to_string(),
-                ),
+                SessionCenterError::Forbidden("tenant admin must belong to a tenant".to_string()),
             )?;
             if let Some(requested_tenant_id) = requested_tenant_id {
                 if requested_tenant_id != tenant_id {
@@ -354,8 +352,7 @@ pub fn build_session_query(
     requested_before_id: Option<String>,
     requested_limit: Option<i64>,
 ) -> Result<SessionQuery, SessionCenterError> {
-    let last_occurred_from =
-        requested_last_occurred_from.filter(|value| !value.trim().is_empty());
+    let last_occurred_from = requested_last_occurred_from.filter(|value| !value.trim().is_empty());
     let last_occurred_to = requested_last_occurred_to.filter(|value| !value.trim().is_empty());
 
     if let Some(value) = last_occurred_from.as_ref() {
@@ -410,16 +407,17 @@ fn looks_like_iso_timestamp(value: &str) -> bool {
     let has_time = value.contains('T') && value.contains(':');
     let suffix_after_date = value.get(10..).unwrap_or_default();
     let suffix_after_time = value.get(11..).unwrap_or_default();
-    let has_timezone = value.ends_with('Z')
-        || suffix_after_date.contains('+')
-        || suffix_after_time.contains('-');
+    let has_timezone =
+        value.ends_with('Z') || suffix_after_date.contains('+') || suffix_after_time.contains('-');
     has_date && has_time && has_timezone
 }
 
 fn map_store_read_error(error: SessionCenterStoreError) -> SessionCenterError {
     let message = error.to_string();
     if message == "invalid beforeId" {
-        SessionCenterError::InvalidRequest("beforeId does not match current session result set".to_string())
+        SessionCenterError::InvalidRequest(
+            "beforeId does not match current session result set".to_string(),
+        )
     } else if message.contains("invalid input syntax")
         && (message.contains("timestamp") || message.contains("date/time"))
     {
@@ -459,7 +457,9 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
-    use crate::audit::{AuditBatchInput, AuditEventInput, PgAuditStore, write_audit_events_for_actor};
+    use crate::audit::{
+        AuditBatchInput, AuditEventInput, PgAuditStore, write_audit_events_for_actor,
+    };
     use crate::auth::{AuthPrincipal, AuthTenant, AuthUser};
     use crate::live_test_support::{
         acquire_live_postgres_guard, ensure_live_platform_schema, live_database_url, live_unique,
@@ -479,7 +479,11 @@ mod tests {
         ) -> Result<Vec<SessionSummaryRecord>, SessionCenterStoreError> {
             let mut grouped = BTreeMap::<String, SessionSummaryRecord>::new();
 
-            for event in self.events.iter().filter(|item| item.tenant.id == tenant_id) {
+            for event in self
+                .events
+                .iter()
+                .filter(|item| item.tenant.id == tenant_id)
+            {
                 grouped
                     .entry(event.session_id.clone())
                     .and_modify(|current| {
@@ -754,15 +758,9 @@ mod tests {
         older.last_occurred_at = "2026-04-18T12:00:00.000Z".to_string();
         store.events = vec![newest, older];
 
-        let query = build_session_query(
-            None,
-            None,
-            None,
-            None,
-            Some("session-2".to_string()),
-            None,
-        )
-        .expect("query");
+        let query =
+            build_session_query(None, None, None, None, Some("session-2".to_string()), None)
+                .expect("query");
         let items = list_sessions_for_actor(&mut store, &actor, None, query)
             .expect("tenant admin should paginate sessions");
 
@@ -780,15 +778,9 @@ mod tests {
 
     #[test]
     fn rejects_invalid_last_occurred_from_format() {
-        let error = build_session_query(
-            None,
-            None,
-            Some("not-a-time".to_string()),
-            None,
-            None,
-            None,
-        )
-        .expect_err("invalid time should be rejected");
+        let error =
+            build_session_query(None, None, Some("not-a-time".to_string()), None, None, None)
+                .expect_err("invalid time should be rejected");
 
         assert!(matches!(error, SessionCenterError::InvalidRequest(_)));
     }

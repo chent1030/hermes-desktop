@@ -1,3 +1,5 @@
+pub mod api;
+
 use std::fmt::{Display, Formatter};
 
 use postgres::{Client, NoTls};
@@ -101,7 +103,10 @@ pub trait AdminStore {
         password_hash: &str,
         role_code: &str,
     ) -> Result<AdminAccountRecord, AdminStoreError>;
-    fn find_account(&mut self, account_id: i64) -> Result<Option<AdminAccountRecord>, AdminStoreError>;
+    fn find_account(
+        &mut self,
+        account_id: i64,
+    ) -> Result<Option<AdminAccountRecord>, AdminStoreError>;
     fn deactivate_account(&mut self, account_id: i64) -> Result<(), AdminStoreError>;
     fn count_active_platform_super_admin(&mut self) -> Result<i64, AdminStoreError>;
 }
@@ -349,10 +354,14 @@ pub fn create_tenant_for_actor<S: AdminStore>(
 ) -> Result<TenantRecord, AdminError> {
     require_super_admin(actor)?;
     if input.code.trim().is_empty() {
-        return Err(AdminError::InvalidRequest("tenant code is required".to_string()));
+        return Err(AdminError::InvalidRequest(
+            "tenant code is required".to_string(),
+        ));
     }
     if input.name.trim().is_empty() {
-        return Err(AdminError::InvalidRequest("tenant name is required".to_string()));
+        return Err(AdminError::InvalidRequest(
+            "tenant name is required".to_string(),
+        ));
     }
     store
         .create_tenant(input.code.trim(), input.name.trim())
@@ -436,13 +445,14 @@ pub fn create_account_for_actor<S: AdminStore>(
                     "tenant admin cannot create tenant admin".to_string(),
                 ));
             }
-            let tenant_id = actor
-                .tenant
-                .as_ref()
-                .map(|tenant| tenant.id)
-                .ok_or(AdminError::Forbidden(
-                    "tenant admin must belong to a tenant".to_string(),
-                ))?;
+            let tenant_id =
+                actor
+                    .tenant
+                    .as_ref()
+                    .map(|tenant| tenant.id)
+                    .ok_or(AdminError::Forbidden(
+                        "tenant admin must belong to a tenant".to_string(),
+                    ))?;
             store
                 .create_account(
                     "tenant",
@@ -487,9 +497,14 @@ pub fn deactivate_account_for_actor<S: AdminStore>(
                 .map_err(|error| AdminError::Store(error.to_string()))
         }
         "tenant_admin" => {
-            let actor_tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
-                AdminError::Forbidden("tenant admin must belong to a tenant".to_string()),
-            )?;
+            let actor_tenant_id =
+                actor
+                    .tenant
+                    .as_ref()
+                    .map(|tenant| tenant.id)
+                    .ok_or(AdminError::Forbidden(
+                        "tenant admin must belong to a tenant".to_string(),
+                    ))?;
             if account.role_code != "tenant_user" {
                 return Err(AdminError::Forbidden(
                     "tenant admin can only deactivate tenant users".to_string(),
@@ -522,7 +537,9 @@ fn require_super_admin(actor: &AuthPrincipal) -> Result<(), AdminError> {
 
 fn validate_account_input(input: &CreateAccountInput) -> Result<(), AdminError> {
     if input.username.trim().is_empty() {
-        return Err(AdminError::InvalidRequest("username is required".to_string()));
+        return Err(AdminError::InvalidRequest(
+            "username is required".to_string(),
+        ));
     }
     if input.display_name.trim().is_empty() {
         return Err(AdminError::InvalidRequest(
@@ -530,7 +547,9 @@ fn validate_account_input(input: &CreateAccountInput) -> Result<(), AdminError> 
         ));
     }
     if input.password.is_empty() {
-        return Err(AdminError::InvalidRequest("password is required".to_string()));
+        return Err(AdminError::InvalidRequest(
+            "password is required".to_string(),
+        ));
     }
     Ok(())
 }
@@ -557,8 +576,12 @@ fn row_to_account(row: postgres::Row) -> AdminAccountRecord {
     let tenant_id: Option<i64> = row.get("tenant_id");
     let tenant = tenant_id.map(|id| AuthTenant {
         id,
-        code: row.get::<_, Option<String>>("tenant_code").unwrap_or_default(),
-        name: row.get::<_, Option<String>>("tenant_name").unwrap_or_default(),
+        code: row
+            .get::<_, Option<String>>("tenant_code")
+            .unwrap_or_default(),
+        name: row
+            .get::<_, Option<String>>("tenant_name")
+            .unwrap_or_default(),
         is_active: row.get("tenant_is_active"),
     });
 
@@ -627,7 +650,11 @@ mod tests {
             Ok(self.tenants.clone())
         }
 
-        fn create_tenant(&mut self, code: &str, name: &str) -> Result<TenantRecord, AdminStoreError> {
+        fn create_tenant(
+            &mut self,
+            code: &str,
+            name: &str,
+        ) -> Result<TenantRecord, AdminStoreError> {
             if self.tenants.iter().any(|tenant| tenant.code == code) {
                 return Err(AdminStoreError("duplicate key".to_string()));
             }
@@ -635,11 +662,19 @@ mod tests {
         }
 
         fn find_tenant(&mut self, tenant_id: i64) -> Result<Option<TenantRecord>, AdminStoreError> {
-            Ok(self.tenants.iter().find(|tenant| tenant.id == tenant_id).cloned())
+            Ok(self
+                .tenants
+                .iter()
+                .find(|tenant| tenant.id == tenant_id)
+                .cloned())
         }
 
         fn deactivate_tenant(&mut self, tenant_id: i64) -> Result<(), AdminStoreError> {
-            if let Some(tenant) = self.tenants.iter_mut().find(|tenant| tenant.id == tenant_id) {
+            if let Some(tenant) = self
+                .tenants
+                .iter_mut()
+                .find(|tenant| tenant.id == tenant_id)
+            {
                 tenant.is_active = false;
             }
             Ok(())
@@ -653,7 +688,9 @@ mod tests {
                 .accounts
                 .iter()
                 .filter(|account| match tenant_id {
-                    Some(tenant_id) => account.tenant.as_ref().map(|tenant| tenant.id) == Some(tenant_id),
+                    Some(tenant_id) => {
+                        account.tenant.as_ref().map(|tenant| tenant.id) == Some(tenant_id)
+                    }
                     None => account.scope_type == "tenant",
                 })
                 .cloned()
@@ -687,25 +724,26 @@ mod tests {
                         is_active: tenant.is_active,
                     })
             });
-            Ok(self.push_account(
-                scope_type,
-                tenant,
-                username,
-                display_name,
-                role_code,
-                true,
-            ))
+            Ok(self.push_account(scope_type, tenant, username, display_name, role_code, true))
         }
 
         fn find_account(
             &mut self,
             account_id: i64,
         ) -> Result<Option<AdminAccountRecord>, AdminStoreError> {
-            Ok(self.accounts.iter().find(|account| account.id == account_id).cloned())
+            Ok(self
+                .accounts
+                .iter()
+                .find(|account| account.id == account_id)
+                .cloned())
         }
 
         fn deactivate_account(&mut self, account_id: i64) -> Result<(), AdminStoreError> {
-            if let Some(account) = self.accounts.iter_mut().find(|account| account.id == account_id) {
+            if let Some(account) = self
+                .accounts
+                .iter_mut()
+                .find(|account| account.id == account_id)
+            {
                 account.is_active = false;
             }
             Ok(())

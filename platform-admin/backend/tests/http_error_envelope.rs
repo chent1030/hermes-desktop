@@ -1,8 +1,10 @@
 use axum::{
-    body::{to_bytes, Body},
+    body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use platform_admin_backend::bootstrap::{app_state::AppState, config::AppConfig, router::build_router};
+use platform_admin_backend::bootstrap::{
+    app_state::AppState, config::AppConfig, router::build_router,
+};
 use serde_json::Value;
 use tower::ServiceExt;
 

@@ -70,7 +70,8 @@ impl From<postgres::Error> for SkillCatalogStoreError {
 }
 
 pub trait SkillCatalogStore {
-    fn find_tenant(&mut self, tenant_id: i64) -> Result<Option<AuthTenant>, SkillCatalogStoreError>;
+    fn find_tenant(&mut self, tenant_id: i64)
+    -> Result<Option<AuthTenant>, SkillCatalogStoreError>;
     fn list_skill_catalog(
         &mut self,
         tenant_id: Option<i64>,
@@ -109,7 +110,10 @@ impl PgSkillCatalogStore {
 }
 
 impl SkillCatalogStore for PgSkillCatalogStore {
-    fn find_tenant(&mut self, tenant_id: i64) -> Result<Option<AuthTenant>, SkillCatalogStoreError> {
+    fn find_tenant(
+        &mut self,
+        tenant_id: i64,
+    ) -> Result<Option<AuthTenant>, SkillCatalogStoreError> {
         let mut client = self.connect()?;
         let row = client.query_opt(
             "
@@ -189,7 +193,11 @@ impl SkillCatalogStore for PgSkillCatalogStore {
         download_url: &str,
     ) -> Result<SkillCatalogRecord, SkillCatalogStoreError> {
         let mut client = self.connect()?;
-        let scope = if tenant_id.is_some() { "tenant" } else { "global" };
+        let scope = if tenant_id.is_some() {
+            "tenant"
+        } else {
+            "global"
+        };
         let row = client.query_one(
             "
             INSERT INTO platform_desktop_skill_catalog (
@@ -205,7 +213,15 @@ impl SkillCatalogStore for PgSkillCatalogStore {
             VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
             RETURNING id, tenant_id, name, version, description, download_url, is_active
             ",
-            &[&id, &scope, &tenant_id, &name, &version, &description, &download_url],
+            &[
+                &id,
+                &scope,
+                &tenant_id,
+                &name,
+                &version,
+                &description,
+                &download_url,
+            ],
         )?;
 
         let tenant = tenant_id
@@ -280,7 +296,9 @@ pub fn list_skill_catalog_for_actor<S: SkillCatalogStore>(
                     .map_err(|error| SkillCatalogError::Store(error.to_string()))?
                     .ok_or(SkillCatalogError::NotFound("tenant not found".to_string()))?;
                 if !tenant.is_active {
-                    return Err(SkillCatalogError::Conflict("tenant is inactive".to_string()));
+                    return Err(SkillCatalogError::Conflict(
+                        "tenant is inactive".to_string(),
+                    ));
                 }
             }
             store
@@ -289,9 +307,7 @@ pub fn list_skill_catalog_for_actor<S: SkillCatalogStore>(
         }
         "tenant_admin" => {
             let tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
-                SkillCatalogError::Forbidden(
-                    "tenant admin must belong to a tenant".to_string(),
-                ),
+                SkillCatalogError::Forbidden("tenant admin must belong to a tenant".to_string()),
             )?;
             store
                 .list_skill_catalog(Some(tenant_id))
@@ -318,7 +334,9 @@ pub fn create_skill_catalog_item_for_actor<S: SkillCatalogStore>(
                     .map_err(|error| SkillCatalogError::Store(error.to_string()))?
                     .ok_or(SkillCatalogError::NotFound("tenant not found".to_string()))?;
                 if !tenant.is_active {
-                    return Err(SkillCatalogError::Conflict("tenant is inactive".to_string()));
+                    return Err(SkillCatalogError::Conflict(
+                        "tenant is inactive".to_string(),
+                    ));
                 }
             }
 
@@ -335,20 +353,18 @@ pub fn create_skill_catalog_item_for_actor<S: SkillCatalogStore>(
         }
         "tenant_admin" => {
             let actor_tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
-                SkillCatalogError::Forbidden(
-                    "tenant admin must belong to a tenant".to_string(),
-                ),
+                SkillCatalogError::Forbidden("tenant admin must belong to a tenant".to_string()),
             )?;
             match input.tenant_id {
                 None => {
                     return Err(SkillCatalogError::Forbidden(
                         "tenant admin cannot manage global skill catalog".to_string(),
-                    ))
+                    ));
                 }
                 Some(tenant_id) if tenant_id != actor_tenant_id => {
                     return Err(SkillCatalogError::Forbidden(
                         "tenant admin can only manage own tenant skill catalog".to_string(),
-                    ))
+                    ));
                 }
                 _ => {}
             }
@@ -378,7 +394,9 @@ pub fn deactivate_skill_catalog_item_for_actor<S: SkillCatalogStore>(
     let record = store
         .find_skill_catalog_item(skill_id)
         .map_err(|error| SkillCatalogError::Store(error.to_string()))?
-        .ok_or(SkillCatalogError::NotFound("skill catalog item not found".to_string()))?;
+        .ok_or(SkillCatalogError::NotFound(
+            "skill catalog item not found".to_string(),
+        ))?;
 
     match actor.user.role_code.as_str() {
         "super_admin" => store
@@ -386,9 +404,7 @@ pub fn deactivate_skill_catalog_item_for_actor<S: SkillCatalogStore>(
             .map_err(|error| SkillCatalogError::Store(error.to_string())),
         "tenant_admin" => {
             let actor_tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
-                SkillCatalogError::Forbidden(
-                    "tenant admin must belong to a tenant".to_string(),
-                ),
+                SkillCatalogError::Forbidden("tenant admin must belong to a tenant".to_string()),
             )?;
             if record.tenant.as_ref().map(|tenant| tenant.id) != Some(actor_tenant_id) {
                 return Err(SkillCatalogError::Forbidden(
@@ -550,7 +566,10 @@ mod tests {
             Ok(self.skills.iter().find(|record| record.id == id).cloned())
         }
 
-        fn deactivate_skill_catalog_item(&mut self, id: &str) -> Result<(), SkillCatalogStoreError> {
+        fn deactivate_skill_catalog_item(
+            &mut self,
+            id: &str,
+        ) -> Result<(), SkillCatalogStoreError> {
             if let Some(record) = self.skills.iter_mut().find(|record| record.id == id) {
                 record.is_active = false;
             }
@@ -692,8 +711,16 @@ mod tests {
         let tenant_items = list_skill_catalog_for_actor(&mut store, &tenant_admin, None)
             .expect("tenant admin should list tenant skills");
 
-        assert!(global_items.iter().any(|item| item.id == global.id && item.is_active));
-        assert!(tenant_items.iter().any(|item| item.id == tenant.id && item.is_active));
+        assert!(
+            global_items
+                .iter()
+                .any(|item| item.id == global.id && item.is_active)
+        );
+        assert!(
+            tenant_items
+                .iter()
+                .any(|item| item.id == tenant.id && item.is_active)
+        );
 
         deactivate_skill_catalog_item_for_actor(&mut store, &tenant_admin, &tenant.id)
             .expect("tenant skill should be deactivated");

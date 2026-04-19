@@ -738,10 +738,14 @@ fn hash_value(value: &str) -> String {
 
 fn validate_login_request(request: &LoginRequest) -> Result<(), AuthError> {
     if request.username.trim().is_empty() {
-        return Err(AuthError::InvalidRequest("username is required".to_string()));
+        return Err(AuthError::InvalidRequest(
+            "username is required".to_string(),
+        ));
     }
     if request.password.is_empty() {
-        return Err(AuthError::InvalidRequest("password is required".to_string()));
+        return Err(AuthError::InvalidRequest(
+            "password is required".to_string(),
+        ));
     }
     Ok(())
 }
@@ -813,8 +817,12 @@ fn row_to_principal(row: postgres::Row) -> AuthPrincipal {
     let tenant_id: Option<i64> = row.get("tenant_id");
     let tenant = tenant_id.map(|id| AuthTenant {
         id,
-        code: row.get::<_, Option<String>>("tenant_code").unwrap_or_default(),
-        name: row.get::<_, Option<String>>("tenant_name").unwrap_or_default(),
+        code: row
+            .get::<_, Option<String>>("tenant_code")
+            .unwrap_or_default(),
+        name: row
+            .get::<_, Option<String>>("tenant_name")
+            .unwrap_or_default(),
         is_active: row.get("tenant_is_active"),
     });
 
@@ -835,9 +843,9 @@ fn row_to_principal(row: postgres::Row) -> AuthPrincipal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::live_test_support::acquire_live_postgres_guard;
     use std::collections::HashMap;
     use std::env;
-    use crate::live_test_support::acquire_live_postgres_guard;
 
     #[derive(Default)]
     struct MemoryAuthStore {
@@ -865,7 +873,10 @@ mod tests {
             tenant_code: Option<&str>,
             username: &str,
         ) -> Result<Option<AuthPrincipal>, AuthStoreError> {
-            self.last_lookup = Some((tenant_code.map(|value| value.to_string()), username.to_string()));
+            self.last_lookup = Some((
+                tenant_code.map(|value| value.to_string()),
+                username.to_string(),
+            ));
             Ok(self
                 .principals
                 .iter()
@@ -874,7 +885,9 @@ mod tests {
                         return false;
                     }
                     match (tenant_code, principal.tenant.as_ref()) {
-                        (Some(expected), Some(tenant)) => tenant.code == expected && tenant.is_active,
+                        (Some(expected), Some(tenant)) => {
+                            tenant.code == expected && tenant.is_active
+                        }
                         (None, None) => principal.user.scope_type == "platform",
                         _ => false,
                     }
@@ -913,7 +926,8 @@ mod tests {
             next_access_token_hash: &str,
             next_refresh_token_hash: &str,
         ) -> Result<(), AuthStoreError> {
-            self.sessions_by_refresh_hash.remove(current_refresh_token_hash);
+            self.sessions_by_refresh_hash
+                .remove(current_refresh_token_hash);
             self.sessions_by_access_hash
                 .insert(next_access_token_hash.to_string(), principal.user.id);
             self.sessions_by_refresh_hash
@@ -933,10 +947,9 @@ mod tests {
         }
 
         fn has_active_super_admin(&mut self) -> Result<bool, AuthStoreError> {
-            Ok(self
-                .principals
-                .iter()
-                .any(|principal| principal.user.role_code == "super_admin" && principal.user.is_active))
+            Ok(self.principals.iter().any(|principal| {
+                principal.user.role_code == "super_admin" && principal.user.is_active
+            }))
         }
 
         fn create_bootstrap_super_admin(
@@ -1053,7 +1066,10 @@ mod tests {
             store.last_lookup,
             Some((Some("acme".to_string()), "admin".to_string()))
         );
-        assert_eq!(response.tenant.as_ref().map(|tenant| tenant.code.as_str()), Some("acme"));
+        assert_eq!(
+            response.tenant.as_ref().map(|tenant| tenant.code.as_str()),
+            Some("acme")
+        );
         assert_eq!(response.user.role_code, "tenant_admin");
         assert!(response.access_token.starts_with("atk_"));
         assert!(response.refresh_token.starts_with("rtk_"));
@@ -1077,10 +1093,7 @@ mod tests {
         )
         .expect("platform login should succeed without tenant code");
 
-        assert_eq!(
-            store.last_lookup,
-            Some((None, "root".to_string()))
-        );
+        assert_eq!(store.last_lookup, Some((None, "root".to_string())));
         assert!(response.tenant.is_none());
         assert_eq!(response.user.role_code, "super_admin");
     }
@@ -1095,7 +1108,8 @@ mod tests {
         };
 
         ensure_bootstrap_super_admin(&mut store, &config).expect("bootstrap should succeed");
-        ensure_bootstrap_super_admin(&mut store, &config).expect("bootstrap should stay idempotent");
+        ensure_bootstrap_super_admin(&mut store, &config)
+            .expect("bootstrap should stay idempotent");
 
         assert_eq!(store.created_accounts.len(), 1);
         assert_eq!(store.created_accounts[0].0, "root");
@@ -1108,8 +1122,14 @@ mod tests {
         let access_token = "atk_current".to_string();
         let mut store = MemoryAuthStore {
             principals: vec![principal.clone()],
-            sessions_by_access_hash: HashMap::from([(hash_token(&access_token), principal.user.id)]),
-            sessions_by_refresh_hash: HashMap::from([(hash_token(&current_refresh_token), principal.user.id)]),
+            sessions_by_access_hash: HashMap::from([(
+                hash_token(&access_token),
+                principal.user.id,
+            )]),
+            sessions_by_refresh_hash: HashMap::from([(
+                hash_token(&current_refresh_token),
+                principal.user.id,
+            )]),
             ..Default::default()
         };
 
@@ -1126,7 +1146,10 @@ mod tests {
             store.last_refresh_lookup,
             Some(hash_token(&current_refresh_token))
         );
-        assert_eq!(response.tenant.as_ref().map(|tenant| tenant.code.as_str()), Some("acme"));
+        assert_eq!(
+            response.tenant.as_ref().map(|tenant| tenant.code.as_str()),
+            Some("acme")
+        );
         assert!(response.access_token.starts_with("atk_"));
         assert!(response.refresh_token.starts_with("rtk_"));
     }
@@ -1137,7 +1160,10 @@ mod tests {
         let access_token = "atk_active".to_string();
         let mut store = MemoryAuthStore {
             principals: vec![principal.clone()],
-            sessions_by_access_hash: HashMap::from([(hash_token(&access_token), principal.user.id)]),
+            sessions_by_access_hash: HashMap::from([(
+                hash_token(&access_token),
+                principal.user.id,
+            )]),
             ..Default::default()
         };
 
@@ -1145,7 +1171,10 @@ mod tests {
             .expect("access token should resolve to auth context");
 
         assert_eq!(context.user.username, "admin");
-        assert_eq!(context.tenant.as_ref().map(|tenant| tenant.code.as_str()), Some("acme"));
+        assert_eq!(
+            context.tenant.as_ref().map(|tenant| tenant.code.as_str()),
+            Some("acme")
+        );
     }
 
     #[test]
@@ -1228,7 +1257,10 @@ mod tests {
         )
         .expect("live login should succeed");
 
-        assert_eq!(response.tenant.as_ref().map(|tenant| tenant.code.as_str()), Some("stage1-live"));
+        assert_eq!(
+            response.tenant.as_ref().map(|tenant| tenant.code.as_str()),
+            Some("stage1-live")
+        );
         assert_eq!(response.user.username, "platform_admin");
         assert_eq!(response.user.role_code, "tenant_admin");
     }

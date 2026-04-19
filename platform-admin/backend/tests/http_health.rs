@@ -1,11 +1,9 @@
 use axum::{
-    body::{to_bytes, Body},
+    body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use platform_admin_backend::bootstrap::{
-    app_state::AppState,
-    config::AppConfig,
-    router::build_router,
+    app_state::AppState, config::AppConfig, router::build_router,
 };
 use serde_json::Value;
 use tower::ServiceExt;
@@ -17,7 +15,12 @@ async fn health_and_readiness_routes_return_json() {
 
     let health = app
         .clone()
-        .oneshot(Request::builder().uri("/api/health").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/api/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(health.status(), StatusCode::OK);
@@ -27,7 +30,12 @@ async fn health_and_readiness_routes_return_json() {
     assert_eq!(health_json["status"], "ok");
 
     let ready = app
-        .oneshot(Request::builder().uri("/api/ready").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/api/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(ready.status(), StatusCode::OK);
@@ -40,13 +48,19 @@ async fn health_and_readiness_routes_return_json() {
 #[tokio::test]
 async fn readiness_route_checks_database_connectivity() {
     let mut config = AppConfig::for_tests();
-    config.database_url = std::env::var("ADMIN_DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/manager_admin".to_string());
+    config.database_url = std::env::var("ADMIN_DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://postgres:postgres@localhost:5432/manager_admin".to_string()
+    });
     let state = AppState::with_pool(config).await.expect("test pool");
     let app = build_router(state);
 
     let ready = app
-        .oneshot(Request::builder().uri("/api/ready").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/api/ready")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(ready.status(), StatusCode::OK);

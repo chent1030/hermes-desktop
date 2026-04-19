@@ -1010,3 +1010,13 @@ API 层统一返回稳定错误响应，例如：
 - 更细的策略引擎
 
 都不需要再推翻当前后端架构。
+
+## 18. 建议的落地顺序
+
+为避免一次性并行迁移过多子系统，建议按以下顺序拆 implementation plans：
+
+1. Phase 1 foundation 与 `iam` 抽离
+2. `admin control plane` 领域迁移
+3. `desktop delivery plane` 领域迁移
+4. `audit_event_log` 与 `session_projection` 重建
+5. 策略扩展、outbox worker 与平台运维作业体系

@@ -273,9 +273,7 @@ pub fn list_audit_events_for_actor<S: AuditCenterStore>(
         }
         "tenant_admin" => {
             let tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
-                AuditCenterError::Forbidden(
-                    "tenant admin must belong to a tenant".to_string(),
-                ),
+                AuditCenterError::Forbidden("tenant admin must belong to a tenant".to_string()),
             )?;
             if let Some(requested_tenant_id) = requested_tenant_id {
                 if requested_tenant_id != tenant_id {
@@ -310,8 +308,7 @@ pub fn build_audit_event_query(
         .map(|value| {
             AuditEventFamily::from_query_value(value.trim()).ok_or(
                 AuditCenterError::InvalidRequest(
-                    "eventFamily must be one of run, chat, auth, workspace, other"
-                        .to_string(),
+                    "eventFamily must be one of run, chat, auth, workspace, other".to_string(),
                 ),
             )
         })
@@ -365,9 +362,8 @@ fn looks_like_iso_timestamp(value: &str) -> bool {
     let has_time = value.contains('T') && value.contains(':');
     let suffix_after_date = value.get(10..).unwrap_or_default();
     let suffix_after_time = value.get(11..).unwrap_or_default();
-    let has_timezone = value.ends_with('Z')
-        || suffix_after_date.contains('+')
-        || suffix_after_time.contains('-');
+    let has_timezone =
+        value.ends_with('Z') || suffix_after_date.contains('+') || suffix_after_time.contains('-');
     has_date && has_time && has_timezone
 }
 
@@ -416,7 +412,9 @@ fn row_to_audit_event(row: postgres::Row) -> AuditEventRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::audit::{AuditBatchInput, AuditEventInput, PgAuditStore, write_audit_events_for_actor};
+    use crate::audit::{
+        AuditBatchInput, AuditEventInput, PgAuditStore, write_audit_events_for_actor,
+    };
     use crate::auth::AuthUser;
     use crate::live_test_support::{
         acquire_live_postgres_guard, ensure_live_platform_schema, live_database_url, live_unique,
@@ -446,58 +444,54 @@ mod tests {
             tenant_id: i64,
             query: &AuditEventQuery,
         ) -> Result<Vec<AuditEventRecord>, AuditCenterStoreError> {
-            let mut items = self
-                .events
-                .iter()
-                .filter(|event| event.tenant.id == tenant_id)
-                .filter(|event| {
-                    query
-                        .event_family
-                        .as_ref()
-                        .is_none_or(|value| value.matches_event_type(&event.event_type))
-                })
-                .filter(|event| {
-                    query
-                        .event_type
-                        .as_ref()
-                        .is_none_or(|value| event.event_type == *value)
-                })
-                .filter(|event| {
-                    query
-                        .event_prefix
-                        .as_ref()
-                        .is_none_or(|value| event.event_type.starts_with(value))
-                })
-                .filter(|event| {
-                    query
-                        .before_id
-                        .is_none_or(|value| event.id < value)
-                })
-                .filter(|event| {
-                    query
-                        .occurred_from
-                        .as_ref()
-                        .is_none_or(|value| event.occurred_at >= *value)
-                })
-                .filter(|event| {
-                    query
-                        .occurred_to
-                        .as_ref()
-                        .is_none_or(|value| event.occurred_at <= *value)
-                })
-                .filter(|event| {
-                    query.account_query.as_ref().is_none_or(|value| {
-                        contains_ignore_case(&event.account.username, value)
-                            || contains_ignore_case(&event.account.display_name, value)
+            let mut items =
+                self.events
+                    .iter()
+                    .filter(|event| event.tenant.id == tenant_id)
+                    .filter(|event| {
+                        query
+                            .event_family
+                            .as_ref()
+                            .is_none_or(|value| value.matches_event_type(&event.event_type))
                     })
-                })
-                .filter(|event| {
-                    query.payload_query.as_ref().is_none_or(|value| {
-                        contains_ignore_case(&event.payload.to_string(), value)
+                    .filter(|event| {
+                        query
+                            .event_type
+                            .as_ref()
+                            .is_none_or(|value| event.event_type == *value)
                     })
-                })
-                .cloned()
-                .collect::<Vec<_>>();
+                    .filter(|event| {
+                        query
+                            .event_prefix
+                            .as_ref()
+                            .is_none_or(|value| event.event_type.starts_with(value))
+                    })
+                    .filter(|event| query.before_id.is_none_or(|value| event.id < value))
+                    .filter(|event| {
+                        query
+                            .occurred_from
+                            .as_ref()
+                            .is_none_or(|value| event.occurred_at >= *value)
+                    })
+                    .filter(|event| {
+                        query
+                            .occurred_to
+                            .as_ref()
+                            .is_none_or(|value| event.occurred_at <= *value)
+                    })
+                    .filter(|event| {
+                        query.account_query.as_ref().is_none_or(|value| {
+                            contains_ignore_case(&event.account.username, value)
+                                || contains_ignore_case(&event.account.display_name, value)
+                        })
+                    })
+                    .filter(|event| {
+                        query.payload_query.as_ref().is_none_or(|value| {
+                            contains_ignore_case(&event.payload.to_string(), value)
+                        })
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
             items.truncate(query.limit as usize);
             Ok(items)
         }

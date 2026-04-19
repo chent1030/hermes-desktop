@@ -1,20 +1,16 @@
 use axum::{
-    body::Body,
-    extract::State,
-    http::Request,
-    middleware,
-    response::IntoResponse,
+    Json, Router, body::Body, extract::State, http::Request, middleware, response::IntoResponse,
     routing::get,
-    Json, Router,
 };
 use serde::Serialize;
 
 use crate::{
+    SERVICE_NAME, admin,
     bootstrap::app_state::AppState,
+    desktop, iam,
     infrastructure::db::readiness_check,
     infrastructure::http::request_id_middleware,
     kernel::{error::ApiError, ids::RequestId},
-    SERVICE_NAME,
 };
 
 #[derive(Debug, Serialize)]
@@ -27,6 +23,9 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/api/health", get(health))
         .route("/api/ready", get(readiness))
+        .nest("/api/auth", iam::api::routes())
+        .nest("/api/admin", admin::api::routes())
+        .nest("/api/desktop", desktop::api::routes())
         .fallback(fallback)
         .layer(middleware::from_fn(request_id_middleware))
         .with_state(state)

@@ -52,9 +52,9 @@ pub enum AuditError {
 impl Display for AuditError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidRequest(message)
-            | Self::Forbidden(message)
-            | Self::Store(message) => write!(f, "{message}"),
+            Self::InvalidRequest(message) | Self::Forbidden(message) | Self::Store(message) => {
+                write!(f, "{message}")
+            }
         }
     }
 }

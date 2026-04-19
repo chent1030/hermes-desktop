@@ -20,6 +20,12 @@
 
 ## 当前已落地能力
 
+- 后端已补第一条重构迁移切片：
+  - `axum + tokio + sqlx` async 服务骨架
+  - `/api/health` 与 `/api/ready` 双健康端点
+  - request id 中间件与统一 not-found 错误信封
+  - `iam` 共享核心的最小抽离
+  - `admin control plane` / `desktop delivery plane` 路由边界
 - 后端已支持 `GET /api/health`
 - 后端已支持 `POST /api/auth/login`
 - 后端已支持 `POST /api/auth/refresh`
@@ -57,6 +63,50 @@ ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME=Platform Root
 - `ADMIN_BOOTSTRAP_SUPER_USERNAME` / `ADMIN_BOOTSTRAP_SUPER_PASSWORD`：用于首次启动自动播种平台超级管理员
 - `ADMIN_BOOTSTRAP_SUPER_DISPLAY_NAME`：可选，不传时默认回落到用户名
 - 如果数据库中已经存在激活状态的 `super_admin`，服务不会重复播种
+
+## 当前后端路由归属
+
+第一条重构迁移切片已经把新服务的路由入口按 plane 拆开：
+
+- `/api/health`、`/api/ready`
+  - 顶层服务健康与就绪探针
+- `/api/auth/*`
+  - 共享 `iam` 认证入口
+  - 当前已接入：`POST /api/auth/login`、`POST /api/auth/refresh`
+- `/api/admin/*`
+  - `admin control plane`
+  - 当前已接入：`GET /api/admin/me`
+- `/api/desktop/*`
+  - `desktop delivery plane`
+  - 当前已补最小 shell：`GET /api/desktop/bootstrap`
+
+当前代码仍同时保留旧阶段的平铺模块实现与新的 async 骨架。后续迁移以新 router 为主，新功能不再继续堆到旧的手写 HTTP 入口里。
+
+## 本地运行
+
+后端重构切片的常用命令如下：
+
+```bash
+cd platform-admin/backend
+cargo test --test http_health --test http_error_envelope --test iam_auth_flow --test router_planes
+cargo fmt --check
+cargo clippy --all-targets --all-features
+cargo test
+```
+
+如果需要让 readiness 和 IAM 集成测试连接真实数据库，请显式提供：
+
+```bash
+ADMIN_DATABASE_URL=postgres://postgres:password@host:5432/manager_admin cargo test --test http_health
+```
+
+## 后端重构迁移顺序
+
+1. Phase 1 foundation + IAM extraction
+2. Admin control plane domain migration
+3. Desktop delivery plane migration
+4. Audit event log + session projection rebuild
+5. Policy expansion + ops workers
 
 ## 登录接口约定
 

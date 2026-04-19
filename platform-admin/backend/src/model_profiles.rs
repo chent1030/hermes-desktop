@@ -72,7 +72,8 @@ impl From<postgres::Error> for ModelProfileStoreError {
 }
 
 pub trait ModelProfileStore {
-    fn find_tenant(&mut self, tenant_id: i64) -> Result<Option<AuthTenant>, ModelProfileStoreError>;
+    fn find_tenant(&mut self, tenant_id: i64)
+    -> Result<Option<AuthTenant>, ModelProfileStoreError>;
     fn list_model_profiles(
         &mut self,
         tenant_id: Option<i64>,
@@ -112,7 +113,10 @@ impl PgModelProfileStore {
 }
 
 impl ModelProfileStore for PgModelProfileStore {
-    fn find_tenant(&mut self, tenant_id: i64) -> Result<Option<AuthTenant>, ModelProfileStoreError> {
+    fn find_tenant(
+        &mut self,
+        tenant_id: i64,
+    ) -> Result<Option<AuthTenant>, ModelProfileStoreError> {
         let mut client = self.connect()?;
         let row = client.query_opt(
             "
@@ -223,7 +227,15 @@ impl ModelProfileStore for PgModelProfileStore {
             VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
             RETURNING id, tenant_id, provider, model, label, base_url, is_default, is_active
             ",
-            &[&id, &tenant_id, &provider, &model, &label, &base_url, &is_default],
+            &[
+                &id,
+                &tenant_id,
+                &provider,
+                &model,
+                &label,
+                &base_url,
+                &is_default,
+            ],
         )?;
 
         let tenant = tenant_id
@@ -304,7 +316,9 @@ pub fn list_model_profiles_for_actor<S: ModelProfileStore>(
                     .map_err(|error| ModelProfileError::Store(error.to_string()))?
                     .ok_or(ModelProfileError::NotFound("tenant not found".to_string()))?;
                 if !tenant.is_active {
-                    return Err(ModelProfileError::Conflict("tenant is inactive".to_string()));
+                    return Err(ModelProfileError::Conflict(
+                        "tenant is inactive".to_string(),
+                    ));
                 }
             }
             store
@@ -313,9 +327,7 @@ pub fn list_model_profiles_for_actor<S: ModelProfileStore>(
         }
         "tenant_admin" => {
             let tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
-                ModelProfileError::Forbidden(
-                    "tenant admin must belong to a tenant".to_string(),
-                ),
+                ModelProfileError::Forbidden("tenant admin must belong to a tenant".to_string()),
             )?;
             store
                 .list_model_profiles(Some(tenant_id))
@@ -342,7 +354,9 @@ pub fn create_model_profile_for_actor<S: ModelProfileStore>(
                     .map_err(|error| ModelProfileError::Store(error.to_string()))?
                     .ok_or(ModelProfileError::NotFound("tenant not found".to_string()))?;
                 if !tenant.is_active {
-                    return Err(ModelProfileError::Conflict("tenant is inactive".to_string()));
+                    return Err(ModelProfileError::Conflict(
+                        "tenant is inactive".to_string(),
+                    ));
                 }
             }
 
@@ -360,20 +374,18 @@ pub fn create_model_profile_for_actor<S: ModelProfileStore>(
         }
         "tenant_admin" => {
             let actor_tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
-                ModelProfileError::Forbidden(
-                    "tenant admin must belong to a tenant".to_string(),
-                ),
+                ModelProfileError::Forbidden("tenant admin must belong to a tenant".to_string()),
             )?;
             match input.tenant_id {
                 None => {
                     return Err(ModelProfileError::Forbidden(
                         "tenant admin cannot manage global model profiles".to_string(),
-                    ))
+                    ));
                 }
                 Some(tenant_id) if tenant_id != actor_tenant_id => {
                     return Err(ModelProfileError::Forbidden(
                         "tenant admin can only manage own tenant model profiles".to_string(),
-                    ))
+                    ));
                 }
                 _ => {}
             }
@@ -404,7 +416,9 @@ pub fn deactivate_model_profile_for_actor<S: ModelProfileStore>(
     let record = store
         .find_model_profile(model_id)
         .map_err(|error| ModelProfileError::Store(error.to_string()))?
-        .ok_or(ModelProfileError::NotFound("model profile not found".to_string()))?;
+        .ok_or(ModelProfileError::NotFound(
+            "model profile not found".to_string(),
+        ))?;
 
     match actor.user.role_code.as_str() {
         "super_admin" => store
@@ -412,9 +426,7 @@ pub fn deactivate_model_profile_for_actor<S: ModelProfileStore>(
             .map_err(|error| ModelProfileError::Store(error.to_string())),
         "tenant_admin" => {
             let actor_tenant_id = actor.tenant.as_ref().map(|tenant| tenant.id).ok_or(
-                ModelProfileError::Forbidden(
-                    "tenant admin must belong to a tenant".to_string(),
-                ),
+                ModelProfileError::Forbidden("tenant admin must belong to a tenant".to_string()),
             )?;
             if record.tenant.as_ref().map(|tenant| tenant.id) != Some(actor_tenant_id) {
                 return Err(ModelProfileError::Forbidden(
@@ -438,10 +450,14 @@ fn validate_model_profile_input(input: &CreateModelProfileInput) -> Result<(), M
         ));
     }
     if input.model.trim().is_empty() {
-        return Err(ModelProfileError::InvalidRequest("model is required".to_string()));
+        return Err(ModelProfileError::InvalidRequest(
+            "model is required".to_string(),
+        ));
     }
     if input.label.trim().is_empty() {
-        return Err(ModelProfileError::InvalidRequest("label is required".to_string()));
+        return Err(ModelProfileError::InvalidRequest(
+            "label is required".to_string(),
+        ));
     }
     Ok(())
 }
@@ -730,8 +746,16 @@ mod tests {
         let tenant_items = list_model_profiles_for_actor(&mut store, &tenant_admin, None)
             .expect("tenant admin should list tenant models");
 
-        assert!(global_items.iter().any(|item| item.id == global.id && item.is_active));
-        assert!(tenant_items.iter().any(|item| item.id == tenant.id && item.is_active));
+        assert!(
+            global_items
+                .iter()
+                .any(|item| item.id == global.id && item.is_active)
+        );
+        assert!(
+            tenant_items
+                .iter()
+                .any(|item| item.id == tenant.id && item.is_active)
+        );
 
         deactivate_model_profile_for_actor(&mut store, &tenant_admin, &tenant.id)
             .expect("tenant model should be deactivated");

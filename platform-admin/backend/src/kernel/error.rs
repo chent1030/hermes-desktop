@@ -1,7 +1,7 @@
 use axum::{
-    http::{header::HeaderName, HeaderValue, StatusCode},
-    response::{IntoResponse, Response},
     Json,
+    http::{HeaderValue, StatusCode, header::HeaderName},
+    response::{IntoResponse, Response},
 };
 use serde::Serialize;
 
@@ -32,6 +32,54 @@ impl ApiError {
                 code,
                 message: "Route not found".to_string(),
                 request_id: request_id.into_string(),
+                retryable: false,
+            },
+        }
+    }
+
+    pub fn missing_authorization() -> Self {
+        Self {
+            status: StatusCode::UNAUTHORIZED,
+            envelope: ErrorEnvelope {
+                code: "missing_authorization",
+                message: "authorization header is required".to_string(),
+                request_id: RequestId::new().into_string(),
+                retryable: false,
+            },
+        }
+    }
+
+    pub fn from_auth_error(error: crate::auth::AuthError) -> Self {
+        let (status, code, message) = match error {
+            crate::auth::AuthError::InvalidRequest(message) => {
+                (StatusCode::BAD_REQUEST, "invalid_request", message)
+            }
+            crate::auth::AuthError::InvalidCredentials => (
+                StatusCode::UNAUTHORIZED,
+                "invalid_credentials",
+                crate::auth::invalid_credentials_message().to_string(),
+            ),
+            crate::auth::AuthError::InvalidRefreshToken => (
+                StatusCode::UNAUTHORIZED,
+                "invalid_refresh_token",
+                crate::auth::invalid_refresh_token_message().to_string(),
+            ),
+            crate::auth::AuthError::InvalidAccessToken => (
+                StatusCode::UNAUTHORIZED,
+                "invalid_access_token",
+                crate::auth::invalid_access_token_message().to_string(),
+            ),
+            crate::auth::AuthError::Store(message) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "store_error", message)
+            }
+        };
+
+        Self {
+            status,
+            envelope: ErrorEnvelope {
+                code,
+                message,
+                request_id: RequestId::new().into_string(),
                 retryable: false,
             },
         }
