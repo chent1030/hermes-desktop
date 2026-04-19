@@ -8,11 +8,12 @@ use serde::Deserialize;
 
 use crate::{
     admin::{
-        application::{accounts, model_profiles, tenants},
+        application::{accounts, model_profiles, skill_catalog, tenants},
         domain::{
             account::{AdminAccountRecord, CreateAccountCommand},
             actor::AdminActor,
             model_profile::{CreateModelProfileCommand, ModelProfileRecord},
+            skill_catalog::{CreateSkillCatalogCommand, SkillCatalogRecord},
             tenant::{CreateTenantCommand, TenantRecord},
         },
     },
@@ -31,6 +32,12 @@ struct AccountsQuery {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModelProfilesQuery {
+    tenant_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SkillCatalogQuery {
     tenant_id: Option<i64>,
 }
 
@@ -83,6 +90,23 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/tenant/model-profiles/{model_id}/deactivate",
             axum::routing::post(deactivate_self_tenant_model_profile_handler),
+        )
+        .route(
+            "/skills/catalog",
+            get(list_skill_catalog_handler).post(create_skill_catalog_handler),
+        )
+        .route(
+            "/skills/catalog/{skill_id}/deactivate",
+            axum::routing::post(deactivate_skill_catalog_handler),
+        )
+        .route(
+            "/tenant/skills/catalog",
+            get(list_self_tenant_skill_catalog_handler)
+                .post(create_self_tenant_skill_catalog_handler),
+        )
+        .route(
+            "/tenant/skills/catalog/{skill_id}/deactivate",
+            axum::routing::post(deactivate_self_tenant_skill_catalog_handler),
         )
 }
 
@@ -224,6 +248,57 @@ async fn create_self_tenant_model_profile_handler(
     Ok(Json(profile))
 }
 
+async fn list_skill_catalog_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<SkillCatalogQuery>,
+) -> Result<Json<Vec<SkillCatalogRecord>>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    let skills = skill_catalog::list_skill_catalog(&state, &actor, query.tenant_id)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(skills))
+}
+
+async fn create_skill_catalog_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateSkillCatalogCommand>,
+) -> Result<Json<SkillCatalogRecord>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    let skill = skill_catalog::create_skill_catalog_item(&state, &actor, payload)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(skill))
+}
+
+async fn list_self_tenant_skill_catalog_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<SkillCatalogRecord>>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    let skills = skill_catalog::list_skill_catalog(&state, &actor, None)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(skills))
+}
+
+async fn create_self_tenant_skill_catalog_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateSkillCatalogCommand>,
+) -> Result<Json<SkillCatalogRecord>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    let skill = skill_catalog::create_skill_catalog_item(&state, &actor, payload)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(skill))
+}
+
 async fn deactivate_tenant_handler(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -284,6 +359,32 @@ async fn deactivate_self_tenant_model_profile_handler(
     let context = authenticate_request(&state, &headers).await?;
     let actor = AdminActor::from_context(&context);
     model_profiles::deactivate_model_profile(&state, &actor, &model_id)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(ActionStatus { status: "ok" }))
+}
+
+async fn deactivate_skill_catalog_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(skill_id): Path<String>,
+) -> Result<Json<ActionStatus>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    skill_catalog::deactivate_skill_catalog_item(&state, &actor, &skill_id)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(ActionStatus { status: "ok" }))
+}
+
+async fn deactivate_self_tenant_skill_catalog_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(skill_id): Path<String>,
+) -> Result<Json<ActionStatus>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    skill_catalog::deactivate_skill_catalog_item(&state, &actor, &skill_id)
         .await
         .map_err(ApiError::from_admin_error)?;
     Ok(Json(ActionStatus { status: "ok" }))

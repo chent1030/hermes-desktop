@@ -5,6 +5,7 @@ use crate::{
         account::{AdminAccountRecord, CreateAccountCommand},
         error::AdminError,
         model_profile::{CreateModelProfileCommand, ModelProfileRecord},
+        skill_catalog::{CreateSkillCatalogCommand, SkillCatalogRecord},
         tenant::{CreateTenantCommand, TenantRecord},
     },
     auth::{AuthTenant, hash_password},
@@ -415,6 +416,168 @@ impl AdminRepository {
         Ok(())
     }
 
+    pub async fn list_skill_catalog(
+        &self,
+        tenant_id: Option<i64>,
+    ) -> Result<Vec<SkillCatalogRecord>, AdminError> {
+        let rows = if let Some(tenant_id) = tenant_id {
+            sqlx::query(
+                r#"
+                SELECT
+                    s.id,
+                    s.tenant_id,
+                    t.code AS tenant_code,
+                    t.name AS tenant_name,
+                    t.is_active AS tenant_is_active,
+                    s.name,
+                    s.version,
+                    s.description,
+                    s.download_url,
+                    s.is_active
+                FROM platform_desktop_skill_catalog s
+                LEFT JOIN platform_admin_tenants t ON t.id = s.tenant_id
+                WHERE s.tenant_id = $1
+                ORDER BY s.is_active DESC, s.name ASC, s.version DESC, s.id ASC
+                "#,
+            )
+            .bind(tenant_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_sqlx_error)?
+        } else {
+            sqlx::query(
+                r#"
+                SELECT
+                    s.id,
+                    s.tenant_id,
+                    t.code AS tenant_code,
+                    t.name AS tenant_name,
+                    t.is_active AS tenant_is_active,
+                    s.name,
+                    s.version,
+                    s.description,
+                    s.download_url,
+                    s.is_active
+                FROM platform_desktop_skill_catalog s
+                LEFT JOIN platform_admin_tenants t ON t.id = s.tenant_id
+                WHERE s.tenant_id IS NULL
+                ORDER BY s.is_active DESC, s.name ASC, s.version DESC, s.id ASC
+                "#,
+            )
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_sqlx_error)?
+        };
+
+        Ok(rows.into_iter().map(row_to_skill_catalog).collect())
+    }
+
+    pub async fn create_skill_catalog_item(
+        &self,
+        id: String,
+        input: CreateSkillCatalogCommand,
+    ) -> Result<SkillCatalogRecord, AdminError> {
+        let scope = if input.tenant_id.is_some() {
+            "tenant"
+        } else {
+            "global"
+        };
+        let row = sqlx::query(
+            r#"
+            INSERT INTO platform_desktop_skill_catalog (
+                id,
+                scope,
+                tenant_id,
+                name,
+                version,
+                description,
+                download_url,
+                is_active
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
+            RETURNING id, tenant_id, name, version, description, download_url, is_active
+            "#,
+        )
+        .bind(&id)
+        .bind(scope)
+        .bind(input.tenant_id)
+        .bind(input.normalized_name())
+        .bind(input.normalized_version())
+        .bind(input.normalized_description())
+        .bind(input.normalized_download_url())
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_sqlx_write_error)?;
+
+        let tenant = if let Some(tenant_id) = input.tenant_id {
+            self.find_tenant(tenant_id).await?.map(|tenant| AuthTenant {
+                id: tenant.id,
+                code: tenant.code,
+                name: tenant.name,
+                is_active: tenant.is_active,
+            })
+        } else {
+            None
+        };
+
+        Ok(SkillCatalogRecord {
+            id: row.get("id"),
+            scope_type: scope.to_string(),
+            tenant,
+            name: row.get("name"),
+            version: row.get("version"),
+            description: row.get("description"),
+            download_url: row.get("download_url"),
+            is_active: row.get("is_active"),
+        })
+    }
+
+    pub async fn find_skill_catalog_item(
+        &self,
+        skill_id: &str,
+    ) -> Result<Option<SkillCatalogRecord>, AdminError> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+                s.id,
+                s.tenant_id,
+                t.code AS tenant_code,
+                t.name AS tenant_name,
+                t.is_active AS tenant_is_active,
+                s.name,
+                s.version,
+                s.description,
+                s.download_url,
+                s.is_active
+            FROM platform_desktop_skill_catalog s
+            LEFT JOIN platform_admin_tenants t ON t.id = s.tenant_id
+            WHERE s.id = $1
+            "#,
+        )
+        .bind(skill_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        Ok(row.map(row_to_skill_catalog))
+    }
+
+    pub async fn deactivate_skill_catalog_item(&self, skill_id: &str) -> Result<(), AdminError> {
+        sqlx::query(
+            r#"
+            UPDATE platform_desktop_skill_catalog
+            SET is_active = FALSE,
+                updated_at = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(skill_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_sqlx_error)?;
+        Ok(())
+    }
+
     pub async fn count_active_platform_super_admin(&self) -> Result<i64, AdminError> {
         let row = sqlx::query(
             r#"
@@ -508,6 +671,37 @@ fn row_to_model_profile(row: sqlx::postgres::PgRow) -> ModelProfileRecord {
         label: row.get("label"),
         base_url: row.get("base_url"),
         is_default: row.get("is_default"),
+        is_active: row.get("is_active"),
+    }
+}
+
+fn row_to_skill_catalog(row: sqlx::postgres::PgRow) -> SkillCatalogRecord {
+    let tenant_id: Option<i64> = row.get("tenant_id");
+    let tenant = tenant_id.map(|id| AuthTenant {
+        id,
+        code: row
+            .get::<Option<String>, _>("tenant_code")
+            .unwrap_or_default(),
+        name: row
+            .get::<Option<String>, _>("tenant_name")
+            .unwrap_or_default(),
+        is_active: row
+            .get::<Option<bool>, _>("tenant_is_active")
+            .unwrap_or(false),
+    });
+
+    SkillCatalogRecord {
+        id: row.get("id"),
+        scope_type: if tenant_id.is_some() {
+            "tenant".to_string()
+        } else {
+            "global".to_string()
+        },
+        tenant,
+        name: row.get("name"),
+        version: row.get("version"),
+        description: row.get("description"),
+        download_url: row.get("download_url"),
         is_active: row.get("is_active"),
     }
 }
