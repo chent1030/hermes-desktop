@@ -57,7 +57,9 @@ import {
   getConfigValue,
   setConfigValue,
   getHermesHome,
+  getPlatformEnabled,
   getModelConfig,
+  setPlatformEnabled,
   setModelConfig,
   getCredentialPool,
   setCredentialPool,
@@ -299,6 +301,25 @@ function setupIPC(): void {
 
   ipcMain.handle("get-model-config", (_event, profile?: string) =>
     getModelConfig(profile),
+  );
+
+  ipcMain.handle("start-gateway", (_event, profile?: string) =>
+    startGateway(profile),
+  );
+  ipcMain.handle("stop-gateway", () => {
+    stopGateway();
+    return true;
+  });
+  ipcMain.handle("gateway-status", () => isGatewayRunning());
+  ipcMain.handle("get-platform-enabled", (_event, profile?: string) =>
+    getPlatformEnabled(profile),
+  );
+  ipcMain.handle(
+    "set-platform-enabled",
+    (_event, platform: string, enabled: boolean, profile?: string) => {
+      setPlatformEnabled(platform, enabled, profile);
+      return true;
+    },
   );
 
   ipcMain.handle(

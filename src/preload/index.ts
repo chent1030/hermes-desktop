@@ -106,6 +106,23 @@ const hermesAPI = {
   ): Promise<{ provider: string; model: string; baseUrl: string }> =>
     ipcRenderer.invoke("get-model-config", profile),
 
+  startGateway: (profile?: string): Promise<boolean> =>
+    ipcRenderer.invoke("start-gateway", profile),
+
+  stopGateway: (): Promise<boolean> => ipcRenderer.invoke("stop-gateway"),
+
+  gatewayStatus: (): Promise<boolean> => ipcRenderer.invoke("gateway-status"),
+
+  getPlatformEnabled: (profile?: string): Promise<Record<string, boolean>> =>
+    ipcRenderer.invoke("get-platform-enabled", profile),
+
+  setPlatformEnabled: (
+    platform: string,
+    enabled: boolean,
+    profile?: string,
+  ): Promise<boolean> =>
+    ipcRenderer.invoke("set-platform-enabled", platform, enabled, profile),
+
   setModelConfig: (
     provider: string,
     model: string,

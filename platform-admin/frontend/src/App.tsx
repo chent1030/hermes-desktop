@@ -477,6 +477,26 @@ export default function App(): React.JSX.Element {
     return "platform-admin-status";
   }, [healthStatus]);
 
+  const healthLabel = useMemo(() => {
+    if (healthStatus === "online") {
+      return copy.health.online;
+    }
+    if (healthStatus === "offline") {
+      return copy.health.offline;
+    }
+    return copy.health.checking;
+  }, [copy.health.checking, copy.health.offline, copy.health.online, healthStatus]);
+
+  const healthDetail = useMemo(() => {
+    if (healthStatus === "online") {
+      return healthService ?? null;
+    }
+    if (healthStatus === "offline") {
+      return healthError ?? null;
+    }
+    return null;
+  }, [healthError, healthService, healthStatus]);
+
   const workspaceTitle = useMemo(() => {
     if (!session) {
       return null;
@@ -1810,6 +1830,12 @@ export default function App(): React.JSX.Element {
 
         <section className="platform-admin-login-shell">
           <div className="platform-admin-login-topbar">
+            <div className={healthClassName}>
+              <span>{healthLabel}</span>
+              {healthDetail ? (
+                <small className="platform-admin-status-detail">{healthDetail}</small>
+              ) : null}
+            </div>
             <div
               className="inline-flex rounded-full border border-slate-200 bg-white/85 p-1 shadow-sm"
               aria-label={copy.localeLabel}
@@ -1879,6 +1905,14 @@ export default function App(): React.JSX.Element {
                     <span />
                     <span />
                   </div>
+                </div>
+
+                <div className="platform-admin-panel-header">
+                  <div>
+                    <p className="platform-admin-section-label">{copy.login.section}</p>
+                    <h2>{copy.login.title}</h2>
+                  </div>
+                  <p className="platform-admin-panel-note">{copy.login.note}</p>
                 </div>
 
                 <form className="platform-admin-form" onSubmit={handleSubmit}>
@@ -1986,6 +2020,12 @@ export default function App(): React.JSX.Element {
           </div>
         </div>
         <div className="platform-admin-console-actions">
+          <div className={healthClassName}>
+            <span>{healthLabel}</span>
+            {healthDetail ? (
+              <small className="platform-admin-status-detail">{healthDetail}</small>
+            ) : null}
+          </div>
           <div
             className="platform-admin-console-locale"
             aria-label={copy.localeLabel}

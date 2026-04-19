@@ -63,6 +63,15 @@ interface HermesAPI {
   getModelConfig: (
     profile?: string,
   ) => Promise<{ provider: string; model: string; baseUrl: string }>;
+  startGateway: (profile?: string) => Promise<boolean>;
+  stopGateway: () => Promise<boolean>;
+  gatewayStatus: () => Promise<boolean>;
+  getPlatformEnabled: (profile?: string) => Promise<Record<string, boolean>>;
+  setPlatformEnabled: (
+    platform: string,
+    enabled: boolean,
+    profile?: string,
+  ) => Promise<boolean>;
   setModelConfig: (
     provider: string,
     model: string,
