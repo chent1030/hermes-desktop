@@ -6,6 +6,8 @@ use std::net::{TcpListener, TcpStream};
 use serde::Serialize;
 
 pub mod bootstrap;
+pub mod infrastructure;
+pub mod kernel;
 pub mod admin;
 pub mod audit;
 pub mod audit_center;
