@@ -11,6 +11,7 @@ use serde::Serialize;
 
 use crate::{
     bootstrap::app_state::AppState,
+    infrastructure::db::readiness_check,
     infrastructure::http::request_id_middleware,
     kernel::{error::ApiError, ids::RequestId},
     SERVICE_NAME,
@@ -38,11 +39,25 @@ async fn health(State(_state): State<AppState>) -> Json<StatusPayload<'static>> 
     })
 }
 
-async fn readiness(State(_state): State<AppState>) -> Json<StatusPayload<'static>> {
+async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
+    if let Some(pool) = state.pool.as_ref() {
+        if readiness_check(pool).await.is_err() {
+            return (
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                Json(StatusPayload {
+                    status: "degraded",
+                    service: SERVICE_NAME,
+                }),
+            )
+                .into_response();
+        }
+    }
+
     Json(StatusPayload {
         status: "ok",
         service: SERVICE_NAME,
     })
+    .into_response()
 }
 
 async fn fallback(request: Request<Body>) -> impl IntoResponse {

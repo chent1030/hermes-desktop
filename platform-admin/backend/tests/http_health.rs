@@ -36,3 +36,18 @@ async fn health_and_readiness_routes_return_json() {
     let ready_json: Value = serde_json::from_slice(&ready_body).unwrap();
     assert_eq!(ready_json["status"], "ok");
 }
+
+#[tokio::test]
+async fn readiness_route_checks_database_connectivity() {
+    let mut config = AppConfig::for_tests();
+    config.database_url = std::env::var("ADMIN_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/manager_admin".to_string());
+    let state = AppState::with_pool(config).await.expect("test pool");
+    let app = build_router(state);
+
+    let ready = app
+        .oneshot(Request::builder().uri("/api/ready").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(ready.status(), StatusCode::OK);
+}
