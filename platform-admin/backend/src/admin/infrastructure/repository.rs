@@ -4,6 +4,7 @@ use crate::{
     admin::domain::{
         account::{AdminAccountRecord, CreateAccountCommand},
         error::AdminError,
+        model_profile::{CreateModelProfileCommand, ModelProfileRecord},
         tenant::{CreateTenantCommand, TenantRecord},
     },
     auth::{AuthTenant, hash_password},
@@ -229,6 +230,191 @@ impl AdminRepository {
         Ok(())
     }
 
+    pub async fn list_model_profiles(
+        &self,
+        tenant_id: Option<i64>,
+    ) -> Result<Vec<ModelProfileRecord>, AdminError> {
+        let rows = if let Some(tenant_id) = tenant_id {
+            sqlx::query(
+                r#"
+                SELECT
+                    m.id,
+                    m.tenant_id,
+                    t.code AS tenant_code,
+                    t.name AS tenant_name,
+                    t.is_active AS tenant_is_active,
+                    m.provider,
+                    m.model,
+                    m.label,
+                    m.base_url,
+                    m.is_default,
+                    m.is_active
+                FROM platform_desktop_model_profiles m
+                LEFT JOIN platform_admin_tenants t ON t.id = m.tenant_id
+                WHERE m.tenant_id = $1
+                ORDER BY m.is_default DESC, m.id ASC
+                "#,
+            )
+            .bind(tenant_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_sqlx_error)?
+        } else {
+            sqlx::query(
+                r#"
+                SELECT
+                    m.id,
+                    m.tenant_id,
+                    t.code AS tenant_code,
+                    t.name AS tenant_name,
+                    t.is_active AS tenant_is_active,
+                    m.provider,
+                    m.model,
+                    m.label,
+                    m.base_url,
+                    m.is_default,
+                    m.is_active
+                FROM platform_desktop_model_profiles m
+                LEFT JOIN platform_admin_tenants t ON t.id = m.tenant_id
+                WHERE m.tenant_id IS NULL
+                ORDER BY m.is_default DESC, m.id ASC
+                "#,
+            )
+            .fetch_all(&self.pool)
+            .await
+            .map_err(map_sqlx_error)?
+        };
+
+        Ok(rows.into_iter().map(row_to_model_profile).collect())
+    }
+
+    pub async fn create_model_profile(
+        &self,
+        id: String,
+        input: CreateModelProfileCommand,
+    ) -> Result<ModelProfileRecord, AdminError> {
+        let mut tx = self.pool.begin().await.map_err(map_sqlx_error)?;
+
+        if input.is_default {
+            sqlx::query(
+                r#"
+                UPDATE platform_desktop_model_profiles
+                SET is_default = FALSE,
+                    updated_at = NOW()
+                WHERE (($1::bigint IS NULL AND tenant_id IS NULL) OR tenant_id = $1)
+                  AND is_active = TRUE
+                "#,
+            )
+            .bind(input.tenant_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(map_sqlx_error)?;
+        }
+
+        let row = sqlx::query(
+            r#"
+            INSERT INTO platform_desktop_model_profiles (
+                id,
+                tenant_id,
+                provider,
+                model,
+                label,
+                base_url,
+                is_default,
+                is_active
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
+            RETURNING id, tenant_id, provider, model, label, base_url, is_default, is_active
+            "#,
+        )
+        .bind(&id)
+        .bind(input.tenant_id)
+        .bind(input.normalized_provider())
+        .bind(input.normalized_model())
+        .bind(input.normalized_label())
+        .bind(input.normalized_base_url())
+        .bind(input.is_default)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(map_sqlx_write_error)?;
+
+        tx.commit().await.map_err(map_sqlx_error)?;
+
+        let tenant = if let Some(tenant_id) = input.tenant_id {
+            self.find_tenant(tenant_id).await?.map(|tenant| AuthTenant {
+                id: tenant.id,
+                code: tenant.code,
+                name: tenant.name,
+                is_active: tenant.is_active,
+            })
+        } else {
+            None
+        };
+
+        Ok(ModelProfileRecord {
+            id: row.get("id"),
+            scope_type: if input.tenant_id.is_some() {
+                "tenant".to_string()
+            } else {
+                "global".to_string()
+            },
+            tenant,
+            provider: row.get("provider"),
+            model: row.get("model"),
+            label: row.get("label"),
+            base_url: row.get("base_url"),
+            is_default: row.get("is_default"),
+            is_active: row.get("is_active"),
+        })
+    }
+
+    pub async fn find_model_profile(
+        &self,
+        model_id: &str,
+    ) -> Result<Option<ModelProfileRecord>, AdminError> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+                m.id,
+                m.tenant_id,
+                t.code AS tenant_code,
+                t.name AS tenant_name,
+                t.is_active AS tenant_is_active,
+                m.provider,
+                m.model,
+                m.label,
+                m.base_url,
+                m.is_default,
+                m.is_active
+            FROM platform_desktop_model_profiles m
+            LEFT JOIN platform_admin_tenants t ON t.id = m.tenant_id
+            WHERE m.id = $1
+            "#,
+        )
+        .bind(model_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        Ok(row.map(row_to_model_profile))
+    }
+
+    pub async fn deactivate_model_profile(&self, model_id: &str) -> Result<(), AdminError> {
+        sqlx::query(
+            r#"
+            UPDATE platform_desktop_model_profiles
+            SET is_active = FALSE,
+                updated_at = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(model_id)
+        .execute(&self.pool)
+        .await
+        .map_err(map_sqlx_error)?;
+        Ok(())
+    }
+
     pub async fn count_active_platform_super_admin(&self) -> Result<i64, AdminError> {
         let row = sqlx::query(
             r#"
@@ -291,5 +477,37 @@ fn row_to_account(row: sqlx::postgres::PgRow) -> AdminAccountRecord {
         display_name: row.get("display_name"),
         role_code: row.get("role_code"),
         is_active: row.get("account_is_active"),
+    }
+}
+
+fn row_to_model_profile(row: sqlx::postgres::PgRow) -> ModelProfileRecord {
+    let tenant_id: Option<i64> = row.get("tenant_id");
+    let tenant = tenant_id.map(|id| AuthTenant {
+        id,
+        code: row
+            .get::<Option<String>, _>("tenant_code")
+            .unwrap_or_default(),
+        name: row
+            .get::<Option<String>, _>("tenant_name")
+            .unwrap_or_default(),
+        is_active: row
+            .get::<Option<bool>, _>("tenant_is_active")
+            .unwrap_or(false),
+    });
+
+    ModelProfileRecord {
+        id: row.get("id"),
+        scope_type: if tenant_id.is_some() {
+            "tenant".to_string()
+        } else {
+            "global".to_string()
+        },
+        tenant,
+        provider: row.get("provider"),
+        model: row.get("model"),
+        label: row.get("label"),
+        base_url: row.get("base_url"),
+        is_default: row.get("is_default"),
+        is_active: row.get("is_active"),
     }
 }

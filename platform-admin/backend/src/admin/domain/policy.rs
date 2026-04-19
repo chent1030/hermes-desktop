@@ -46,16 +46,12 @@ impl DefaultAdminPolicy {
                 | AdminPermission::SkillCatalogCreateTenant
                 | AdminPermission::SkillCatalogDeactivate,
             ) => Ok(()),
-            ("tenant_admin", AdminPermission::ModelProfileCreateGlobal) => {
-                Err(AdminError::forbidden(
-                    "actor is not allowed to manage global model profiles",
-                ))
-            }
-            ("tenant_admin", AdminPermission::SkillCatalogCreateGlobal) => {
-                Err(AdminError::forbidden(
-                    "actor is not allowed to manage global skill catalog",
-                ))
-            }
+            ("tenant_admin", AdminPermission::ModelProfileCreateGlobal) => Err(
+                AdminError::forbidden("actor is not allowed to manage global model profiles"),
+            ),
+            ("tenant_admin", AdminPermission::SkillCatalogCreateGlobal) => Err(
+                AdminError::forbidden("actor is not allowed to manage global skill catalog"),
+            ),
             ("tenant_admin", _) => Err(AdminError::forbidden(
                 "actor is not allowed to manage tenants",
             )),

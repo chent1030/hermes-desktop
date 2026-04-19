@@ -8,10 +8,11 @@ use serde::Deserialize;
 
 use crate::{
     admin::{
-        application::{accounts, tenants},
+        application::{accounts, model_profiles, tenants},
         domain::{
             account::{AdminAccountRecord, CreateAccountCommand},
             actor::AdminActor,
+            model_profile::{CreateModelProfileCommand, ModelProfileRecord},
             tenant::{CreateTenantCommand, TenantRecord},
         },
     },
@@ -24,6 +25,12 @@ use crate::{
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AccountsQuery {
+    tenant_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ModelProfilesQuery {
     tenant_id: Option<i64>,
 }
 
@@ -59,6 +66,23 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/tenant/accounts/{account_id}/deactivate",
             axum::routing::post(deactivate_self_tenant_account_handler),
+        )
+        .route(
+            "/model-profiles",
+            get(list_model_profiles_handler).post(create_model_profile_handler),
+        )
+        .route(
+            "/model-profiles/{model_id}/deactivate",
+            axum::routing::post(deactivate_model_profile_handler),
+        )
+        .route(
+            "/tenant/model-profiles",
+            get(list_self_tenant_model_profiles_handler)
+                .post(create_self_tenant_model_profile_handler),
+        )
+        .route(
+            "/tenant/model-profiles/{model_id}/deactivate",
+            axum::routing::post(deactivate_self_tenant_model_profile_handler),
         )
 }
 
@@ -149,6 +173,57 @@ async fn create_self_tenant_account_handler(
     Ok(Json(account))
 }
 
+async fn list_model_profiles_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ModelProfilesQuery>,
+) -> Result<Json<Vec<ModelProfileRecord>>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    let profiles = model_profiles::list_model_profiles(&state, &actor, query.tenant_id)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(profiles))
+}
+
+async fn create_model_profile_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateModelProfileCommand>,
+) -> Result<Json<ModelProfileRecord>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    let profile = model_profiles::create_model_profile(&state, &actor, payload)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(profile))
+}
+
+async fn list_self_tenant_model_profiles_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<ModelProfileRecord>>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    let profiles = model_profiles::list_model_profiles(&state, &actor, None)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(profiles))
+}
+
+async fn create_self_tenant_model_profile_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<CreateModelProfileCommand>,
+) -> Result<Json<ModelProfileRecord>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    let profile = model_profiles::create_model_profile(&state, &actor, payload)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(profile))
+}
+
 async fn deactivate_tenant_handler(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -175,6 +250,19 @@ async fn deactivate_account_handler(
     Ok(Json(ActionStatus { status: "ok" }))
 }
 
+async fn deactivate_model_profile_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(model_id): Path<String>,
+) -> Result<Json<ActionStatus>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    model_profiles::deactivate_model_profile(&state, &actor, &model_id)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(ActionStatus { status: "ok" }))
+}
+
 async fn deactivate_self_tenant_account_handler(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -183,6 +271,19 @@ async fn deactivate_self_tenant_account_handler(
     let context = authenticate_request(&state, &headers).await?;
     let actor = AdminActor::from_context(&context);
     accounts::deactivate_account(&state, &actor, account_id)
+        .await
+        .map_err(ApiError::from_admin_error)?;
+    Ok(Json(ActionStatus { status: "ok" }))
+}
+
+async fn deactivate_self_tenant_model_profile_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(model_id): Path<String>,
+) -> Result<Json<ActionStatus>, ApiError> {
+    let context = authenticate_request(&state, &headers).await?;
+    let actor = AdminActor::from_context(&context);
+    model_profiles::deactivate_model_profile(&state, &actor, &model_id)
         .await
         .map_err(ApiError::from_admin_error)?;
     Ok(Json(ActionStatus { status: "ok" }))
