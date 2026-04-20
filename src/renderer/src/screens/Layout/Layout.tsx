@@ -10,6 +10,7 @@ import Tools from "../Tools/Tools";
 import Office from "../Office/Office";
 import Models from "../Models/Models";
 import Schedules from "../Schedules/Schedules";
+import WorkspaceInfo from "../WorkspaceInfo/WorkspaceInfo";
 import hermeslogo from "../../assets/hermes.png";
 import { useI18n } from "../../components/useI18n";
 import { usePlatform } from "../../platform/usePlatform";
@@ -26,6 +27,7 @@ import {
   Layers,
   Timer,
   Download,
+  Monitor,
 } from "../../assets/icons";
 import type { LucideIcon } from "lucide-react";
 
@@ -40,6 +42,7 @@ type View =
   | "memory"
   | "tools"
   | "schedules"
+  | "workspace-info"
   | "settings";
 
 const NAV_ITEMS: { view: View; icon: LucideIcon; labelKey: string }[] = [
@@ -53,6 +56,11 @@ const NAV_ITEMS: { view: View; icon: LucideIcon; labelKey: string }[] = [
   { view: "memory", icon: Brain, labelKey: "navigation.memory" },
   { view: "tools", icon: Wrench, labelKey: "navigation.tools" },
   { view: "schedules", icon: Timer, labelKey: "navigation.schedules" },
+  {
+    view: "workspace-info",
+    icon: Monitor,
+    labelKey: "navigation.workspaceInfo",
+  },
   { view: "settings", icon: SettingsIcon, labelKey: "navigation.settings" },
 ];
 
@@ -256,6 +264,7 @@ function Layout({
         {view === "memory" && <Memory profile={activeProfile} />}
         {view === "tools" && <Tools profile={activeProfile} />}
         {view === "schedules" && <Schedules profile={activeProfile} />}
+        {view === "workspace-info" && <WorkspaceInfo />}
         <div
           style={{
             display: view === "settings" ? "flex" : "none",

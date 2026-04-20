@@ -20,6 +20,7 @@ interface PlatformContextValue {
   initStatus?: WorkspaceInitStatus;
   sessionRecoveryReason?: string | null;
   login: (payload: LoginPayload) => Promise<void>;
+  refreshSession: () => Promise<void>;
   retryInitialization: () => Promise<void>;
   logout: () => Promise<void>;
   setSelectedModel: (modelId: string) => Promise<void>;
@@ -117,6 +118,16 @@ export function PlatformProvider({
     [resetToLogin],
   );
 
+  const refreshSession = useCallback(async (): Promise<void> => {
+    try {
+      await window.hermesAPI.refreshTenantSession();
+    } catch (error) {
+      const reason = (error as Error).message || "refresh token expired";
+      await startSessionRecovery(reason);
+      throw error;
+    }
+  }, [startSessionRecovery]);
+
   const setSelectedModel = useCallback(async (modelId: string): Promise<void> => {
     const nextWorkspace = await window.hermesAPI.selectWorkspaceModel(modelId);
     setWorkspace(nextWorkspace);
@@ -183,15 +194,13 @@ export function PlatformProvider({
     }
 
     const timer = window.setInterval(() => {
-      window.hermesAPI.refreshTenantSession().catch(() => {
-        void startSessionRecovery("refresh token expired");
-      });
+      void refreshSession();
     }, 5 * 60 * 1000);
 
     return () => {
       window.clearInterval(timer);
     };
-  }, [stage, startSessionRecovery]);
+  }, [stage, refreshSession]);
 
   const value = useMemo<PlatformContextValue>(
     () => ({
@@ -202,6 +211,7 @@ export function PlatformProvider({
       initStatus,
       sessionRecoveryReason,
       login,
+      refreshSession,
       retryInitialization: runInitialization,
       logout,
       setSelectedModel,
@@ -214,6 +224,7 @@ export function PlatformProvider({
       initStatus,
       sessionRecoveryReason,
       login,
+      refreshSession,
       runInitialization,
       logout,
       setSelectedModel,

@@ -5,7 +5,7 @@ import WorkspaceShell from "../screens/Workspace/WorkspaceShell";
 import { usePlatform } from "./usePlatform";
 
 export default function DesktopRoot(): React.JSX.Element {
-  const { stage, workspace, audit } = usePlatform();
+  const { stage, workspace } = usePlatform();
 
   if (stage === "login") {
     return <Login />;
@@ -23,5 +23,5 @@ export default function DesktopRoot(): React.JSX.Element {
     return <Initializing />;
   }
 
-  return <WorkspaceShell workspace={workspace} audit={audit} />;
+  return <WorkspaceShell workspace={workspace} />;
 }

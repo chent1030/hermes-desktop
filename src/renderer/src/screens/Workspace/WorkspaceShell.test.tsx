@@ -19,7 +19,7 @@ describe("WorkspaceShell", () => {
     setSharedLocale("en");
   });
 
-  it("shows labeled workspace metadata, audit status, and hides Gateway nav entry", () => {
+  it("removes the top audit banner and workspace meta strip", () => {
     render(
       <I18nProvider>
         <WorkspaceShell
@@ -41,32 +41,24 @@ describe("WorkspaceShell", () => {
             selectedModelId: "m1",
             skills: [],
           }}
-          audit={{
-            health: "degraded",
-            localHealth: "healthy",
-            remoteHealth: "degraded",
-            queuedEvents: 2,
-            droppedEvents: 0,
-            lastError: "审计上传失败",
-          }}
         />
       </I18nProvider>,
     );
 
-    expect(screen.getByText("租户")).toBeInTheDocument();
-    expect(screen.getByText("Acme")).toBeInTheDocument();
-    expect(screen.getByText("账号")).toBeInTheDocument();
-    expect(screen.getByText("Alice")).toBeInTheDocument();
-    expect(screen.getByText("当前模型")).toBeInTheDocument();
-    expect(screen.getByText("GPT-5.4")).toBeInTheDocument();
-    expect(screen.getByText("审计状态")).toBeInTheDocument();
-    expect(screen.getByText("已降级")).toBeInTheDocument();
-    expect(screen.getByText("审计告警")).toBeInTheDocument();
+    expect(screen.queryByText("租户")).not.toBeInTheDocument();
+    expect(screen.queryByText("Acme")).not.toBeInTheDocument();
+    expect(screen.queryByText("账号")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+    expect(screen.queryByText("当前模型")).not.toBeInTheDocument();
+    expect(screen.queryByText("GPT-5.4")).not.toBeInTheDocument();
+    expect(screen.queryByText("审计状态")).not.toBeInTheDocument();
+    expect(screen.queryByText("已降级")).not.toBeInTheDocument();
+    expect(screen.queryByText("审计告警")).not.toBeInTheDocument();
     expect(screen.getByText("Gateway hidden")).toBeInTheDocument();
     expect(screen.queryByText("Gateway")).not.toBeInTheDocument();
   });
 
-  it("shows a local model fallback label when the platform does not provide model profiles", () => {
+  it("still renders the layout when the platform does not provide model profiles", () => {
     render(
       <I18nProvider>
         <WorkspaceShell
@@ -79,13 +71,12 @@ describe("WorkspaceShell", () => {
             selectedModelId: "",
             skills: [],
           }}
-          audit={null}
         />
       </I18nProvider>,
     );
 
-    expect(screen.getByText("当前模型")).toBeInTheDocument();
-    expect(screen.getByText("本地模型配置")).toBeInTheDocument();
+    expect(screen.queryByText("当前模型")).not.toBeInTheDocument();
+    expect(screen.queryByText("本地模型配置")).not.toBeInTheDocument();
     expect(screen.getByText("Gateway hidden")).toBeInTheDocument();
   });
 });

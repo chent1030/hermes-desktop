@@ -6,7 +6,7 @@ import Initializing from "./Initializing/Initializing";
 import Login from "./Login/Login";
 import SessionRecovery from "./SessionRecovery/SessionRecovery";
 import Skills from "./Skills/Skills";
-import WorkspaceBanner from "./Workspace/WorkspaceBanner";
+import WorkspaceInfo from "./WorkspaceInfo/WorkspaceInfo";
 import { PlatformContext } from "../platform/PlatformProvider";
 
 describe("platform screen localization", () => {
@@ -28,6 +28,7 @@ describe("platform screen localization", () => {
             audit: null,
             initError: "初始化失败",
             login: vi.fn(),
+            refreshSession: vi.fn(),
             retryInitialization: vi.fn(),
             logout: vi.fn(),
             setSelectedModel: vi.fn(),
@@ -73,6 +74,7 @@ describe("platform screen localization", () => {
             audit: null,
             initError: "platform default model missing",
             login: vi.fn(),
+            refreshSession: vi.fn(),
             retryInitialization: vi.fn(),
             logout: vi.fn(),
             setSelectedModel: vi.fn(),
@@ -107,6 +109,7 @@ describe("platform screen localization", () => {
               lastError: null,
             },
             login: vi.fn(),
+            refreshSession: vi.fn(),
             retryInitialization: vi.fn(),
             logout: vi.fn(),
             setSelectedModel: vi.fn(),
@@ -124,7 +127,7 @@ describe("platform screen localization", () => {
     expect(screen.getByText("进行中")).toBeInTheDocument();
   });
 
-  it("renders localized skill statuses and audit banner copy in Chinese", () => {
+  it("renders localized skill statuses and workspace info copy in Chinese", () => {
     Object.defineProperty(window, "hermesAPI", {
       configurable: true,
       value: {
@@ -172,16 +175,36 @@ describe("platform screen localization", () => {
             ]}
             onDownloadSkill={vi.fn()}
           />
-          <WorkspaceBanner
-            audit={{
-              health: "degraded",
-              localHealth: "healthy",
-              remoteHealth: "degraded",
-              queuedEvents: 2,
-              droppedEvents: 1,
-              lastError: "服务不可用",
+          <PlatformContext.Provider
+            value={{
+              stage: "workspace",
+              workspace: {
+                tenant: { id: "t1", code: "acme", name: "Acme" },
+                user: { id: "u1", username: "alice", displayName: "Alice" },
+                locale: "zh-CN",
+                features: { gatewayVisible: false },
+                models: [],
+                selectedModelId: "",
+                skills: [],
+              },
+              audit: {
+                health: "degraded",
+                localHealth: "healthy",
+                remoteHealth: "degraded",
+                queuedEvents: 2,
+                droppedEvents: 1,
+                lastError: "服务不可用",
+              },
+              initError: null,
+              login: vi.fn(),
+              refreshSession: vi.fn(),
+              retryInitialization: vi.fn(),
+              logout: vi.fn(),
+              setSelectedModel: vi.fn(),
             }}
-          />
+          >
+            <WorkspaceInfo />
+          </PlatformContext.Provider>
         </>
       </I18nProvider>,
     );
@@ -192,9 +215,11 @@ describe("platform screen localization", () => {
     expect(screen.getByText("版本过期")).toBeInTheDocument();
     expect(screen.getByText("本地 0.9.0 / 平台 1.0.0")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "下载" })).toHaveLength(2);
-    expect(screen.getByText("审计告警")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "工作区信息" })).toBeInTheDocument();
+    expect(screen.getByText("租户编码")).toBeInTheDocument();
     expect(screen.getByText("待补传：2")).toBeInTheDocument();
     expect(screen.getByText("已丢弃：1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "刷新会话" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重试审计上传" })).toBeInTheDocument();
   });
 
@@ -209,6 +234,7 @@ describe("platform screen localization", () => {
             initError: null,
             sessionRecoveryReason: "refresh token expired",
             login: vi.fn(),
+            refreshSession: vi.fn(),
             retryInitialization: vi.fn(),
             logout: vi.fn(),
             setSelectedModel: vi.fn(),

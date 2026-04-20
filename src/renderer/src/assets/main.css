@@ -1998,6 +1998,66 @@ body {
   flex-wrap: wrap;
 }
 
+.workspace-info-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.workspace-info-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-info-description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.workspace-info-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0 0 16px;
+}
+
+.workspace-info-audit {
+  border-color: var(--border);
+}
+
+.workspace-info-audit-degraded,
+.workspace-info-audit-buffering {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-subtle) 35%, var(--bg-secondary));
+}
+
+.workspace-info-audit-reauth-required {
+  border-color: color-mix(in srgb, #d92d20 45%, var(--border));
+  background: color-mix(in srgb, #d92d20 8%, var(--bg-secondary));
+}
+
+.workspace-info-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.workspace-info-full-span {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .workspace-info-actions-row {
+    flex-direction: column;
+  }
+}
+
 .settings-select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -3086,36 +3146,6 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-}
-
-.workspace-shell-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  padding: 12px 20px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
-}
-
-.workspace-shell-meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
-}
-
-.workspace-shell-meta-label {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.workspace-shell-meta-value {
-  font-size: 14px;
-  color: var(--text-primary);
-  line-height: 1.4;
 }
 
 .skills-empty-hint {

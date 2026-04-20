@@ -53,6 +53,7 @@ describe("Models localization", () => {
             audit: null,
             initError: null,
             login: vi.fn(),
+            refreshSession: vi.fn(),
             retryInitialization: vi.fn(),
             logout: vi.fn(),
             setSelectedModel,

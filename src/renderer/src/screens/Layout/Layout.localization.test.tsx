@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale as setSharedLocale } from "../../../../shared/i18n";
 import { I18nProvider } from "../../components/I18nProvider";
@@ -17,6 +17,9 @@ vi.mock("../Gateway/Gateway", () => ({ default: () => <div>Gateway Screen</div> 
 vi.mock("../Office/Office", () => ({ default: () => <div>Office Screen</div> }));
 vi.mock("../Models/Models", () => ({ default: () => <div>Models Screen</div> }));
 vi.mock("../Schedules/Schedules", () => ({ default: () => <div>Schedules Screen</div> }));
+vi.mock("../WorkspaceInfo/WorkspaceInfo", () => ({
+  default: () => <div>Workspace Info Screen</div>,
+}));
 
 describe("Layout localization", () => {
   beforeEach(() => {
@@ -66,6 +69,7 @@ describe("Layout localization", () => {
             audit: null,
             initError: null,
             login: vi.fn(),
+            refreshSession: vi.fn(),
             retryInitialization: vi.fn(),
             logout: vi.fn(),
             setSelectedModel: vi.fn(),
@@ -80,8 +84,42 @@ describe("Layout localization", () => {
     expect(screen.getByRole("button", { name: /办公/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /模型/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /技能/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /工作区信息/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /设置/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /网关/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the workspace info screen from the sidebar", () => {
+    render(
+      <I18nProvider>
+        <PlatformContext.Provider
+          value={{
+            stage: "workspace",
+            workspace: {
+              tenant: { id: "t1", code: "acme", name: "Acme" },
+              user: { id: "u1", username: "alice", displayName: "Alice" },
+              locale: "zh-CN",
+              features: { gatewayVisible: false },
+              models: [],
+              selectedModelId: "",
+              skills: [],
+            },
+            audit: null,
+            initError: null,
+            login: vi.fn(),
+            refreshSession: vi.fn(),
+            retryInitialization: vi.fn(),
+            logout: vi.fn(),
+            setSelectedModel: vi.fn(),
+          }}
+        >
+          <Layout gatewayVisible={false} />
+        </PlatformContext.Provider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /工作区信息/i }));
+    expect(screen.getByText("Workspace Info Screen")).toBeInTheDocument();
   });
 
   it("keeps gateway navigation hidden even when gatewayVisible is true", () => {
@@ -135,6 +173,7 @@ describe("Layout localization", () => {
             audit: null,
             initError: null,
             login: vi.fn(),
+            refreshSession: vi.fn(),
             retryInitialization: vi.fn(),
             logout: vi.fn(),
             setSelectedModel: vi.fn(),

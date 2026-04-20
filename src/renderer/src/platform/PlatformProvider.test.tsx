@@ -2,13 +2,24 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale as setSharedLocale } from "../../../shared/i18n";
 import { I18nProvider } from "../components/I18nProvider";
+import { usePlatform } from "./usePlatform";
 
 vi.mock("../screens/Layout/Layout", () => ({
-  default: () => <div>Workspace ready</div>,
+  default: () => <button>聊天</button>,
 }));
 
 import DesktopRoot from "./DesktopRoot";
 import { PlatformProvider } from "./PlatformProvider";
+
+function RefreshSessionProbe(): React.JSX.Element {
+  const { refreshSession } = usePlatform();
+
+  return (
+    <button onClick={() => void refreshSession()}>
+      Manual refresh
+    </button>
+  );
+}
 
 describe("PlatformProvider", () => {
   beforeEach(() => {
@@ -69,7 +80,7 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Workspace ready")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "聊天" })).toBeInTheDocument();
     });
   });
 
@@ -121,7 +132,7 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("租户")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "聊天" })).toBeInTheDocument();
     });
   });
 
@@ -164,7 +175,31 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Workspace ready")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "聊天" })).toBeInTheDocument();
+    });
+  });
+
+  it("exposes a manual refresh action from platform context", async () => {
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        refreshTenantSession: vi.fn().mockResolvedValue(undefined),
+        logoutTenant: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    render(
+      <I18nProvider>
+        <PlatformProvider>
+          <RefreshSessionProbe />
+        </PlatformProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Manual refresh" }));
+
+    await waitFor(() => {
+      expect(window.hermesAPI.refreshTenantSession).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -216,7 +251,7 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Workspace ready")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "聊天" })).toBeInTheDocument();
     });
   });
 
@@ -356,7 +391,7 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Workspace ready")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "聊天" })).toBeInTheDocument();
     });
 
     view.unmount();
@@ -373,7 +408,7 @@ describe("PlatformProvider", () => {
       expect(screen.getByLabelText("租户")).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
-    expect(screen.queryByText("Workspace ready")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "聊天" })).not.toBeInTheDocument();
   });
 
   it("shows a session recovery screen while refresh logout is in progress", async () => {
@@ -448,7 +483,7 @@ describe("PlatformProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Workspace ready")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "聊天" })).toBeInTheDocument();
     });
 
     expect(refreshInterval).not.toBeNull();

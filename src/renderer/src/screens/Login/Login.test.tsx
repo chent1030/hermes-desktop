@@ -64,6 +64,7 @@ function renderLogin(overrides?: Partial<React.ContextType<typeof PlatformContex
           audit: null,
           initError: null,
           login: vi.fn().mockResolvedValue(undefined),
+          refreshSession: vi.fn(),
           retryInitialization: vi.fn(),
           logout: vi.fn(),
           setSelectedModel: vi.fn(),
