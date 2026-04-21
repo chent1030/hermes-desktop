@@ -21,6 +21,7 @@ interface PlatformContextValue {
   sessionRecoveryReason?: string | null;
   login: (payload: LoginPayload) => Promise<void>;
   refreshSession: () => Promise<void>;
+  retryAuditFlush?: () => Promise<AuditStatus | void>;
   retryInitialization: () => Promise<void>;
   logout: () => Promise<void>;
   setSelectedModel: (modelId: string) => Promise<void>;
@@ -128,6 +129,17 @@ export function PlatformProvider({
     }
   }, [startSessionRecovery]);
 
+  const retryAuditFlush = useCallback(async (): Promise<AuditStatus> => {
+    const nextAudit = await window.hermesAPI.retryAuditFlush();
+    setAudit(nextAudit);
+    if (nextAudit.health === "reauth-required") {
+      await startSessionRecovery(
+        nextAudit.lastError || "platform session expired",
+      );
+    }
+    return nextAudit;
+  }, [startSessionRecovery]);
+
   const setSelectedModel = useCallback(async (modelId: string): Promise<void> => {
     const nextWorkspace = await window.hermesAPI.selectWorkspaceModel(modelId);
     setWorkspace(nextWorkspace);
@@ -212,6 +224,7 @@ export function PlatformProvider({
       sessionRecoveryReason,
       login,
       refreshSession,
+      retryAuditFlush,
       retryInitialization: runInitialization,
       logout,
       setSelectedModel,
@@ -225,6 +238,7 @@ export function PlatformProvider({
       sessionRecoveryReason,
       login,
       refreshSession,
+      retryAuditFlush,
       runInitialization,
       logout,
       setSelectedModel,

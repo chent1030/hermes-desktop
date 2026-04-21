@@ -544,4 +544,100 @@ describe("platform runtime", () => {
       refreshToken: "r2",
     });
   });
+
+  it("deduplicates refresh requests when concurrent audit flushes hit the same 401", async () => {
+    const refreshBodies: Array<{ refreshToken: string }> = [];
+    const auditAuthorizations: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+
+        if (url.endsWith("/api/auth/login")) {
+          return new Response(
+            JSON.stringify({ accessToken: "a1", refreshToken: "r1" }),
+          );
+        }
+
+        if (url.endsWith("/api/desktop/bootstrap")) {
+          return new Response(
+            JSON.stringify({
+              tenant: { id: "t1", code: "acme", name: "Acme" },
+              user: { id: "u1", username: "alice", displayName: "Alice" },
+              locale: "zh-CN",
+              features: { gatewayVisible: false },
+            }),
+          );
+        }
+
+        if (url.endsWith("/api/desktop/model-profiles")) {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: "m-default",
+                  provider: "openai",
+                  model: "gpt-5.4",
+                  label: "GPT-5.4",
+                  baseUrl: "",
+                  isDefault: true,
+                },
+              ],
+            }),
+          );
+        }
+
+        if (url.endsWith("/api/desktop/skills/catalog")) {
+          return new Response(JSON.stringify({ items: [] }));
+        }
+
+        if (url.endsWith("/api/audit/events:batch")) {
+          auditAuthorizations.push(
+            String((init?.headers as Record<string, string>)?.Authorization || ""),
+          );
+
+          if (auditAuthorizations.length === 1) {
+            return new Response("Unauthorized", {
+              status: 401,
+              statusText: "Unauthorized",
+            });
+          }
+
+          return new Response(JSON.stringify({ accepted: 1 }));
+        }
+
+        if (url.endsWith("/api/auth/refresh")) {
+          refreshBodies.push(JSON.parse(String(init?.body || "{}")));
+          return new Response(
+            JSON.stringify({ accessToken: "a2", refreshToken: "r2" }),
+          );
+        }
+
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+
+    await loginWithPassword({
+      tenantCode: "acme",
+      username: "alice",
+      password: "secret",
+    });
+    await initializeWorkspaceState();
+    enqueueAuditEvent({ type: "chat.started", payload: { sessionId: "s1" } });
+
+    const [first, second] = await Promise.all([
+      flushWorkspaceAuditEvents(),
+      flushWorkspaceAuditEvents(),
+    ]);
+
+    expect(first.health).toBe("healthy");
+    expect(second.health).toBe("healthy");
+    expect(refreshBodies).toEqual([{ refreshToken: "r1" }]);
+    expect(auditAuthorizations).toEqual(["Bearer a1", "Bearer a2"]);
+    expect(getWorkspaceRuntime()).toMatchObject({
+      accessToken: "a2",
+      refreshToken: "r2",
+    });
+  });
 });

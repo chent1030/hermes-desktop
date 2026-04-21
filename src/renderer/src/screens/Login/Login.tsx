@@ -6,9 +6,6 @@ import { usePlatform } from "../../platform/usePlatform";
 export default function Login(): React.JSX.Element {
   const { login } = usePlatform();
   const { t } = useI18n();
-  const [tenantCode, setTenantCode] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   return (
@@ -89,6 +86,10 @@ export default function Login(): React.JSX.Element {
                 onSubmit={async (event) => {
                   event.preventDefault();
                   setError("");
+                  const formData = new FormData(event.currentTarget);
+                  const tenantCode = String(formData.get("tenantCode") ?? "");
+                  const username = String(formData.get("username") ?? "");
+                  const password = String(formData.get("password") ?? "");
 
                   try {
                     await login({ tenantCode, username, password });
@@ -103,10 +104,9 @@ export default function Login(): React.JSX.Element {
                   </span>
                   <input
                     className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-slate-500 focus:border-cyan-300/60 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(34,211,238,0.12)]"
-                    value={tenantCode}
+                    name="tenantCode"
                     autoComplete="organization"
                     placeholder="acme"
-                    onChange={(event) => setTenantCode(event.target.value)}
                   />
                 </label>
                 <label className="block space-y-2">
@@ -115,10 +115,9 @@ export default function Login(): React.JSX.Element {
                   </span>
                   <input
                     className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-slate-500 focus:border-cyan-300/60 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(34,211,238,0.12)]"
-                    value={username}
+                    name="username"
                     autoComplete="username"
                     placeholder="alice"
-                    onChange={(event) => setUsername(event.target.value)}
                   />
                 </label>
                 <label className="block space-y-2">
@@ -127,11 +126,10 @@ export default function Login(): React.JSX.Element {
                   </span>
                   <input
                     className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-slate-500 focus:border-cyan-300/60 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(34,211,238,0.12)]"
+                    name="password"
                     type="password"
-                    value={password}
                     autoComplete="current-password"
                     placeholder="••••••••"
-                    onChange={(event) => setPassword(event.target.value)}
                   />
                 </label>
 

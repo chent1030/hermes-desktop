@@ -17,12 +17,38 @@ import {
   selectWorkspaceModel,
 } from "./runtime";
 import { findDownloadedSkillPackage, listInstalledSkills } from "../skills";
+import { setModelConfig } from "../config";
 import {
   enqueueAuditEvent,
   markAuditFailure,
   markAuditReauthRequired,
 } from "./audit";
 import { getSessionState } from "./session";
+
+async function restartGatewayIfRunning(): Promise<void> {
+  const hermes = await import("../hermes");
+  if (hermes.isGatewayRunning()) {
+    hermes.restartGateway();
+  }
+}
+
+function syncWorkspaceRuntimeModel(workspace: WorkspaceBootstrap): void {
+  const selectedModel = workspace.models.find(
+    (model) => model.id === workspace.selectedModelId,
+  );
+  if (!selectedModel) {
+    return;
+  }
+
+  const runtimeProvider = selectedModel.baseUrl ? "custom" : selectedModel.provider;
+  setModelConfig(
+    runtimeProvider,
+    selectedModel.model,
+    selectedModel.baseUrl,
+    undefined,
+    selectedModel.apiKey || "",
+  );
+}
 
 function normalizeSkillKey(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -82,6 +108,8 @@ export async function platformLogout(): Promise<void> {
 export async function platformInitializeWorkspace(): Promise<WorkspaceBootstrap> {
   try {
     const workspace = await initializeWorkspaceState();
+    syncWorkspaceRuntimeModel(workspace);
+    await restartGatewayIfRunning();
     enqueueAuditEvent({
       type: "workspace.initialized",
       payload: {
@@ -109,6 +137,8 @@ export async function platformSelectModel(
 ): Promise<WorkspaceBootstrap> {
   try {
     const workspace = selectWorkspaceModel(modelId);
+    syncWorkspaceRuntimeModel(workspace);
+    await restartGatewayIfRunning();
     enqueueAuditEvent({
       type: "run.model.selected",
       payload: { modelId },

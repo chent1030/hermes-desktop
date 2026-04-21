@@ -1,5 +1,6 @@
 import type { AuditStatus } from "../../../../shared/platform/audit";
 import { useI18n } from "../../components/useI18n";
+import { usePlatform } from "../../platform/usePlatform";
 
 function getBannerTitle(
   audit: AuditStatus,
@@ -33,6 +34,7 @@ export default function WorkspaceBanner({
   audit: AuditStatus | null;
 }): React.JSX.Element | null {
   const { t } = useI18n();
+  const { retryAuditFlush } = usePlatform();
 
   if (!audit || audit.health === "healthy") {
     return null;
@@ -46,7 +48,7 @@ export default function WorkspaceBanner({
       <div>{t("platform.auditDropped", { count: audit.droppedEvents })}</div>
       {audit.lastError && <div>{audit.lastError}</div>}
       {(audit.health === "buffering" || audit.health === "degraded") && (
-        <button onClick={() => void window.hermesAPI.retryAuditFlush()}>
+        <button onClick={() => void retryAuditFlush?.()}>
           {t("platform.retryAuditUpload")}
         </button>
       )}

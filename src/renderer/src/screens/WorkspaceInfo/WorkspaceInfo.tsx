@@ -42,7 +42,14 @@ function getAuditHint(
 
 export default function WorkspaceInfo(): React.JSX.Element {
   const { t } = useI18n();
-  const { workspace, audit, refreshSession, retryInitialization, logout } =
+  const {
+    workspace,
+    audit,
+    refreshSession,
+    retryAuditFlush,
+    retryInitialization,
+    logout,
+  } =
     usePlatform();
 
   const selectedModel =
@@ -160,7 +167,7 @@ export default function WorkspaceInfo(): React.JSX.Element {
           <div className="workspace-info-actions-row">
             <button
               className="btn btn-secondary"
-              onClick={() => void window.hermesAPI.retryAuditFlush()}
+              onClick={() => void retryAuditFlush?.()}
             >
               {t("platform.retryAuditUpload")}
             </button>

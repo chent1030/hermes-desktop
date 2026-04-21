@@ -6,7 +6,7 @@ use serde::Serialize;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
-    SERVICE_NAME, admin,
+    SERVICE_NAME, admin, audit,
     bootstrap::app_state::AppState,
     desktop, iam,
     infrastructure::db::readiness_check,
@@ -26,6 +26,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/ready", get(readiness))
         .nest("/api/auth", iam::api::routes())
         .nest("/api/admin", admin::api::routes())
+        .nest("/api/audit", audit::api::routes())
         .nest("/api/desktop", desktop::api::routes())
         .fallback(fallback)
         .layer(

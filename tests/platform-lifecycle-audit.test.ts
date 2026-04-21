@@ -45,6 +45,15 @@ vi.mock("../src/main/skills", () => ({
   listInstalledSkills: vi.fn().mockReturnValue([]),
 }));
 
+vi.mock("../src/main/hermes", () => ({
+  isGatewayRunning: vi.fn(),
+  restartGateway: vi.fn(),
+}));
+
+vi.mock("../src/main/config", () => ({
+  setModelConfig: vi.fn(),
+}));
+
 import {
   platformGetAuditStatus,
   platformGetInitStatus,
@@ -66,6 +75,8 @@ import {
   refreshWorkspaceSession,
   selectWorkspaceModel,
 } from "../src/main/platform/runtime";
+import { isGatewayRunning, restartGateway } from "../src/main/hermes";
+import { setModelConfig } from "../src/main/config";
 
 describe("platform lifecycle audit", () => {
   beforeEach(() => {
@@ -187,6 +198,74 @@ describe("platform lifecycle audit", () => {
         }),
       }),
     );
+  });
+
+  it("restarts the gateway after workspace initialization when it is already running", async () => {
+    vi.mocked(initializeWorkspaceState).mockResolvedValueOnce({
+      tenant: { id: "t1", code: "acme", name: "Acme" },
+      user: { id: "u1", username: "alice", displayName: "Alice" },
+      locale: "zh-CN",
+      features: { gatewayVisible: false },
+      models: [
+        {
+          id: "m-default",
+          provider: "qwen",
+          model: "qwen3.6-plus",
+          label: "Qwen 3.6 Plus",
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          apiKey: "platform-runtime-key",
+          isDefault: true,
+        },
+      ],
+      selectedModelId: "m-default",
+      skills: [],
+    });
+    vi.mocked(isGatewayRunning).mockReturnValueOnce(true);
+
+    await platformInitializeWorkspace();
+
+    expect(setModelConfig).toHaveBeenCalledWith(
+      "custom",
+      "qwen3.6-plus",
+      "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      undefined,
+      "platform-runtime-key",
+    );
+    expect(restartGateway).toHaveBeenCalledWith();
+  });
+
+  it("restarts the gateway after model selection when it is already running", async () => {
+    vi.mocked(selectWorkspaceModel).mockReturnValueOnce({
+      tenant: { id: "t1", code: "acme", name: "Acme" },
+      user: { id: "u1", username: "alice", displayName: "Alice" },
+      locale: "zh-CN",
+      features: { gatewayVisible: false },
+      models: [
+        {
+          id: "m-default",
+          provider: "qwen",
+          model: "qwen3.6-plus",
+          label: "Qwen 3.6 Plus",
+          baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          apiKey: "platform-runtime-key",
+          isDefault: true,
+        },
+      ],
+      selectedModelId: "m-default",
+      skills: [],
+    });
+    vi.mocked(isGatewayRunning).mockReturnValueOnce(true);
+
+    await platformSelectModel("m-default");
+
+    expect(setModelConfig).toHaveBeenCalledWith(
+      "custom",
+      "qwen3.6-plus",
+      "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      undefined,
+      "platform-runtime-key",
+    );
+    expect(restartGateway).toHaveBeenCalledWith();
   });
 
   it("returns the merged workspace audit status from runtime", async () => {

@@ -21,6 +21,20 @@ function RefreshSessionProbe(): React.JSX.Element {
   );
 }
 
+function RetryAuditProbe(): React.JSX.Element {
+  const { retryAuditFlush, sessionRecoveryReason, stage } = usePlatform();
+
+  return (
+    <div>
+      <button onClick={() => void retryAuditFlush?.()}>
+        Retry audit
+      </button>
+      <div>{stage}</div>
+      <div>{sessionRecoveryReason}</div>
+    </div>
+  );
+}
+
 describe("PlatformProvider", () => {
   beforeEach(() => {
     setSharedLocale("en");
@@ -558,5 +572,35 @@ describe("PlatformProvider", () => {
 
     expect(await screen.findByText("正在恢复会话")).toBeInTheDocument();
     expect(screen.getByText(/session expired/i)).toBeInTheDocument();
+  });
+
+  it("starts session recovery immediately when a manual audit retry requires reauth", async () => {
+    Object.defineProperty(window, "hermesAPI", {
+      configurable: true,
+      value: {
+        retryAuditFlush: vi.fn().mockResolvedValue({
+          health: "reauth-required",
+          localHealth: "reauth-required",
+          remoteHealth: "reauth-required",
+          queuedEvents: 3,
+          droppedEvents: 0,
+          lastError: "invalid or expired refresh token",
+        }),
+        logoutTenant: vi.fn(() => new Promise(() => undefined)),
+      },
+    });
+
+    render(
+      <I18nProvider>
+        <PlatformProvider>
+          <RetryAuditProbe />
+        </PlatformProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry audit" }));
+
+    expect(await screen.findByText("session-recovery")).toBeInTheDocument();
+    expect(screen.getByText(/invalid or expired refresh token/i)).toBeInTheDocument();
   });
 });

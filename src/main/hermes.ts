@@ -45,6 +45,7 @@ function resolveRuntimeModel(profile?: string): {
   model: string;
   baseUrl: string;
   apiKey: string;
+  source: "workspace" | "profile";
 } {
   const runtime = getWorkspaceRuntime();
   const selectedModel = runtime?.workspace?.models.find(
@@ -57,12 +58,14 @@ function resolveRuntimeModel(profile?: string): {
       model: selectedModel.model,
       baseUrl: selectedModel.baseUrl,
       apiKey: selectedModel.apiKey || "",
+      source: "workspace",
     };
   }
 
   return {
     ...getModelConfig(profile),
     apiKey: "",
+    source: "profile",
   };
 }
 
@@ -93,6 +96,86 @@ function resolveApiKeyTargets(provider: string, baseUrl: string): string[] {
     targets.add("OPENAI_API_KEY");
   }
   return Array.from(targets);
+}
+
+function resolveEndpointApiKey(
+  provider: string,
+  baseUrl: string,
+  profileEnv: Record<string, string>,
+  env: Record<string, string>,
+  runtimeApiKey: string,
+): string {
+  if (runtimeApiKey) {
+    return runtimeApiKey;
+  }
+
+  for (const { pattern, envKey } of URL_KEY_MAP) {
+    if (pattern.test(baseUrl)) {
+      return profileEnv[envKey] || env[envKey] || "";
+    }
+  }
+
+  for (const envKey of resolveApiKeyTargets(provider, baseUrl)) {
+    if (profileEnv[envKey] || env[envKey]) {
+      return profileEnv[envKey] || env[envKey] || "";
+    }
+  }
+
+  return "";
+}
+
+function shouldUseRuntimeEndpoint(modelConfig: {
+  provider: string;
+  baseUrl: string;
+  source: "workspace" | "profile";
+}): boolean {
+  if (!modelConfig.baseUrl) {
+    return false;
+  }
+
+  return modelConfig.source === "workspace" || LOCAL_PROVIDERS.has(modelConfig.provider);
+}
+
+function applyRuntimeModelEnvironment(
+  env: Record<string, string>,
+  profileEnv: Record<string, string>,
+  modelConfig: {
+    provider: string;
+    baseUrl: string;
+    apiKey: string;
+    source: "workspace" | "profile";
+  },
+): void {
+  if (modelConfig.apiKey) {
+    for (const key of resolveApiKeyTargets(modelConfig.provider, modelConfig.baseUrl)) {
+      env[key] = modelConfig.apiKey;
+    }
+  }
+
+  if (!shouldUseRuntimeEndpoint(modelConfig)) {
+    return;
+  }
+
+  env.HERMES_INFERENCE_PROVIDER = "custom";
+  env.OPENAI_BASE_URL = modelConfig.baseUrl.replace(/\/+$/, "");
+
+  let resolvedKey = resolveEndpointApiKey(
+    modelConfig.provider,
+    modelConfig.baseUrl,
+    profileEnv,
+    env,
+    modelConfig.apiKey,
+  );
+
+  if (!resolvedKey && /localhost|127\.0\.0\.1/i.test(modelConfig.baseUrl)) {
+    resolvedKey = "no-key-required";
+  }
+
+  env.OPENAI_API_KEY = resolvedKey || "no-key-required";
+  delete env.OPENROUTER_API_KEY;
+  delete env.ANTHROPIC_API_KEY;
+  delete env.ANTHROPIC_TOKEN;
+  delete env.OPENROUTER_BASE_URL;
 }
 
 // ────────────────────────────────────────────────────
@@ -708,39 +791,7 @@ function sendMessageViaCli(
     }
   }
 
-  if (mc.apiKey) {
-    for (const key of resolveApiKeyTargets(mc.provider, mc.baseUrl)) {
-      env[key] = mc.apiKey;
-    }
-  }
-
-  const isCustomEndpoint = LOCAL_PROVIDERS.has(mc.provider);
-  if (isCustomEndpoint && mc.baseUrl) {
-    env.HERMES_INFERENCE_PROVIDER = "custom";
-    env.OPENAI_BASE_URL = mc.baseUrl.replace(/\/+$/, "");
-
-    // Resolve the right API key: check URL-specific key first, then OPENAI_API_KEY
-    let resolvedKey = "";
-    for (const { pattern, envKey } of URL_KEY_MAP) {
-      if (pattern.test(mc.baseUrl)) {
-        resolvedKey = profileEnv[envKey] || env[envKey] || "";
-        break;
-      }
-    }
-    if (!resolvedKey) {
-      resolvedKey = profileEnv.OPENAI_API_KEY || env.OPENAI_API_KEY || "";
-    }
-    // Local servers (localhost/127.0.0.1) don't need a real key
-    if (!resolvedKey && /localhost|127\.0\.0\.1/i.test(mc.baseUrl)) {
-      resolvedKey = "no-key-required";
-    }
-    env.OPENAI_API_KEY = resolvedKey || "no-key-required";
-
-    delete env.OPENROUTER_API_KEY;
-    delete env.ANTHROPIC_API_KEY;
-    delete env.ANTHROPIC_TOKEN;
-    delete env.OPENROUTER_BASE_URL;
-  }
+  applyRuntimeModelEnvironment(env, profileEnv, mc);
 
   const proc = spawn(HERMES_PYTHON, args, {
     cwd: HERMES_REPO,
@@ -940,6 +991,8 @@ export function startGateway(profile?: string): boolean {
       gatewayEnv[key] = value;
     }
   }
+
+  applyRuntimeModelEnvironment(gatewayEnv, profileEnv, resolveRuntimeModel(profile));
 
   gatewayProcess = spawn(HERMES_PYTHON, [HERMES_SCRIPT, "gateway"], {
     cwd: HERMES_REPO,

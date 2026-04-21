@@ -33,6 +33,7 @@ let initStatus: WorkspaceInitStatus = {
   lastError: null,
   failedPhase: null,
 };
+let refreshInFlight: Promise<void> | null = null;
 
 function setInitStatus(
   phase: WorkspaceInitPhase,
@@ -126,15 +127,25 @@ export async function refreshWorkspaceSession(): Promise<void> {
     throw new Error("platform login required");
   }
 
-  try {
-    const tokens = await refreshRequest(session.refreshToken);
-    setSessionTokens(tokens.accessToken, tokens.refreshToken, {
-      preserveWorkspace: true,
-    });
-  } catch (error) {
-    clearSessionState();
-    throw error;
+  if (refreshInFlight) {
+    return refreshInFlight;
   }
+
+  refreshInFlight = (async () => {
+    try {
+      const tokens = await refreshRequest(session.refreshToken);
+      setSessionTokens(tokens.accessToken, tokens.refreshToken, {
+        preserveWorkspace: true,
+      });
+    } catch (error) {
+      clearSessionState();
+      throw error;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
 }
 
 export function selectWorkspaceModel(modelId: string): WorkspaceBootstrap {
@@ -162,6 +173,7 @@ export function getWorkspaceRuntime() {
 
 export function clearWorkspaceSession(): void {
   clearSessionState();
+  refreshInFlight = null;
   setInitStatus("idle");
 }
 

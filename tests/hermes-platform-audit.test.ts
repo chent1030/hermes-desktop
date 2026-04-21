@@ -585,4 +585,55 @@ describe("hermes platform audit", () => {
       }),
     );
   });
+
+  it("injects the selected platform model runtime into gateway env", async () => {
+    getWorkspaceRuntime.mockReturnValueOnce({
+      workspace: {
+        selectedModelId: "model-platform",
+        models: [
+          {
+            id: "model-platform",
+            provider: "qwen",
+            model: "qwen3.6-plus",
+            label: "Qwen 3.6 Plus",
+            baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+            apiKey: "platform-runtime-key",
+            isDefault: true,
+          },
+        ],
+      },
+    });
+
+    spawn.mockImplementationOnce(() => {
+      const process = new EventEmitter() as EventEmitter & {
+        killed: boolean;
+        kill: ReturnType<typeof vi.fn>;
+        stderr: EventEmitter;
+        stdout: EventEmitter;
+        unref: ReturnType<typeof vi.fn>;
+      };
+      process.stdout = new EventEmitter();
+      process.stderr = new EventEmitter();
+      process.kill = vi.fn();
+      process.unref = vi.fn();
+      process.killed = false;
+      return process;
+    });
+
+    const hermes = await import("../src/main/hermes");
+
+    expect(hermes.startGateway("default")).toBe(true);
+
+    expect(spawn).toHaveBeenCalledWith(
+      "python3",
+      ["hermes.py", "gateway"],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          HERMES_INFERENCE_PROVIDER: "custom",
+          OPENAI_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          OPENAI_API_KEY: "platform-runtime-key",
+        }),
+      }),
+    );
+  });
 });

@@ -1,3 +1,4 @@
+import { Profiler, type ProfilerOnRenderCallback } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale as setSharedLocale } from "../../../../shared/i18n";
@@ -52,9 +53,29 @@ describe("Login", () => {
       expect(screen.getByText("Access denied by policy")).toBeInTheDocument();
     });
   });
+
+  it("does not re-render the whole login screen while typing credentials", () => {
+    const onRender = vi.fn<ProfilerOnRenderCallback>();
+    renderLogin(undefined, onRender);
+
+    fireEvent.change(screen.getByLabelText("Tenant"), {
+      target: { value: "acme" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "alice" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret" },
+    });
+
+    expect(onRender).toHaveBeenCalledTimes(1);
+  });
 });
 
-function renderLogin(overrides?: Partial<React.ContextType<typeof PlatformContext>>) {
+function renderLogin(
+  overrides?: Partial<React.ContextType<typeof PlatformContext>>,
+  onRender?: ProfilerOnRenderCallback,
+) {
   return render(
     <I18nProvider>
       <PlatformContext.Provider
@@ -71,7 +92,9 @@ function renderLogin(overrides?: Partial<React.ContextType<typeof PlatformContex
           ...overrides,
         }}
       >
-        <Login />
+        <Profiler id="login" onRender={onRender ?? vi.fn()}>
+          <Login />
+        </Profiler>
       </PlatformContext.Provider>
     </I18nProvider>,
   );

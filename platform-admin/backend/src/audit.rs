@@ -1,3 +1,5 @@
+pub mod api;
+
 use std::fmt::{Display, Formatter};
 
 use postgres::{Client, NoTls};
