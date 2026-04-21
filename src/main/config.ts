@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { HERMES_HOME } from "./installer";
 import { profileHome, escapeRegex, safeWriteFile } from "./utils";
+import { resolveRuntimePaths } from "./runtime/paths";
 
 // ── In-memory cache with TTL ─────────────────────────────
 const CACHE_TTL = 5000; // 5 seconds
@@ -32,7 +32,10 @@ function profilePaths(profile?: string): {
   configFile: string;
   home: string;
 } {
-  const home = profileHome(profile);
+  const home =
+    profile && profile !== "default"
+      ? profileHome(profile)
+      : resolveRuntimePaths().hermesHome;
   return {
     home,
     envFile: join(home, ".env"),
@@ -144,13 +147,19 @@ export function getModelConfig(profile?: string): {
   provider: string;
   model: string;
   baseUrl: string;
+  apiKey: string;
 } {
   const cacheKey = `mc:${profile || "default"}`;
-  const cached = getCached<{ provider: string; model: string; baseUrl: string }>(cacheKey);
+  const cached = getCached<{
+    provider: string;
+    model: string;
+    baseUrl: string;
+    apiKey: string;
+  }>(cacheKey);
   if (cached) return cached;
 
   const { configFile } = profilePaths(profile);
-  const defaults = { provider: "auto", model: "", baseUrl: "" };
+  const defaults = { provider: "auto", model: "", baseUrl: "", apiKey: "" };
   if (!existsSync(configFile)) return defaults;
 
   const content = readFileSync(configFile, "utf-8");
@@ -158,11 +167,13 @@ export function getModelConfig(profile?: string): {
   const providerMatch = content.match(/^\s*provider:\s*["']?([^"'\n#]+)["']?/m);
   const modelMatch = content.match(/^\s*default:\s*["']?([^"'\n#]+)["']?/m);
   const baseUrlMatch = content.match(/^\s*base_url:\s*["']?([^"'\n#]+)["']?/m);
+  const apiKeyMatch = content.match(/^\s*api_key:\s*["']?([^"'\n#]+)["']?/m);
 
   const result = {
     provider: providerMatch ? providerMatch[1].trim() : defaults.provider,
     model: modelMatch ? modelMatch[1].trim() : defaults.model,
     baseUrl: baseUrlMatch ? baseUrlMatch[1].trim() : defaults.baseUrl,
+    apiKey: apiKeyMatch ? apiKeyMatch[1].trim() : defaults.apiKey,
   };
 
   setCache(cacheKey, result);
@@ -174,6 +185,7 @@ export function setModelConfig(
   model: string,
   baseUrl: string,
   profile?: string,
+  apiKey?: string,
 ): void {
   invalidateCache(`mc:${profile || "default"}`);
   const { configFile } = profilePaths(profile);
@@ -194,6 +206,18 @@ export function setModelConfig(
   const baseUrlRegex = /^(\s*base_url:\s*)["']?[^"'\n#]*["']?/m;
   if (baseUrlRegex.test(content)) {
     content = content.replace(baseUrlRegex, `$1"${baseUrl}"`);
+  }
+
+  if (typeof apiKey === "string") {
+    const apiKeyRegex = /^(\s*api_key:\s*)["']?[^"'\n#]*["']?/m;
+    if (apiKeyRegex.test(content)) {
+      content = content.replace(apiKeyRegex, `$1"${apiKey}"`);
+    } else if (baseUrlRegex.test(content)) {
+      content = content.replace(
+        baseUrlRegex,
+        `$1"${baseUrl}"\n  api_key: "${apiKey}"`,
+      );
+    }
   }
 
   // Disable smart_model_routing
@@ -308,7 +332,7 @@ export function setPlatformEnabled(
 // ── Credential Pool (auth.json) ──────────────────────────
 
 function authFilePath(): string {
-  return join(HERMES_HOME, "auth.json");
+  return join(resolveRuntimePaths().hermesHome, "auth.json");
 }
 
 interface CredentialEntry {

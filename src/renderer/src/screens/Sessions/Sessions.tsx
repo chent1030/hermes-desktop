@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { Plus, Search, X, ChatBubble } from "../../assets/icons";
+import { useI18n } from "../../components/useI18n";
 
 interface CachedSession {
   id: string;
@@ -40,7 +41,7 @@ function formatFullDate(ts: number): string {
   );
 }
 
-type DateGroup = "Today" | "Yesterday" | "This Week" | "Earlier";
+type DateGroup = "today" | "yesterday" | "thisWeek" | "earlier";
 
 function getDateGroup(ts: number): DateGroup {
   const d = new Date(ts * 1000);
@@ -50,7 +51,7 @@ function getDateGroup(ts: number): DateGroup {
     d.getDate() === now.getDate() &&
     d.getMonth() === now.getMonth() &&
     d.getFullYear() === now.getFullYear();
-  if (isToday) return "Today";
+  if (isToday) return "today";
 
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -58,13 +59,13 @@ function getDateGroup(ts: number): DateGroup {
     d.getDate() === yesterday.getDate() &&
     d.getMonth() === yesterday.getMonth() &&
     d.getFullYear() === yesterday.getFullYear();
-  if (isYesterday) return "Yesterday";
+  if (isYesterday) return "yesterday";
 
   const weekAgo = new Date(now);
   weekAgo.setDate(weekAgo.getDate() - 7);
-  if (d >= weekAgo) return "This Week";
+  if (d >= weekAgo) return "thisWeek";
 
-  return "Earlier";
+  return "earlier";
 }
 
 function groupSessions(
@@ -76,7 +77,7 @@ function groupSessions(
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group)!.push(s);
   }
-  const order: DateGroup[] = ["Today", "Yesterday", "This Week", "Earlier"];
+  const order: DateGroup[] = ["today", "yesterday", "thisWeek", "earlier"];
   return order
     .filter((label) => groups.has(label))
     .map((label) => ({ label, sessions: groups.get(label)! }));
@@ -102,17 +103,28 @@ function formatModel(model: string): string {
   return name.split(":")[0];
 }
 
+function formatMessageCount(
+  count: number,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  return t(count === 1 ? "sessions.messageCountOne" : "sessions.messageCountOther", {
+    count,
+  });
+}
+
 // Memoized session card
 const SessionCard = memo(function SessionCard({
   session,
   isActive,
   showFullDate,
   onClick,
+  t,
 }: {
   session: CachedSession;
   isActive: boolean;
   showFullDate: boolean;
   onClick: () => void;
+  t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   return (
     <button
@@ -121,7 +133,7 @@ const SessionCard = memo(function SessionCard({
     >
       <div className="sessions-card-main">
         <span className="sessions-card-title">
-          {session.title || "New conversation"}
+          {session.title || t("sessions.newConversation")}
         </span>
         <span className="sessions-card-time">
           {showFullDate
@@ -133,9 +145,7 @@ const SessionCard = memo(function SessionCard({
         <span className="sessions-tag sessions-tag--source">
           {session.source}
         </span>
-        <span className="sessions-tag">
-          {session.messageCount} msg{session.messageCount !== 1 ? "s" : ""}
-        </span>
+        <span className="sessions-tag">{formatMessageCount(session.messageCount, t)}</span>
         {session.model && (
           <span className="sessions-tag sessions-tag--model">
             {formatModel(session.model)}
@@ -151,6 +161,7 @@ function Sessions({
   onNewChat,
   currentSessionId,
 }: SessionsProps): React.JSX.Element {
+  const { t } = useI18n();
   const [sessions, setSessions] = useState<CachedSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -201,10 +212,10 @@ function Sessions({
       {/* Header with integrated search */}
       <div className="sessions-header">
         <div className="sessions-header-top">
-          <h2 className="sessions-title">Sessions</h2>
+          <h2 className="sessions-title">{t("sessions.title")}</h2>
           <button className="btn btn-primary " onClick={onNewChat}>
             <Plus size={14} />
-            New Chat
+            {t("sessions.newChat")}
           </button>
         </div>
         <div className="sessions-searchbar">
@@ -213,7 +224,7 @@ function Sessions({
             ref={searchRef}
             className="sessions-searchbar-input"
             type="text"
-            placeholder="Search conversations..."
+            placeholder={t("sessions.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -244,8 +255,8 @@ function Sessions({
         ) : searchResults.length === 0 ? (
           <div className="sessions-empty">
             <Search size={32} className="sessions-empty-icon" />
-            <p className="sessions-empty-text">No results found</p>
-            <p className="sessions-empty-hint">Try different search terms</p>
+            <p className="sessions-empty-text">{t("sessions.noResults")}</p>
+            <p className="sessions-empty-hint">{t("sessions.noResultsHint")}</p>
           </div>
         ) : (
           <div className="sessions-list">
@@ -257,7 +268,10 @@ function Sessions({
               >
                 <div className="sessions-card-main">
                   <span className="sessions-card-title">
-                    {r.title || `Session ${r.sessionId.slice(-6)}`}
+                    {r.title ||
+                      t("sessions.searchResult", {
+                        id: r.sessionId.slice(-6),
+                      })}
                   </span>
                   <span className="sessions-card-time">
                     {formatFullDate(r.startedAt)}
@@ -273,7 +287,7 @@ function Sessions({
                     {r.source}
                   </span>
                   <span className="sessions-tag">
-                    {r.messageCount} msg{r.messageCount !== 1 ? "s" : ""}
+                    {formatMessageCount(r.messageCount, t)}
                   </span>
                   {r.model && (
                     <span className="sessions-tag sessions-tag--model">
@@ -288,25 +302,26 @@ function Sessions({
       ) : sessions.length === 0 ? (
         <div className="sessions-empty">
           <ChatBubble size={32} className="sessions-empty-icon" />
-          <p className="sessions-empty-text">No sessions yet</p>
-          <p className="sessions-empty-hint">
-            Start a chat to create your first session
-          </p>
+          <p className="sessions-empty-text">{t("sessions.empty")}</p>
+          <p className="sessions-empty-hint">{t("sessions.emptyHint")}</p>
         </div>
       ) : (
         <div className="sessions-list">
           {grouped.map((group) => (
             <div key={group.label} className="sessions-group">
-              <div className="sessions-group-label">{group.label}</div>
+              <div className="sessions-group-label">
+                {t(`sessions.groups.${group.label}`)}
+              </div>
               {group.sessions.map((s) => (
                 <SessionCard
                   key={s.id}
                   session={s}
                   isActive={currentSessionId === s.id}
                   showFullDate={
-                    group.label === "This Week" || group.label === "Earlier"
+                    group.label === "thisWeek" || group.label === "earlier"
                   }
                   onClick={() => onResumeSession(s.id)}
+                  t={t}
                 />
               ))}
             </div>

@@ -1,4 +1,11 @@
 import { ElectronAPI } from "@electron-toolkit/preload";
+import type { AuditStatus } from "../shared/platform/audit";
+import type { WorkspaceInitStatus } from "../shared/platform/init";
+import type {
+  LocalSkillState,
+  TenantLoginInput,
+  WorkspaceBootstrap,
+} from "../shared/platform/contracts";
 
 interface InstallStatus {
   installed: boolean;
@@ -33,8 +40,19 @@ interface HermesAPI {
   checkOpenClaw: () => Promise<{ found: boolean; path: string | null }>; 
   runClawMigrate: () => Promise<{ success: boolean; error?: string }>;
 
-  getLocale: () => Promise<"en">;
-  setLocale: (locale: "en") => Promise<"en">;
+  getLocale: () => Promise<"en" | "zh-CN">;
+  setLocale: (locale: "en" | "zh-CN") => Promise<"en" | "zh-CN">;
+
+  loginTenant: (payload: TenantLoginInput) => Promise<void>;
+  refreshTenantSession: () => Promise<void>;
+  logoutTenant: () => Promise<void>;
+  initializeWorkspace: () => Promise<WorkspaceBootstrap>;
+  getWorkspaceInitStatus: () => Promise<WorkspaceInitStatus>;
+  selectWorkspaceModel: (modelId: string) => Promise<WorkspaceBootstrap>;
+  getAuditStatus: () => Promise<AuditStatus>;
+  retryAuditFlush: () => Promise<AuditStatus>;
+  downloadSkillPackage: (skillId: string) => Promise<boolean>;
+  syncSkillInstallations: () => Promise<LocalSkillState[]>;
 
   // Configuration (profile-aware)
   getEnv: (profile?: string) => Promise<Record<string, string>>;
@@ -45,6 +63,15 @@ interface HermesAPI {
   getModelConfig: (
     profile?: string,
   ) => Promise<{ provider: string; model: string; baseUrl: string }>;
+  startGateway: (profile?: string) => Promise<boolean>;
+  stopGateway: () => Promise<boolean>;
+  gatewayStatus: () => Promise<boolean>;
+  getPlatformEnabled: (profile?: string) => Promise<Record<string, boolean>>;
+  setPlatformEnabled: (
+    platform: string,
+    enabled: boolean,
+    profile?: string,
+  ) => Promise<boolean>;
   setModelConfig: (
     provider: string,
     model: string,
@@ -74,19 +101,6 @@ interface HermesAPI {
     }) => void,
   ) => () => void;
   onChatError: (callback: (error: string) => void) => () => void;
-
-  // Gateway
-  startGateway: () => Promise<boolean>;
-  stopGateway: () => Promise<boolean>;
-  gatewayStatus: () => Promise<boolean>;
-
-  // Platform toggles
-  getPlatformEnabled: (profile?: string) => Promise<Record<string, boolean>>;
-  setPlatformEnabled: (
-    platform: string,
-    enabled: boolean,
-    profile?: string,
-  ) => Promise<boolean>;
 
   // Sessions
   listSessions: (

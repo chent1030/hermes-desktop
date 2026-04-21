@@ -57,12 +57,12 @@ import {
   getConfigValue,
   setConfigValue,
   getHermesHome,
+  getPlatformEnabled,
   getModelConfig,
+  setPlatformEnabled,
   setModelConfig,
   getCredentialPool,
   setCredentialPool,
-  getPlatformEnabled,
-  setPlatformEnabled,
 } from "./config";
 import { listSessions, getSessionMessages, searchSessions } from "./sessions";
 import {
@@ -102,6 +102,23 @@ import {
   triggerCronJob,
 } from "./cronjobs";
 import { getAppLocale, setAppLocale } from "./locale";
+import {
+  platformDownloadSkillPackage,
+  platformGetInitStatus,
+  platformGetAuditStatus,
+  platformInitializeWorkspace,
+  platformLogin,
+  platformLogout,
+  platformRefreshSession,
+  platformRetryAuditFlush,
+  platformSelectModel,
+  platformSyncSkillInstallations,
+} from "./platform";
+import type { AppLocale } from "../shared/i18n";
+import type { TenantLoginInput } from "../shared/platform/contracts";
+import { ensureRuntimeBootstrap } from "./runtime/bootstrap";
+import { getPlatformAdapter } from "./runtime/platform-adapter";
+import { resolveRuntimePaths } from "./runtime/paths";
 
 process.on("uncaughtException", (err) => {
   console.error("[MAIN UNCAUGHT]", err);
@@ -115,18 +132,9 @@ let mainWindow: BrowserWindow | null = null;
 let currentChatAbort: (() => void) | null = null;
 
 function createWindow(): void {
+  const platformAdapter = getPlatformAdapter(process.platform);
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 750,
-    minWidth: 800,
-    minHeight: 600,
-    show: false,
-    autoHideMenuBar: true,
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : undefined,
-    ...(process.platform === "darwin"
-      ? { trafficLightPosition: { x: 16, y: 16 } }
-      : {}),
-    ...(process.platform === "linux" ? { icon } : {}),
+    ...platformAdapter.getWindowOptions(icon),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false,
@@ -224,7 +232,32 @@ function setupIPC(): void {
 
   // Configuration (profile-aware)
   ipcMain.handle("get-locale", () => getAppLocale());
-  ipcMain.handle("set-locale", (_event, locale: "en") => setAppLocale(locale));
+  ipcMain.handle("set-locale", (_event, locale: AppLocale) =>
+    setAppLocale(locale),
+  );
+
+  ipcMain.handle("platform-login", (_event, payload: TenantLoginInput) =>
+    platformLogin(payload),
+  );
+  ipcMain.handle("platform-refresh-session", () => platformRefreshSession());
+  ipcMain.handle("platform-logout", () => platformLogout());
+  ipcMain.handle("platform-initialize-workspace", () =>
+    platformInitializeWorkspace(),
+  );
+  ipcMain.handle("platform-get-init-status", () => platformGetInitStatus());
+  ipcMain.handle("platform-select-model", (_event, modelId: string) =>
+    platformSelectModel(modelId),
+  );
+  ipcMain.handle("platform-get-audit-status", () => platformGetAuditStatus());
+  ipcMain.handle("platform-retry-audit-flush", () =>
+    platformRetryAuditFlush(),
+  );
+  ipcMain.handle("platform-download-skill-package", (_event, skillId: string) =>
+    platformDownloadSkillPackage(skillId),
+  );
+  ipcMain.handle("platform-sync-skill-installations", () =>
+    platformSyncSkillInstallations(),
+  );
 
   ipcMain.handle("get-env", (_event, profile?: string) => readEnv(profile));
 
@@ -262,6 +295,25 @@ function setupIPC(): void {
 
   ipcMain.handle("get-model-config", (_event, profile?: string) =>
     getModelConfig(profile),
+  );
+
+  ipcMain.handle("start-gateway", (_event, profile?: string) =>
+    startGateway(profile),
+  );
+  ipcMain.handle("stop-gateway", () => {
+    stopGateway();
+    return true;
+  });
+  ipcMain.handle("gateway-status", () => isGatewayRunning());
+  ipcMain.handle("get-platform-enabled", (_event, profile?: string) =>
+    getPlatformEnabled(profile),
+  );
+  ipcMain.handle(
+    "set-platform-enabled",
+    (_event, platform: string, enabled: boolean, profile?: string) => {
+      setPlatformEnabled(platform, enabled, profile);
+      return true;
+    },
   );
 
   ipcMain.handle(
@@ -382,30 +434,6 @@ function setupIPC(): void {
       currentChatAbort = null;
     }
   });
-
-  // Gateway
-  ipcMain.handle("start-gateway", () => startGateway());
-  ipcMain.handle("stop-gateway", () => {
-    stopGateway(true);
-    return true;
-  });
-  ipcMain.handle("gateway-status", () => isGatewayRunning());
-
-  // Platform toggles (config.yaml platforms section)
-  ipcMain.handle("get-platform-enabled", (_event, profile?: string) =>
-    getPlatformEnabled(profile),
-  );
-  ipcMain.handle(
-    "set-platform-enabled",
-    (_event, platform: string, enabled: boolean, profile?: string) => {
-      setPlatformEnabled(platform, enabled, profile);
-      // Restart gateway so it picks up the new platform config
-      if (isGatewayRunning()) {
-        restartGateway(profile);
-      }
-      return true;
-    },
-  );
 
   // Sessions
   ipcMain.handle("list-sessions", (_event, limit?: number, offset?: number) => {
@@ -817,6 +845,11 @@ function setupUpdater(): void {
 app.whenReady().then(() => {
   app.name = "Hermes";
   electronApp.setAppUserModelId("com.nousresearch.hermes");
+  const runtimePaths = resolveRuntimePaths();
+  ensureRuntimeBootstrap({
+    packagedRuntimeRoot: runtimePaths.packagedRuntimeRoot,
+    userRuntimeRoot: runtimePaths.userRuntimeRoot,
+  });
 
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);

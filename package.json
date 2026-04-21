@@ -15,13 +15,46 @@
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
+    "prepare:win-runtime": "node scripts/prepare-windows-runtime.mjs",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
+    "build:win": "npm run prepare:win-runtime && npm run build && electron-builder --win nsis --x64",
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
-    "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "build": {
+    "appId": "com.nousresearch.hermes",
+    "asarUnpack": [
+      "resources/runtime/**"
+    ],
+    "files": [
+      "out/**",
+      "resources/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/runtime/windows-x64",
+        "to": "runtime/windows-x64",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "dir"
+      ],
+      "artifactName": "Hermes-Desktop-${version}-win-x64.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    }
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: platform-admin-postgres
+    restart: unless-stopped
+    env_file:
+      - .env.example
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - platform-admin-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: platform-admin-backend
+    restart: unless-stopped
+    env_file:
+      - .env.example
+    environment:
+      ADMIN_BACKEND_HOST: ${ADMIN_BACKEND_HOST}
+      ADMIN_BACKEND_PORT: ${ADMIN_BACKEND_PORT}
+      ADMIN_DATABASE_URL: ${ADMIN_DATABASE_URL}
+      ADMIN_SESSION_SALT: ${ADMIN_SESSION_SALT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${ADMIN_BACKEND_PORT:-8080}:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: platform-admin-frontend
+    restart: unless-stopped
+    env_file:
+      - .env.example
+    environment:
+      ADMIN_API_BASE_URL: ${ADMIN_API_BASE_URL}
+    depends_on:
+      - backend
+    ports:
+      - "${ADMIN_FRONTEND_PORT:-4173}:4173"
+
+volumes:
+  platform-admin-postgres:

@@ -2,7 +2,11 @@ import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { execFile } from "child_process";
-import { HERMES_HOME, HERMES_PYTHON, HERMES_SCRIPT } from "./installer";
+import {
+  HERMES_PYTHON,
+  HERMES_SCRIPT,
+  getHermesExecOptions,
+} from "./installer";
 import { profileHome } from "./utils";
 
 export interface CronJob {
@@ -98,7 +102,7 @@ function runCronCommand(
     execFile(
       HERMES_PYTHON,
       cliArgs,
-      { cwd: join(HERMES_HOME, "hermes-agent"), timeout: 15000 },
+      getHermesExecOptions(15000),
       (err, stdout, stderr) => {
         if (err) {
           resolve({

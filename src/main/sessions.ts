@@ -3,7 +3,9 @@ import { join } from "path";
 import { existsSync } from "fs";
 import { HERMES_HOME } from "./installer";
 
-const DB_PATH = join(HERMES_HOME, "state.db");
+export function getSessionsDbPath(): string {
+  return join(HERMES_HOME, "state.db");
+}
 
 export interface SessionSummary {
   id: string;
@@ -34,8 +36,9 @@ export interface SearchResult {
 }
 
 function getDb(): Database.Database | null {
-  if (!existsSync(DB_PATH)) return null;
-  return new Database(DB_PATH, { readonly: true });
+  const dbPath = getSessionsDbPath();
+  if (!existsSync(dbPath)) return null;
+  return new Database(dbPath, { readonly: true });
 }
 
 export function listSessions(limit = 30, offset = 0): SessionSummary[] {

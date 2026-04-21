@@ -20,7 +20,10 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+platform-admin/backend/target/
+platform-admin/frontend/dist/
 
 # Electron packaging artifacts
 release/
 .claude/worktrees
+.worktrees/

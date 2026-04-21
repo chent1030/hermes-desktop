@@ -25,6 +25,7 @@ export default {
   stop: "Stop",
   refresh: "Refresh",
   copy: "Copy",
+  copied: "Copied!",
   settings: "Settings",
   provider: "Provider",
   model: "Model",

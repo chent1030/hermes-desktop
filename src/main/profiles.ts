@@ -1,13 +1,12 @@
 import { execFileSync } from "child_process";
 import { join } from "path";
-import { homedir } from "os";
 import { promises as fs } from "fs";
 import { existsSync } from "fs";
 import {
   HERMES_HOME,
   HERMES_PYTHON,
   HERMES_SCRIPT,
-  getEnhancedPath,
+  getHermesExecOptions,
 } from "./installer";
 
 const PROFILES_DIR = join(HERMES_HOME, "profiles");
@@ -185,15 +184,8 @@ export function createProfile(
       ? ["profile", "create", name, "--clone"]
       : ["profile", "create", name];
     execFileSync(HERMES_PYTHON, [HERMES_SCRIPT, ...args], {
-      cwd: join(HERMES_HOME, "hermes-agent"),
-      env: {
-        ...process.env,
-        PATH: getEnhancedPath(),
-        HOME: homedir(),
-        HERMES_HOME,
-      },
+      ...getHermesExecOptions(15000),
       stdio: "pipe",
-      timeout: 15000,
     });
     return { success: true };
   } catch (err) {
@@ -214,15 +206,8 @@ export function deleteProfile(name: string): {
       HERMES_PYTHON,
       [HERMES_SCRIPT, "profile", "delete", name, "--yes"],
       {
-        cwd: join(HERMES_HOME, "hermes-agent"),
-        env: {
-          ...process.env,
-          PATH: getEnhancedPath(),
-          HOME: homedir(),
-          HERMES_HOME,
-        },
+        ...getHermesExecOptions(15000),
         stdio: "pipe",
-        timeout: 15000,
       },
     );
     return { success: true };
@@ -236,15 +221,8 @@ export function deleteProfile(name: string): {
 export function setActiveProfile(name: string): void {
   try {
     execFileSync(HERMES_PYTHON, [HERMES_SCRIPT, "profile", "use", name], {
-      cwd: join(HERMES_HOME, "hermes-agent"),
-      env: {
-        ...process.env,
-        PATH: getEnhancedPath(),
-        HOME: homedir(),
-        HERMES_HOME,
-      },
+      ...getHermesExecOptions(10000),
       stdio: "pipe",
-      timeout: 10000,
     });
   } catch {
     // ignore

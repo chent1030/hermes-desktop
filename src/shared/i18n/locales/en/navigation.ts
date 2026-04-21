@@ -9,6 +9,7 @@ export default {
   memory: "Memory",
   tools: "Tools",
   schedules: "Schedules",
+  workspaceInfo: "Workspace info",
   gateway: "Gateway",
   settings: "Settings",
 } as const;

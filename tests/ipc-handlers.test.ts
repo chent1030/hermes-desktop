@@ -78,6 +78,31 @@ describe("New IPC handlers from v0.8/v0.9 features", () => {
   }
 });
 
+describe("Platform IPC handlers", () => {
+  const platformChannels = [
+    "platform-login",
+    "platform-refresh-session",
+    "platform-logout",
+    "platform-initialize-workspace",
+    "platform-get-init-status",
+    "platform-select-model",
+    "platform-get-audit-status",
+    "platform-retry-audit-flush",
+    "platform-download-skill-package",
+    "platform-sync-skill-installations",
+  ];
+
+  for (const channel of platformChannels) {
+    it(`main has handler: ${channel}`, () => {
+      expect(mainChannels).toContain(channel);
+    });
+
+    it(`preload invokes: ${channel}`, () => {
+      expect(preloadChannels).toContain(channel);
+    });
+  }
+});
+
 // ─── Legacy handlers still present ──────────────────────
 
 describe("Legacy IPC handlers preserved", () => {

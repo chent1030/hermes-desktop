@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Trash, ChatBubble } from "../../assets/icons";
 import icon from "../../assets/icon.png";
+import { useI18n } from "../../components/useI18n";
 
 interface ProfileInfo {
   name: string;
@@ -12,7 +13,6 @@ interface ProfileInfo {
   hasEnv: boolean;
   hasSoul: boolean;
   skillCount: number;
-  gatewayRunning: boolean;
 }
 
 interface AgentsProps {
@@ -39,6 +39,7 @@ function Agents({
   onSelectProfile,
   onChatWith,
 }: AgentsProps): React.JSX.Element {
+  const { t } = useI18n();
   const [profiles, setProfiles] = useState<ProfileInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -70,7 +71,7 @@ function Agents({
       setNewName("");
       loadProfiles();
     } else {
-      setError(result.error || "Failed to create profile");
+      setError(result.error || t("agents.createFailed"));
     }
   }
 
@@ -90,8 +91,8 @@ function Agents({
   }
 
   function providerLabel(provider: string): string {
-    if (!provider || provider === "auto") return "Auto";
-    if (provider === "custom") return "Local";
+    if (!provider || provider === "auto") return t("agents.auto");
+    if (provider === "custom") return t("agents.local");
     return provider.charAt(0).toUpperCase() + provider.slice(1);
   }
 
@@ -109,18 +110,15 @@ function Agents({
     <div className="agents-container">
       <div className="agents-header">
         <div>
-          <h2 className="agents-title">Profiles</h2>
-          <p className="agents-subtitle">
-            Each profile is an isolated Hermes workspace with its own config,
-            memory, and skills
-          </p>
+          <h2 className="agents-title">{t("agents.title")}</h2>
+          <p className="agents-subtitle">{t("agents.subtitle")}</p>
         </div>
         <button
           className="btn btn-primary btn-sm"
           onClick={() => setShowCreate(true)}
         >
           <Plus size={14} />
-          New Agent
+          {t("agents.newAgent")}
         </button>
       </div>
 
@@ -128,7 +126,7 @@ function Agents({
         <div className="agents-create">
           <input
             className="input"
-            placeholder="Agent name (e.g. coder)"
+            placeholder={t("agents.namePlaceholder")}
             value={newName}
             onChange={(e) => {
               const v = e.target.value
@@ -146,7 +144,7 @@ function Agents({
               checked={cloneConfig}
               onChange={(e) => setCloneConfig(e.target.checked)}
             />
-            <span>Clone config &amp; API keys from default</span>
+            <span>{t("agents.cloneConfig")}</span>
           </label>
           {error && <div className="agents-create-error">{error}</div>}
           <div className="agents-create-actions">
@@ -155,7 +153,7 @@ function Agents({
               onClick={handleCreate}
               disabled={creating || !newName.trim()}
             >
-              {creating ? "Creating..." : "Create"}
+              {creating ? t("agents.creating") : t("agents.create")}
             </button>
             <button
               className="btn btn-secondary btn-sm"
@@ -164,7 +162,7 @@ function Agents({
                 setError("");
               }}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>
@@ -184,25 +182,19 @@ function Agents({
               <AgentAvatar name={p.name} />
               <div className="agents-card-info">
                 <div className="agents-card-name">{p.name}</div>
-                <div className="agents-card-provider">
+              <div className="agents-card-provider">
                   {providerLabel(p.provider)}
                 </div>
               </div>
               {activeProfile === p.name && (
-                <span className="agents-card-active-badge">Active</span>
+                <span className="agents-card-active-badge">{t("agents.active")}</span>
               )}
             </div>
             <div className="agents-card-model">
-              {p.model ? p.model.split("/").pop() : "No model set"}
+              {p.model ? p.model.split("/").pop() : t("agents.noModel")}
             </div>
             <div className="agents-card-stats">
-              <span>{p.skillCount} skills</span>
-              <span className="agents-card-dot" />
-              {p.gatewayRunning ? (
-                <span className="agents-card-gateway-on">Gateway running</span>
-              ) : (
-                <span>Gateway off</span>
-              )}
+              <span>{t("agents.skillsCount", { count: p.skillCount })}</span>
             </div>
             <div className="agents-card-footer">
               <button
@@ -213,7 +205,7 @@ function Agents({
                 }}
               >
                 <ChatBubble size={13} />
-                Chat
+                {t("agents.chat")}
               </button>
               {!p.isDefault &&
                 (confirmDelete === p.name ? (
@@ -221,7 +213,7 @@ function Agents({
                     className="agents-card-confirm-delete"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span>Delete?</span>
+                    <span>{t("agents.deleteConfirm")}</span>
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={(e) => {
@@ -229,7 +221,7 @@ function Agents({
                         handleDelete(p.name);
                       }}
                     >
-                      Yes
+                      {t("agents.yes")}
                     </button>
                     <button
                       className="btn btn-secondary btn-sm"
@@ -238,7 +230,7 @@ function Agents({
                         setConfirmDelete(null);
                       }}
                     >
-                      No
+                      {t("agents.no")}
                     </button>
                   </div>
                 ) : (
@@ -248,7 +240,7 @@ function Agents({
                       e.stopPropagation();
                       setConfirmDelete(p.name);
                     }}
-                    title="Delete agent"
+                    title={t("agents.deleteTitle")}
                   >
                     <Trash size={14} />
                   </button>

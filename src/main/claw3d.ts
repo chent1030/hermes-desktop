@@ -1,4 +1,4 @@
-import { spawn, ChildProcess, execSync } from "child_process";
+import { spawn, ChildProcess, execFileSync, execSync } from "child_process";
 import {
   existsSync,
   readFileSync,
@@ -191,6 +191,26 @@ function cleanupPid(file: string): void {
   }
 }
 
+export function stopProcessByPid(
+  pid: number,
+  options?: {
+    platform?: NodeJS.Platform;
+    signal?: NodeJS.Signals;
+  },
+): void {
+  const platform = options?.platform ?? process.platform;
+  const signal = options?.signal ?? "SIGTERM";
+
+  if (platform === "win32") {
+    execFileSync("taskkill", ["/pid", String(pid), "/t", "/f"], {
+      stdio: "ignore",
+    });
+    return;
+  }
+
+  process.kill(-pid, signal);
+}
+
 function isDevServerRunning(): boolean {
   if (devServerProcess && !devServerProcess.killed) return true;
   const pid = readPid(DEV_PID_FILE);
@@ -231,21 +251,57 @@ export async function getClaw3dStatus(): Promise<Claw3dStatus> {
 
 let _cachedNpmPath: string | null = null;
 
+export function getNpmExecutableCandidates(options?: {
+  platform?: NodeJS.Platform;
+  home?: string;
+}): string[] {
+  const platform = options?.platform ?? process.platform;
+  const home = options?.home ?? homedir();
+  const npmExecutable = platform === "win32" ? "npm.cmd" : "npm";
+  const candidates = [
+    join(home, ".volta", "bin", npmExecutable),
+    join(home, ".asdf", "shims", npmExecutable),
+    join(
+      home,
+      ".local",
+      "share",
+      "fnm",
+      "aliases",
+      "default",
+      "bin",
+      npmExecutable,
+    ),
+    join(home, ".fnm", "aliases", "default", "bin", npmExecutable),
+  ];
+
+  if (platform === "win32") {
+    candidates.push(
+      join(home, "AppData", "Roaming", "npm", "npm.cmd"),
+      join(home, "scoop", "shims", "npm.cmd"),
+      "npm.cmd",
+    );
+  } else {
+    candidates.push("/usr/local/bin/npm", "/opt/homebrew/bin/npm", "npm");
+  }
+
+  return [...new Set(candidates)];
+}
+
+export function getNpmLocatorCommand(
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return platform === "win32" ? "where npm" : "which npm";
+}
+
 function findNpm(): string {
   if (_cachedNpmPath) return _cachedNpmPath;
 
   const home = homedir();
-
-  // Try common locations first (no process spawn).
-  // Includes nvm, volta, fnm, and system paths.
-  const candidates = [
-    join(home, ".volta", "bin", "npm"),
-    join(home, ".asdf", "shims", "npm"),
-    join(home, ".local", "share", "fnm", "aliases", "default", "bin", "npm"),
-    join(home, ".fnm", "aliases", "default", "bin", "npm"),
-    "/usr/local/bin/npm",
-    "/opt/homebrew/bin/npm",
-  ];
+  const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
+  const candidates = getNpmExecutableCandidates({
+    platform: process.platform,
+    home,
+  });
 
   // Discover nvm npm dynamically (active version)
   const nvmDir = process.env.NVM_DIR || join(home, ".nvm");
@@ -257,7 +313,7 @@ function findNpm(): string {
         .sort()
         .reverse();
       for (const v of versions) {
-        candidates.unshift(join(nvmVersions, v, "bin", "npm"));
+        candidates.unshift(join(nvmVersions, v, "bin", npmExecutable));
       }
     } catch {
       /* non-fatal */
@@ -271,15 +327,15 @@ function findNpm(): string {
     }
   }
 
-  // Fallback: which/where (blocks main thread — only runs once)
+  // Fallback: shell command discovery (blocks main thread — only runs once)
   try {
-    const npmPath = execSync("which npm 2>/dev/null || where npm 2>/dev/null", {
+    const npmPath = execSync(getNpmLocatorCommand(process.platform), {
       env: { ...process.env, PATH: getEnhancedPath() },
       timeout: 5000,
     })
       .toString()
       .trim()
-      .split("\n")[0];
+      .split(/\r?\n/)[0];
     if (npmPath && existsSync(npmPath)) {
       _cachedNpmPath = npmPath;
       return npmPath;
@@ -288,8 +344,8 @@ function findNpm(): string {
     /* fall through */
   }
 
-  _cachedNpmPath = "npm";
-  return "npm";
+  _cachedNpmPath = npmExecutable;
+  return npmExecutable;
 }
 
 export async function setupClaw3d(
@@ -421,7 +477,7 @@ export async function setupClaw3d(
 function killProcessTree(proc: ChildProcess): void {
   if (proc.pid) {
     try {
-      process.kill(-proc.pid, "SIGTERM");
+      stopProcessByPid(proc.pid, { signal: "SIGTERM" });
     } catch {
       try {
         proc.kill("SIGTERM");
@@ -429,14 +485,16 @@ function killProcessTree(proc: ChildProcess): void {
         /* already dead */
       }
     }
-    // Fallback: SIGKILL after 3 seconds
-    setTimeout(() => {
-      try {
-        if (proc.pid) process.kill(-proc.pid, "SIGKILL");
-      } catch {
-        /* already dead */
-      }
-    }, 3000);
+    // Unix process groups may ignore SIGTERM, so escalate after a short delay.
+    if (process.platform !== "win32") {
+      setTimeout(() => {
+        try {
+          if (proc.pid) stopProcessByPid(proc.pid, { signal: "SIGKILL" });
+        } catch {
+          /* already dead */
+        }
+      }, 3000);
+    }
   }
 }
 
@@ -504,7 +562,7 @@ export function stopDevServer(): void {
   const pid = readPid(DEV_PID_FILE);
   if (pid) {
     try {
-      process.kill(-pid, "SIGTERM");
+      stopProcessByPid(pid, { signal: "SIGTERM" });
     } catch {
       try {
         process.kill(pid, "SIGTERM");
@@ -576,7 +634,7 @@ export function stopAdapter(): void {
   const pid = readPid(ADAPTER_PID_FILE);
   if (pid) {
     try {
-      process.kill(-pid, "SIGTERM");
+      stopProcessByPid(pid, { signal: "SIGTERM" });
     } catch {
       try {
         process.kill(pid, "SIGTERM");

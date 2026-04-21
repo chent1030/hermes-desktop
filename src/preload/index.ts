@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
+import type { AuditStatus } from "../shared/platform/audit";
+import type { WorkspaceInitStatus } from "../shared/platform/init";
+import type {
+  LocalSkillState,
+  TenantLoginInput,
+  WorkspaceBootstrap,
+} from "../shared/platform/contracts";
 
 const hermesAPI = {
   // Installation
@@ -54,9 +61,29 @@ const hermesAPI = {
   runClawMigrate: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("run-claw-migrate"),
 
-  getLocale: (): Promise<"en"> => ipcRenderer.invoke("get-locale"),
-  setLocale: (locale: "en"): Promise<"en"> =>
+  getLocale: (): Promise<"en" | "zh-CN"> => ipcRenderer.invoke("get-locale"),
+  setLocale: (locale: "en" | "zh-CN"): Promise<"en" | "zh-CN"> =>
     ipcRenderer.invoke("set-locale", locale),
+
+  loginTenant: (payload: TenantLoginInput): Promise<void> =>
+    ipcRenderer.invoke("platform-login", payload),
+  refreshTenantSession: (): Promise<void> =>
+    ipcRenderer.invoke("platform-refresh-session"),
+  logoutTenant: (): Promise<void> => ipcRenderer.invoke("platform-logout"),
+  initializeWorkspace: (): Promise<WorkspaceBootstrap> =>
+    ipcRenderer.invoke("platform-initialize-workspace"),
+  getWorkspaceInitStatus: (): Promise<WorkspaceInitStatus> =>
+    ipcRenderer.invoke("platform-get-init-status"),
+  selectWorkspaceModel: (modelId: string): Promise<WorkspaceBootstrap> =>
+    ipcRenderer.invoke("platform-select-model", modelId),
+  getAuditStatus: (): Promise<AuditStatus> =>
+    ipcRenderer.invoke("platform-get-audit-status"),
+  retryAuditFlush: (): Promise<AuditStatus> =>
+    ipcRenderer.invoke("platform-retry-audit-flush"),
+  downloadSkillPackage: (skillId: string): Promise<boolean> =>
+    ipcRenderer.invoke("platform-download-skill-package", skillId),
+  syncSkillInstallations: (): Promise<LocalSkillState[]> =>
+    ipcRenderer.invoke("platform-sync-skill-installations"),
 
   // Configuration (profile-aware)
   getEnv: (profile?: string): Promise<Record<string, string>> =>
@@ -78,6 +105,23 @@ const hermesAPI = {
     profile?: string,
   ): Promise<{ provider: string; model: string; baseUrl: string }> =>
     ipcRenderer.invoke("get-model-config", profile),
+
+  startGateway: (profile?: string): Promise<boolean> =>
+    ipcRenderer.invoke("start-gateway", profile),
+
+  stopGateway: (): Promise<boolean> => ipcRenderer.invoke("stop-gateway"),
+
+  gatewayStatus: (): Promise<boolean> => ipcRenderer.invoke("gateway-status"),
+
+  getPlatformEnabled: (profile?: string): Promise<Record<string, boolean>> =>
+    ipcRenderer.invoke("get-platform-enabled", profile),
+
+  setPlatformEnabled: (
+    platform: string,
+    enabled: boolean,
+    profile?: string,
+  ): Promise<boolean> =>
+    ipcRenderer.invoke("set-platform-enabled", platform, enabled, profile),
 
   setModelConfig: (
     provider: string,
@@ -158,21 +202,6 @@ const hermesAPI = {
     ipcRenderer.on("chat-error", handler);
     return () => ipcRenderer.removeListener("chat-error", handler);
   },
-
-  // Gateway
-  startGateway: (): Promise<boolean> => ipcRenderer.invoke("start-gateway"),
-  stopGateway: (): Promise<boolean> => ipcRenderer.invoke("stop-gateway"),
-  gatewayStatus: (): Promise<boolean> => ipcRenderer.invoke("gateway-status"),
-
-  // Platform toggles
-  getPlatformEnabled: (profile?: string): Promise<Record<string, boolean>> =>
-    ipcRenderer.invoke("get-platform-enabled", profile),
-  setPlatformEnabled: (
-    platform: string,
-    enabled: boolean,
-    profile?: string,
-  ): Promise<boolean> =>
-    ipcRenderer.invoke("set-platform-enabled", platform, enabled, profile),
 
   // Sessions
   listSessions: (

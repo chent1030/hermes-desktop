@@ -1,7 +1,9 @@
 import { execFileSync } from "child_process";
+import { app } from "electron";
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import type { SkillCatalogItem } from "../shared/platform/contracts";
 import {
   HERMES_HOME,
   HERMES_PYTHON,
@@ -16,6 +18,13 @@ export interface InstalledSkill {
   category: string;
   description: string;
   path: string;
+  version: string | null;
+  isBroken: boolean;
+}
+
+export interface DownloadedSkillPackage {
+  path: string;
+  version: string | null;
 }
 
 export interface SkillSearchResult {
@@ -32,8 +41,9 @@ export interface SkillSearchResult {
 function parseSkillFrontmatter(content: string): {
   name: string;
   description: string;
+  version: string | null;
 } {
-  const result = { name: "", description: "" };
+  const result = { name: "", description: "", version: null as string | null };
 
   // Check for YAML frontmatter
   if (!content.startsWith("---")) {
@@ -58,7 +68,55 @@ function parseSkillFrontmatter(content: string): {
   );
   if (descMatch) result.description = descMatch[1].trim();
 
+  const versionMatch = frontmatter.match(
+    /^\s*version:\s*["']?([^"'\n]+)["']?\s*$/m,
+  );
+  if (versionMatch) result.version = versionMatch[1].trim();
+
   return result;
+}
+
+function normalizeSkillKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function listArchiveFiles(dir: string, depth = 0): string[] {
+  if (!existsSync(dir) || depth > 2) return [];
+
+  try {
+    const entries = readdirSync(dir);
+    return entries.flatMap((entry) => {
+      const fullPath = join(dir, entry);
+      const stat = statSync(fullPath);
+      if (stat.isDirectory()) {
+        return listArchiveFiles(fullPath, depth + 1);
+      }
+
+      if (!/\.(zip|tgz|tar\.gz)$/i.test(entry)) {
+        return [];
+      }
+
+      return [fullPath];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function resolveDownloadsDir(): string {
+  try {
+    return app.getPath("downloads");
+  } catch {
+    return join(homedir(), "Downloads");
+  }
+}
+
+export function getSkillDownloadSearchDirs(profile?: string): string[] {
+  return [
+    join(profileHome(profile), "downloads"),
+    join(profileHome(profile), "downloads", "skills"),
+    resolveDownloadsDir(),
+  ];
 }
 
 /**
@@ -84,7 +142,17 @@ export function listInstalledSkills(profile?: string): InstalledSkill[] {
         if (!statSync(entryPath).isDirectory()) continue;
 
         const skillFile = join(entryPath, "SKILL.md");
-        if (!existsSync(skillFile)) continue;
+        if (!existsSync(skillFile)) {
+          skills.push({
+            name: entry,
+            category,
+            description: "",
+            path: entryPath,
+            version: null,
+            isBroken: true,
+          });
+          continue;
+        }
 
         try {
           const content = readFileSync(skillFile, "utf-8").slice(0, 4000);
@@ -95,6 +163,8 @@ export function listInstalledSkills(profile?: string): InstalledSkill[] {
             category,
             description: meta.description || "",
             path: entryPath,
+            version: meta.version,
+            isBroken: false,
           });
         } catch {
           skills.push({
@@ -102,6 +172,8 @@ export function listInstalledSkills(profile?: string): InstalledSkill[] {
             category,
             description: "",
             path: entryPath,
+            version: null,
+            isBroken: true,
           });
         }
       }
@@ -114,6 +186,32 @@ export function listInstalledSkills(profile?: string): InstalledSkill[] {
     (a, b) =>
       a.category.localeCompare(b.category) || a.name.localeCompare(b.name),
   );
+}
+
+export function findDownloadedSkillPackage(
+  skill: SkillCatalogItem,
+  profile?: string,
+): DownloadedSkillPackage | null {
+  const skillKey = normalizeSkillKey(skill.name);
+  const skillIdKey = normalizeSkillKey(skill.id);
+  const versionKey = normalizeSkillKey(skill.version);
+  const searchDirs = getSkillDownloadSearchDirs(profile);
+
+  for (const dir of searchDirs) {
+    for (const fullPath of listArchiveFiles(dir)) {
+      const fileName = normalizeSkillKey(fullPath);
+      const matchesName = fileName.includes(skillKey) || fileName.includes(skillIdKey);
+      const matchesVersion = !versionKey || fileName.includes(versionKey);
+      if (matchesName && matchesVersion) {
+        return {
+          path: fullPath,
+          version: skill.version,
+        };
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -177,11 +275,15 @@ export function searchSkills(query: string): SkillSearchResult[] {
   }
 }
 
+function getBundledSkillsDir(): string {
+  return join(HERMES_REPO, "hermes", "skills");
+}
+
 /**
- * List bundled skills from the hermes-agent repo.
+ * List bundled skills from the packaged Hermes runtime.
  */
 export function listBundledSkills(): SkillSearchResult[] {
-  const bundledDir = join(HERMES_REPO, "skills");
+  const bundledDir = getBundledSkillsDir();
   if (!existsSync(bundledDir)) return [];
 
   const skills: SkillSearchResult[] = [];

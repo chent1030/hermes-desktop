@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from "child_process";
+import { ChildProcess } from "child_process";
 import { existsSync, readFileSync, appendFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
@@ -11,6 +11,12 @@ import {
   getEnhancedPath,
 } from "./installer";
 import { getModelConfig, readEnv } from "./config";
+import { enqueueAuditEvent, markAuditFailure } from "./platform/audit";
+import {
+  flushWorkspaceAuditEvents,
+  getWorkspaceRuntime,
+} from "./platform/runtime";
+import { createProcessRunner } from "./runtime/process-runner";
 import { stripAnsi } from "./utils";
 
 const API_URL = "http://127.0.0.1:8642";
@@ -33,6 +39,146 @@ const URL_KEY_MAP: Array<{ pattern: RegExp; envKey: string }> = [
 
 interface ChatHandle {
   abort: () => void;
+}
+
+const processRunner = createProcessRunner();
+
+function resolveRuntimeModel(profile?: string): {
+  provider: string;
+  model: string;
+  baseUrl: string;
+  apiKey: string;
+  source: "workspace" | "profile";
+} {
+  const runtime = getWorkspaceRuntime();
+  const selectedModel = runtime?.workspace?.models.find(
+    (item) => item.id === runtime.workspace?.selectedModelId,
+  );
+
+  if (selectedModel) {
+    return {
+      provider: selectedModel.provider,
+      model: selectedModel.model,
+      baseUrl: selectedModel.baseUrl,
+      apiKey: selectedModel.apiKey || "",
+      source: "workspace",
+    };
+  }
+
+  return {
+    ...getModelConfig(profile),
+    apiKey: "",
+    source: "profile",
+  };
+}
+
+const PROVIDER_KEY_MAP: Record<string, string[]> = {
+  anthropic: ["ANTHROPIC_API_KEY"],
+  custom: ["OPENAI_API_KEY"],
+  google: ["GOOGLE_API_KEY"],
+  lmstudio: ["OPENAI_API_KEY"],
+  minimax: ["MINIMAX_API_KEY"],
+  nous: ["OPENAI_API_KEY"],
+  ollama: ["OPENAI_API_KEY"],
+  openai: ["OPENAI_API_KEY"],
+  openrouter: ["OPENROUTER_API_KEY"],
+  qwen: ["OPENAI_API_KEY"],
+  vllm: ["OPENAI_API_KEY"],
+  xai: ["XAI_API_KEY"],
+  llamacpp: ["OPENAI_API_KEY"],
+};
+
+function resolveApiKeyTargets(provider: string, baseUrl: string): string[] {
+  const targets = new Set<string>(PROVIDER_KEY_MAP[provider] || []);
+  for (const { pattern, envKey } of URL_KEY_MAP) {
+    if (pattern.test(baseUrl)) {
+      targets.add(envKey);
+    }
+  }
+  if (targets.size === 0) {
+    targets.add("OPENAI_API_KEY");
+  }
+  return Array.from(targets);
+}
+
+function resolveEndpointApiKey(
+  provider: string,
+  baseUrl: string,
+  profileEnv: Record<string, string>,
+  env: Record<string, string>,
+  runtimeApiKey: string,
+): string {
+  if (runtimeApiKey) {
+    return runtimeApiKey;
+  }
+
+  for (const { pattern, envKey } of URL_KEY_MAP) {
+    if (pattern.test(baseUrl)) {
+      return profileEnv[envKey] || env[envKey] || "";
+    }
+  }
+
+  for (const envKey of resolveApiKeyTargets(provider, baseUrl)) {
+    if (profileEnv[envKey] || env[envKey]) {
+      return profileEnv[envKey] || env[envKey] || "";
+    }
+  }
+
+  return "";
+}
+
+function shouldUseRuntimeEndpoint(modelConfig: {
+  provider: string;
+  baseUrl: string;
+  source: "workspace" | "profile";
+}): boolean {
+  if (!modelConfig.baseUrl) {
+    return false;
+  }
+
+  return modelConfig.source === "workspace" || LOCAL_PROVIDERS.has(modelConfig.provider);
+}
+
+function applyRuntimeModelEnvironment(
+  env: Record<string, string>,
+  profileEnv: Record<string, string>,
+  modelConfig: {
+    provider: string;
+    baseUrl: string;
+    apiKey: string;
+    source: "workspace" | "profile";
+  },
+): void {
+  if (modelConfig.apiKey) {
+    for (const key of resolveApiKeyTargets(modelConfig.provider, modelConfig.baseUrl)) {
+      env[key] = modelConfig.apiKey;
+    }
+  }
+
+  if (!shouldUseRuntimeEndpoint(modelConfig)) {
+    return;
+  }
+
+  env.HERMES_INFERENCE_PROVIDER = "custom";
+  env.OPENAI_BASE_URL = modelConfig.baseUrl.replace(/\/+$/, "");
+
+  let resolvedKey = resolveEndpointApiKey(
+    modelConfig.provider,
+    modelConfig.baseUrl,
+    profileEnv,
+    env,
+    modelConfig.apiKey,
+  );
+
+  if (!resolvedKey && /localhost|127\.0\.0\.1/i.test(modelConfig.baseUrl)) {
+    resolvedKey = "no-key-required";
+  }
+
+  env.OPENAI_API_KEY = resolvedKey || "no-key-required";
+  delete env.OPENROUTER_API_KEY;
+  delete env.ANTHROPIC_API_KEY;
+  delete env.ANTHROPIC_TOKEN;
+  delete env.OPENROUTER_BASE_URL;
 }
 
 // ────────────────────────────────────────────────────
@@ -98,6 +244,201 @@ export interface ChatCallbacks {
   }) => void;
 }
 
+interface ChatAuditContext {
+  messageLength: number;
+  profile?: string;
+  resumeSessionId?: string;
+  sessionId?: string;
+}
+
+type ToolAuditSource = "api" | "cli";
+
+function flushChatAuditEvent(
+  type: string,
+  payload: Record<string, unknown>,
+): void {
+  enqueueAuditEvent({ type, payload });
+  void flushWorkspaceAuditEvents();
+}
+
+function recordChatStarted(context: ChatAuditContext): void {
+  flushChatAuditEvent("chat.started", {
+    messageLength: context.messageLength,
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+  });
+}
+
+function recordChatCompleted(
+  context: ChatAuditContext & { sessionId?: string },
+): void {
+  flushChatAuditEvent("chat.completed", {
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+  });
+}
+
+function recordChatFailed(
+  context: ChatAuditContext & {
+    error: string;
+    sessionId?: string;
+  },
+): void {
+  flushChatAuditEvent("chat.failed", {
+    error: context.error,
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+  });
+  markAuditFailure(context.error);
+}
+
+function recordToolProgress(
+  context: ChatAuditContext & {
+    label: string;
+    sessionId?: string;
+    source: ToolAuditSource;
+  },
+): void {
+  if (!context.label) {
+    return;
+  }
+
+  flushChatAuditEvent("run.tool.progress", {
+    label: context.label,
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+    source: context.source,
+  });
+}
+
+function recordToolStarted(
+  context: ChatAuditContext & {
+    label: string;
+    sessionId?: string;
+    source: ToolAuditSource;
+  },
+): void {
+  if (!context.label) {
+    return;
+  }
+
+  flushChatAuditEvent("run.tool.started", {
+    label: context.label,
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+    source: context.source,
+  });
+}
+
+function recordToolCompleted(
+  context: ChatAuditContext & {
+    sessionId?: string;
+    source: ToolAuditSource;
+    progressCount: number;
+    lastLabel: string | null;
+  },
+): void {
+  flushChatAuditEvent("run.tool.completed", {
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+    source: context.source,
+    progressCount: context.progressCount,
+    lastLabel: context.lastLabel,
+  });
+}
+
+function recordToolFailed(
+  context: ChatAuditContext & {
+    sessionId?: string;
+    source: ToolAuditSource;
+    progressCount: number;
+    lastLabel: string | null;
+    error: string;
+  },
+): void {
+  flushChatAuditEvent("run.tool.failed", {
+    sessionId: context.sessionId || context.resumeSessionId || null,
+    profile: context.profile || null,
+    resumeSessionId: context.resumeSessionId || null,
+    source: context.source,
+    progressCount: context.progressCount,
+    lastLabel: context.lastLabel,
+    error: context.error,
+  });
+}
+
+function createToolLifecycleTracker(
+  context: ChatAuditContext,
+  source: ToolAuditSource,
+  getSessionId: () => string,
+): {
+  onProgress: (label: string) => void;
+  onCompleted: () => void;
+  onFailed: (error: string) => void;
+} {
+  let progressCount = 0;
+  let lastLabel: string | null = null;
+
+  return {
+    onProgress: (label: string) => {
+      if (!label) {
+        return;
+      }
+
+      if (progressCount === 0) {
+        recordToolStarted({
+          ...context,
+          label,
+          sessionId: getSessionId(),
+          source,
+        });
+      }
+
+      progressCount += 1;
+      lastLabel = label;
+      recordToolProgress({
+        ...context,
+        label,
+        sessionId: getSessionId(),
+        source,
+      });
+    },
+    onCompleted: () => {
+      if (progressCount === 0) {
+        return;
+      }
+
+      recordToolCompleted({
+        ...context,
+        sessionId: getSessionId(),
+        source,
+        progressCount,
+        lastLabel,
+      });
+    },
+    onFailed: (error: string) => {
+      if (progressCount === 0) {
+        return;
+      }
+
+      recordToolFailed({
+        ...context,
+        sessionId: getSessionId(),
+        source,
+        progressCount,
+        lastLabel,
+        error,
+      });
+    },
+  };
+}
+
 function sendMessageViaApi(
   message: string,
   cb: ChatCallbacks,
@@ -105,8 +446,15 @@ function sendMessageViaApi(
   _resumeSessionId?: string,
   history?: Array<{ role: string; content: string }>,
 ): ChatHandle {
-  const mc = getModelConfig(profile);
+  const mc = resolveRuntimeModel(profile);
   const controller = new AbortController();
+  const auditContext: ChatAuditContext = {
+    messageLength: message.length,
+    profile,
+    resumeSessionId: _resumeSessionId,
+  };
+
+  recordChatStarted(auditContext);
 
   // Build full conversation from history + current message (standard OpenAI format)
   const messages: Array<{ role: string; content: string }> = [];
@@ -136,13 +484,29 @@ function sendMessageViaApi(
   let lastError = ""; // capture embedded error messages
   // Tool progress pattern: `emoji tool_name` or `emoji description`
   const toolProgressRe = /^`([^\s`]+)\s+([^`]+)`$/;
+  const toolLifecycle = createToolLifecycleTracker(
+    auditContext,
+    "api",
+    () => sessionId,
+  );
 
   function finish(error?: string): void {
     if (finished) return;
     finished = true;
     if (error) {
+      toolLifecycle.onFailed(error);
+      recordChatFailed({
+        ...auditContext,
+        error,
+        sessionId,
+      });
       cb.onError(error);
     } else {
+      toolLifecycle.onCompleted();
+      recordChatCompleted({
+        ...auditContext,
+        sessionId,
+      });
       cb.onDone(sessionId || undefined);
     }
   }
@@ -191,12 +555,14 @@ function sendMessageViaApi(
 
   /** Handle a custom SSE event (non-data lines with `event:` prefix). */
   function processCustomEvent(eventType: string, data: string): void {
-    if (eventType === "hermes.tool.progress" && cb.onToolProgress) {
+    if (eventType === "hermes.tool.progress") {
       try {
         const payload = JSON.parse(data);
         const label = payload.label || payload.tool || "";
         const emoji = payload.emoji || "";
-        cb.onToolProgress(emoji ? `${emoji} ${label}` : label);
+        const displayLabel = emoji ? `${emoji} ${label}` : label;
+        cb.onToolProgress?.(displayLabel);
+        toolLifecycle.onProgress(displayLabel);
       } catch {
         /* malformed — skip */
       }
@@ -243,8 +609,10 @@ function sendMessageViaApi(
         const content = delta.content.trim();
         // Legacy: Detect tool progress lines injected into content: `🔍 search_web`
         const match = toolProgressRe.exec(content);
-        if (match && cb.onToolProgress) {
-          cb.onToolProgress(`${match[1]} ${match[2]}`);
+        if (match) {
+          const displayLabel = `${match[1]} ${match[2]}`;
+          cb.onToolProgress?.(displayLabel);
+          toolLifecycle.onProgress(displayLabel);
         } else {
           hasContent = true;
           cb.onChunk(delta.content);
@@ -355,6 +723,7 @@ function sendMessageViaApi(
 // ────────────────────────────────────────────────────
 
 const NOISE_PATTERNS = [/^[╭╰│╮╯─┌┐└┘┤├┬┴┼]/, /⚕\s*Hermes/];
+const cliToolProgressRe = /^`([^\s`]+)\s+([^`]+)`$/;
 
 function sendMessageViaCli(
   message: string,
@@ -362,8 +731,15 @@ function sendMessageViaCli(
   profile?: string,
   resumeSessionId?: string,
 ): ChatHandle {
-  const mc = getModelConfig(profile);
+  const mc = resolveRuntimeModel(profile);
   const profileEnv = readEnv(profile);
+  const auditContext: ChatAuditContext = {
+    messageLength: message.length,
+    profile,
+    resumeSessionId,
+  };
+
+  recordChatStarted(auditContext);
 
   const args = [HERMES_SCRIPT];
   if (profile && profile !== "default") {
@@ -392,6 +768,8 @@ function sendMessageViaCli(
     "OPENROUTER_API_KEY",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
+    "GOOGLE_API_KEY",
+    "XAI_API_KEY",
     "GROQ_API_KEY",
     "GLM_API_KEY",
     "KIMI_API_KEY",
@@ -416,35 +794,11 @@ function sendMessageViaCli(
     }
   }
 
-  const isCustomEndpoint = LOCAL_PROVIDERS.has(mc.provider);
-  if (isCustomEndpoint && mc.baseUrl) {
-    env.HERMES_INFERENCE_PROVIDER = "custom";
-    env.OPENAI_BASE_URL = mc.baseUrl.replace(/\/+$/, "");
+  applyRuntimeModelEnvironment(env, profileEnv, mc);
 
-    // Resolve the right API key: check URL-specific key first, then OPENAI_API_KEY
-    let resolvedKey = "";
-    for (const { pattern, envKey } of URL_KEY_MAP) {
-      if (pattern.test(mc.baseUrl)) {
-        resolvedKey = profileEnv[envKey] || env[envKey] || "";
-        break;
-      }
-    }
-    if (!resolvedKey) {
-      resolvedKey = profileEnv.OPENAI_API_KEY || env.OPENAI_API_KEY || "";
-    }
-    // Local servers (localhost/127.0.0.1) don't need a real key
-    if (!resolvedKey && /localhost|127\.0\.0\.1/i.test(mc.baseUrl)) {
-      resolvedKey = "no-key-required";
-    }
-    env.OPENAI_API_KEY = resolvedKey || "no-key-required";
-
-    delete env.OPENROUTER_API_KEY;
-    delete env.ANTHROPIC_API_KEY;
-    delete env.ANTHROPIC_TOKEN;
-    delete env.OPENROUTER_BASE_URL;
-  }
-
-  const proc = spawn(HERMES_PYTHON, args, {
+  const proc = processRunner.spawn({
+    executable: HERMES_PYTHON,
+    args,
     cwd: HERMES_REPO,
     env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -453,6 +807,11 @@ function sendMessageViaCli(
   let hasOutput = false;
   let capturedSessionId = "";
   let outputBuffer = "";
+  const toolLifecycle = createToolLifecycleTracker(
+    auditContext,
+    "cli",
+    () => capturedSessionId,
+  );
 
   function processOutput(raw: Buffer): void {
     const text = stripAnsi(raw.toString());
@@ -467,6 +826,13 @@ function sendMessageViaCli(
     for (const line of lines) {
       const t = line.trim();
       if (t && NOISE_PATTERNS.some((p) => p.test(t))) continue;
+      const toolMatch = cliToolProgressRe.exec(t);
+      if (toolMatch) {
+        const displayLabel = `${toolMatch[1]} ${toolMatch[2]}`;
+        cb.onToolProgress?.(displayLabel);
+        toolLifecycle.onProgress(displayLabel);
+        continue;
+      }
       result.push(line);
     }
 
@@ -505,18 +871,34 @@ function sendMessageViaCli(
 
   proc.on("close", (code) => {
     if (code === 0 || hasOutput) {
+      toolLifecycle.onCompleted();
+      recordChatCompleted({
+        ...auditContext,
+        sessionId: capturedSessionId,
+      });
       cb.onDone(capturedSessionId || undefined);
     } else {
       const detail = stderrBuffer.trim();
-      cb.onError(
-        detail
-          ? `Hermes exited with code ${code}: ${detail}`
-          : `Hermes exited with code ${code}. Check your model configuration and API key.`,
-      );
+      const message = detail
+        ? `Hermes exited with code ${code}: ${detail}`
+        : `Hermes exited with code ${code}. Check your model configuration and API key.`;
+      toolLifecycle.onFailed(message);
+      recordChatFailed({
+        ...auditContext,
+        error: message,
+        sessionId: capturedSessionId,
+      });
+      cb.onError(message);
     }
   });
 
   proc.on("error", (err) => {
+    toolLifecycle.onFailed(err.message);
+    recordChatFailed({
+      ...auditContext,
+      error: err.message,
+      sessionId: capturedSessionId,
+    });
     cb.onError(err.message);
   });
 
@@ -615,7 +997,11 @@ export function startGateway(profile?: string): boolean {
     }
   }
 
-  gatewayProcess = spawn(HERMES_PYTHON, [HERMES_SCRIPT, "gateway"], {
+  applyRuntimeModelEnvironment(gatewayEnv, profileEnv, resolveRuntimeModel(profile));
+
+  gatewayProcess = processRunner.spawn({
+    executable: HERMES_PYTHON,
+    args: [HERMES_SCRIPT, "gateway"],
     cwd: HERMES_REPO,
     env: gatewayEnv,
     stdio: "ignore",

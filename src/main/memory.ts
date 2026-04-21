@@ -31,12 +31,17 @@ export interface MemoryInfo {
   stats: { totalSessions: number; totalMessages: number };
 }
 
-function memoryPath(profile?: string): string {
-  return join(profileHome(profile), "MEMORY.md");
-}
-
-function userPath(profile?: string): string {
-  return join(profileHome(profile), "USER.md");
+export function getMemoryPaths(profile?: string): {
+  memoryFile: string;
+  userFile: string;
+  dbPath: string;
+} {
+  const home = profileHome(profile);
+  return {
+    memoryFile: join(home, "MEMORY.md"),
+    userFile: join(home, "USER.md"),
+    dbPath: join(home, "state.db"),
+  };
 }
 
 function readFileSafe(filePath: string): {
@@ -79,8 +84,7 @@ function getSessionStats(profile?: string): {
   totalSessions: number;
   totalMessages: number;
 } {
-  const home = profileHome(profile);
-  const dbPath = join(home, "state.db");
+  const { dbPath } = getMemoryPaths(profile);
   if (!existsSync(dbPath)) return { totalSessions: 0, totalMessages: 0 };
 
   try {
@@ -107,8 +111,9 @@ function getSessionStats(profile?: string): {
 // ── Read ────────────────────────────────────────────
 
 export function readMemory(profile?: string): MemoryInfo {
-  const memFile = readFileSafe(memoryPath(profile));
-  const userFile = readFileSafe(userPath(profile));
+  const paths = getMemoryPaths(profile);
+  const memFile = readFileSafe(paths.memoryFile);
+  const userFile = readFileSafe(paths.userFile);
 
   return {
     memory: {
@@ -132,7 +137,7 @@ export function addMemoryEntry(
   content: string,
   profile?: string,
 ): { success: boolean; error?: string } {
-  const filePath = memoryPath(profile);
+  const filePath = getMemoryPaths(profile).memoryFile;
   const existing = readFileSafe(filePath);
   const entries = parseMemoryEntries(existing.content);
   const newContent = serializeEntries([
@@ -156,7 +161,7 @@ export function updateMemoryEntry(
   content: string,
   profile?: string,
 ): { success: boolean; error?: string } {
-  const filePath = memoryPath(profile);
+  const filePath = getMemoryPaths(profile).memoryFile;
   const existing = readFileSafe(filePath);
   const entries = parseMemoryEntries(existing.content);
 
@@ -179,7 +184,7 @@ export function updateMemoryEntry(
 }
 
 export function removeMemoryEntry(index: number, profile?: string): boolean {
-  const filePath = memoryPath(profile);
+  const filePath = getMemoryPaths(profile).memoryFile;
   const existing = readFileSafe(filePath);
   const entries = parseMemoryEntries(existing.content);
 
@@ -200,6 +205,6 @@ export function writeUserProfile(
       error: `Exceeds limit (${content.length}/${USER_CHAR_LIMIT} chars)`,
     };
   }
-  writeFileSafe(userPath(profile), content);
+  writeFileSafe(getMemoryPaths(profile).userFile, content);
   return { success: true };
 }
