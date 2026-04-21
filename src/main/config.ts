@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { HERMES_HOME } from "./installer";
 import { profileHome, escapeRegex, safeWriteFile } from "./utils";
+import { resolveRuntimePaths } from "./runtime/paths";
 
 // ── In-memory cache with TTL ─────────────────────────────
 const CACHE_TTL = 5000; // 5 seconds
@@ -32,7 +32,10 @@ function profilePaths(profile?: string): {
   configFile: string;
   home: string;
 } {
-  const home = profileHome(profile);
+  const home =
+    profile && profile !== "default"
+      ? profileHome(profile)
+      : resolveRuntimePaths().hermesHome;
   return {
     home,
     envFile: join(home, ".env"),
@@ -329,7 +332,7 @@ export function setPlatformEnabled(
 // ── Credential Pool (auth.json) ──────────────────────────
 
 function authFilePath(): string {
-  return join(HERMES_HOME, "auth.json");
+  return join(resolveRuntimePaths().hermesHome, "auth.json");
 }
 
 interface CredentialEntry {

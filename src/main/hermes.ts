@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from "child_process";
+import { ChildProcess } from "child_process";
 import { existsSync, readFileSync, appendFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
@@ -16,6 +16,7 @@ import {
   flushWorkspaceAuditEvents,
   getWorkspaceRuntime,
 } from "./platform/runtime";
+import { createProcessRunner } from "./runtime/process-runner";
 import { stripAnsi } from "./utils";
 
 const API_URL = "http://127.0.0.1:8642";
@@ -39,6 +40,8 @@ const URL_KEY_MAP: Array<{ pattern: RegExp; envKey: string }> = [
 interface ChatHandle {
   abort: () => void;
 }
+
+const processRunner = createProcessRunner();
 
 function resolveRuntimeModel(profile?: string): {
   provider: string;
@@ -793,7 +796,9 @@ function sendMessageViaCli(
 
   applyRuntimeModelEnvironment(env, profileEnv, mc);
 
-  const proc = spawn(HERMES_PYTHON, args, {
+  const proc = processRunner.spawn({
+    executable: HERMES_PYTHON,
+    args,
     cwd: HERMES_REPO,
     env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -994,7 +999,9 @@ export function startGateway(profile?: string): boolean {
 
   applyRuntimeModelEnvironment(gatewayEnv, profileEnv, resolveRuntimeModel(profile));
 
-  gatewayProcess = spawn(HERMES_PYTHON, [HERMES_SCRIPT, "gateway"], {
+  gatewayProcess = processRunner.spawn({
+    executable: HERMES_PYTHON,
+    args: [HERMES_SCRIPT, "gateway"],
     cwd: HERMES_REPO,
     env: gatewayEnv,
     stdio: "ignore",

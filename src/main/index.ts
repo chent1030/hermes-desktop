@@ -116,6 +116,9 @@ import {
 } from "./platform";
 import type { AppLocale } from "../shared/i18n";
 import type { TenantLoginInput } from "../shared/platform/contracts";
+import { ensureRuntimeBootstrap } from "./runtime/bootstrap";
+import { getPlatformAdapter } from "./runtime/platform-adapter";
+import { resolveRuntimePaths } from "./runtime/paths";
 
 process.on("uncaughtException", (err) => {
   console.error("[MAIN UNCAUGHT]", err);
@@ -129,18 +132,9 @@ let mainWindow: BrowserWindow | null = null;
 let currentChatAbort: (() => void) | null = null;
 
 function createWindow(): void {
+  const platformAdapter = getPlatformAdapter(process.platform);
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 750,
-    minWidth: 800,
-    minHeight: 600,
-    show: false,
-    autoHideMenuBar: true,
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : undefined,
-    ...(process.platform === "darwin"
-      ? { trafficLightPosition: { x: 16, y: 16 } }
-      : {}),
-    ...(process.platform === "linux" ? { icon } : {}),
+    ...platformAdapter.getWindowOptions(icon),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false,
@@ -851,6 +845,11 @@ function setupUpdater(): void {
 app.whenReady().then(() => {
   app.name = "Hermes";
   electronApp.setAppUserModelId("com.nousresearch.hermes");
+  const runtimePaths = resolveRuntimePaths();
+  ensureRuntimeBootstrap({
+    packagedRuntimeRoot: runtimePaths.packagedRuntimeRoot,
+    userRuntimeRoot: runtimePaths.userRuntimeRoot,
+  });
 
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);

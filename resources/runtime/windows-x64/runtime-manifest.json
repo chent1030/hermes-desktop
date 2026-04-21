@@ -1,0 +1,14 @@
+{
+  "platform": "win32",
+  "arch": "x64",
+  "entries": [
+    {
+      "id": "python",
+      "relativePath": "python/python.exe"
+    },
+    {
+      "id": "hermes-script",
+      "relativePath": "hermes/hermes"
+    }
+  ]
+}

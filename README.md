@@ -113,6 +113,23 @@ npm install
 npm run dev
 ```
 
+### Windows internal test build
+
+Run these commands on a Windows x64 machine after setting the runtime source directories:
+
+```bash
+set HERMES_WINDOWS_PYTHON_DIR=C:\runtime\python-embed
+set HERMES_AGENT_SOURCE_DIR=C:\runtime\hermes-agent
+npm install
+npm run prepare:win-runtime
+npm run build:win
+```
+
+Artifacts:
+
+- `dist/win-unpacked/`
+- `dist/Hermes-Desktop-<version>-win-x64.exe`
+
 By default the desktop runtime talks to:
 
 - `HERMES_PLATFORM_URL=http://127.0.0.1:8080`

@@ -1,17 +1,40 @@
-import { spawn, execSync, execFile } from "child_process";
+import { spawn, execFile, execSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "fs";
-import { join } from "path";
+import { delimiter, dirname, join } from "path";
 import { homedir } from "os";
 import { getModelConfig } from "./config";
+import { ensureRuntimeBootstrap } from "./runtime/bootstrap";
+import { createProcessRunner } from "./runtime/process-runner";
+import { resolveRuntimePaths } from "./runtime/paths";
 import { stripAnsi } from "./utils";
 
-export const HERMES_HOME = join(homedir(), ".hermes");
-export const HERMES_REPO = join(HERMES_HOME, "hermes-agent");
-export const HERMES_VENV = join(HERMES_REPO, "venv");
-export const HERMES_PYTHON = join(HERMES_VENV, "bin", "python");
-export const HERMES_SCRIPT = join(HERMES_REPO, "hermes");
-export const HERMES_ENV_FILE = join(HERMES_HOME, ".env");
-export const HERMES_CONFIG_FILE = join(HERMES_HOME, "config.yaml");
+const runtimePaths = resolveRuntimePaths();
+const processRunner = createProcessRunner();
+
+export const HERMES_HOME = runtimePaths.hermesHome;
+export const HERMES_REPO = runtimePaths.userRuntimeRoot;
+export const HERMES_VENV = dirname(runtimePaths.pythonExecutable);
+export const HERMES_PYTHON = runtimePaths.pythonExecutable;
+export const HERMES_SCRIPT = runtimePaths.hermesScript;
+export const HERMES_ENV_FILE = runtimePaths.hermesEnvFile;
+export const HERMES_CONFIG_FILE = runtimePaths.hermesConfigFile;
+
+export function getHermesExecOptions(timeout: number): {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  timeout: number;
+} {
+  return {
+    cwd: HERMES_REPO,
+    env: {
+      ...process.env,
+      PATH: getEnhancedPath(),
+      HOME: homedir(),
+      HERMES_HOME,
+    },
+    timeout,
+  };
+}
 
 export interface InstallStatus {
   installed: boolean;
@@ -28,12 +51,18 @@ export interface InstallProgress {
   log: string;
 }
 
+export interface InstallPlan {
+  mode: "bundled-runtime" | "official-script";
+  command?: string;
+  args?: string[];
+}
+
 export function getEnhancedPath(): string {
   const home = homedir();
   const extra = [
     join(home, ".local", "bin"),
     join(home, ".cargo", "bin"),
-    join(HERMES_VENV, "bin"),
+    HERMES_VENV,
     // Node version manager shim directories
     join(home, ".volta", "bin"),
     join(home, ".asdf", "shims"),
@@ -44,7 +73,7 @@ export function getEnhancedPath(): string {
     "/opt/homebrew/bin",
     "/opt/homebrew/sbin",
   ];
-  return [...extra, process.env.PATH || ""].join(":");
+  return [...extra, process.env.PATH || ""].join(delimiter);
 }
 
 /** Resolve the active nvm node version's bin directory. */
@@ -253,7 +282,9 @@ export async function runClawMigrate(
   return new Promise((resolve, reject) => {
     const args = [HERMES_SCRIPT, "claw", "migrate", "--preset", "full"];
 
-    const proc = spawn(HERMES_PYTHON, args, {
+    const proc = processRunner.spawn({
+      executable: HERMES_PYTHON,
+      args,
       cwd: HERMES_REPO,
       env: {
         ...process.env,
@@ -310,7 +341,9 @@ export async function runHermesUpdate(
   emit("Running hermes update...\n");
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(HERMES_PYTHON, [HERMES_SCRIPT, "update"], {
+    const proc = processRunner.spawn({
+      executable: HERMES_PYTHON,
+      args: [HERMES_SCRIPT, "update"],
       cwd: HERMES_REPO,
       env: {
         ...process.env,
@@ -359,6 +392,38 @@ function getShellProfile(home: string): string | null {
   return null;
 }
 
+const OFFICIAL_INSTALL_SCRIPT =
+  "curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup";
+
+export function buildInstallPlan(options?: {
+  platform?: NodeJS.Platform;
+  home?: string;
+  shellProfile?: string | null;
+}): InstallPlan {
+  const platform = options?.platform ?? process.platform;
+  if (platform === "win32") {
+    return { mode: "bundled-runtime" };
+  }
+
+  const home = options?.home ?? homedir();
+  const shellProfile =
+    options?.shellProfile === undefined
+      ? getShellProfile(home)
+      : options.shellProfile;
+  const installCmd = [
+    shellProfile ? `source "${shellProfile}" 2>/dev/null;` : "",
+    OFFICIAL_INSTALL_SCRIPT,
+  ]
+    .join(" ")
+    .trim();
+
+  return {
+    mode: "official-script",
+    command: "bash",
+    args: ["-c", installCmd],
+  };
+}
+
 // Parse install.sh output to detect progress stages
 const STAGE_MARKERS: { pattern: RegExp; step: number; title: string }[] = [
   {
@@ -401,7 +466,8 @@ const STAGE_MARKERS: { pattern: RegExp; step: number; title: string }[] = [
 export async function runInstall(
   onProgress: (progress: InstallProgress) => void,
 ): Promise<void> {
-  const totalSteps = 7;
+  const installPlan = buildInstallPlan({ platform: runtimePaths.platform });
+  const totalSteps = installPlan.mode === "bundled-runtime" ? 3 : 7;
   let log = "";
   let currentStep = 1;
   let currentTitle = "Starting installation...";
@@ -427,21 +493,39 @@ export async function runInstall(
     });
   }
 
+  if (installPlan.mode === "bundled-runtime") {
+    currentTitle = "Preparing bundled runtime";
+    emit("Preparing bundled Hermes runtime...\n");
+
+    try {
+      currentStep = 2;
+      currentTitle = "Copying bundled runtime";
+      emit("Copying packaged runtime into the user workspace...\n");
+      ensureRuntimeBootstrap({
+        packagedRuntimeRoot: runtimePaths.packagedRuntimeRoot,
+        userRuntimeRoot: runtimePaths.userRuntimeRoot,
+      });
+
+      if (!existsSync(HERMES_PYTHON) || !existsSync(HERMES_SCRIPT)) {
+        throw new Error("Bundled Hermes runtime is incomplete.");
+      }
+
+      currentStep = 3;
+      currentTitle = "Finishing setup";
+      emit("Bundled runtime is ready.\n");
+      return;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown bootstrap failure";
+      throw new Error(`Failed to prepare bundled runtime: ${message}`);
+    }
+  }
+
   emit("Running official Hermes install script...\n");
 
   return new Promise((resolve, reject) => {
     const home = homedir();
-
-    // Source the user's shell profile to get the same PATH as their terminal,
-    // then run the official install script. Electron apps launched from Finder
-    // don't inherit the terminal environment.
-    const shellProfile = getShellProfile(home);
-    const installCmd = [
-      shellProfile ? `source "${shellProfile}" 2>/dev/null;` : "",
-      "curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup",
-    ].join(" ");
-
-    const proc = spawn("bash", ["-c", installCmd], {
+    const proc = spawn(installPlan.command!, installPlan.args!, {
       cwd: home,
       env: {
         ...process.env,

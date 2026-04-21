@@ -5,7 +5,9 @@ import { HERMES_HOME } from "./installer";
 import { safeWriteFile } from "./utils";
 import DEFAULT_MODELS from "./default-models";
 
-const MODELS_FILE = join(HERMES_HOME, "models.json");
+export function getModelsFilePath(): string {
+  return join(HERMES_HOME, "models.json");
+}
 
 export interface SavedModel {
   id: string;
@@ -18,15 +20,16 @@ export interface SavedModel {
 
 function readModels(): SavedModel[] {
   try {
-    if (!existsSync(MODELS_FILE)) return [];
-    return JSON.parse(readFileSync(MODELS_FILE, "utf-8"));
+    const modelsFile = getModelsFilePath();
+    if (!existsSync(modelsFile)) return [];
+    return JSON.parse(readFileSync(modelsFile, "utf-8"));
   } catch {
     return [];
   }
 }
 
 function writeModels(models: SavedModel[]): void {
-  safeWriteFile(MODELS_FILE, JSON.stringify(models, null, 2));
+  safeWriteFile(getModelsFilePath(), JSON.stringify(models, null, 2));
 }
 
 function seedDefaults(): SavedModel[] {
@@ -43,7 +46,7 @@ function seedDefaults(): SavedModel[] {
 }
 
 export function listModels(): SavedModel[] {
-  if (!existsSync(MODELS_FILE)) {
+  if (!existsSync(getModelsFilePath())) {
     return seedDefaults();
   }
   return readModels();

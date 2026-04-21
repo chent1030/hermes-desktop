@@ -1,4 +1,5 @@
 import { execFileSync } from "child_process";
+import { app } from "electron";
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
@@ -102,6 +103,22 @@ function listArchiveFiles(dir: string, depth = 0): string[] {
   }
 }
 
+function resolveDownloadsDir(): string {
+  try {
+    return app.getPath("downloads");
+  } catch {
+    return join(homedir(), "Downloads");
+  }
+}
+
+export function getSkillDownloadSearchDirs(profile?: string): string[] {
+  return [
+    join(profileHome(profile), "downloads"),
+    join(profileHome(profile), "downloads", "skills"),
+    resolveDownloadsDir(),
+  ];
+}
+
 /**
  * Walk the skills directory to find all installed skills.
  * Structure: skills/<category>/<skill-name>/SKILL.md
@@ -178,11 +195,7 @@ export function findDownloadedSkillPackage(
   const skillKey = normalizeSkillKey(skill.name);
   const skillIdKey = normalizeSkillKey(skill.id);
   const versionKey = normalizeSkillKey(skill.version);
-  const searchDirs = [
-    join(profileHome(profile), "downloads"),
-    join(profileHome(profile), "downloads", "skills"),
-    join(homedir(), "Downloads"),
-  ];
+  const searchDirs = getSkillDownloadSearchDirs(profile);
 
   for (const dir of searchDirs) {
     for (const fullPath of listArchiveFiles(dir)) {
@@ -262,11 +275,15 @@ export function searchSkills(query: string): SkillSearchResult[] {
   }
 }
 
+function getBundledSkillsDir(): string {
+  return join(HERMES_REPO, "hermes", "skills");
+}
+
 /**
- * List bundled skills from the hermes-agent repo.
+ * List bundled skills from the packaged Hermes runtime.
  */
 export function listBundledSkills(): SkillSearchResult[] {
-  const bundledDir = join(HERMES_REPO, "skills");
+  const bundledDir = getBundledSkillsDir();
   if (!existsSync(bundledDir)) return [];
 
   const skills: SkillSearchResult[] = [];
